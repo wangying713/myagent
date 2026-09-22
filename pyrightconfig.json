@@ -1,0 +1,15 @@
+{
+  "venvPath": "my-agent",
+  "venv": ".venv",
+  "extraPaths": [
+    "my-agent/src",
+    "openai-agents-python/src",
+    "openai-agents-python"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv",
+    "**/.tmp"
+  ]
+}

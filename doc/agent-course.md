@@ -673,6 +673,33 @@ Go 后端的工程直觉在 Agent 领域**完全适用**。以下是你的优势
 2. **每关跑 `uv run pytest -q`**，新逻辑必须补单测。你用 Go 写过测试，这习惯移植过来就是降维打击
 3. **每关 commit 一次**
 
+### 7.2.1 仓库约定（已完成初始化）
+
+| 项 | 值 |
+|---|---|
+| 仓库根 | `/Users/wangying/apps/sakelei/ai`（**注意不是 `my-agent/`**） |
+| 远端 | `git@github.com:wangying713/myagent.git` |
+| 分支 | `main`（已 `-u` 绑定上游，之后直接 `git push` 即可） |
+
+**提交范围**（根 `.gitignore` 决定）：
+
+| 内容 | 是否入库 | 原因 |
+|---|---|---|
+| `my-agent/`（源码 + 文档 + `uv.lock`） | ✅ | 主项目 |
+| `doc/` | ✅ | 学习文档 |
+| `my-agent/config.env` | ❌ | **含 API Key**，被 `my-agent/.gitignore` 的 `*.env` 挡住 |
+| `openai-agents-python/` | ❌ | 第三方参考仓库（自带 `.git`、556M）；版本由 `pyproject.toml` 锁定 |
+
+⚠️ **加新文件后，先 `git status` 看一眼再提交** —— 养成习惯，尤其是加了配置类文件的时候。
+
+**每周流程**：
+```bash
+cd /Users/wangying/apps/sakelei/ai
+git add -A && git status          # 先看清单
+git commit -m "week2: <这周做了什么>"
+git push
+```
+
 ### 7.3 卡住时的排查顺序
 
 先自己跑一遍看 trace → 再看框架源码 → 再看官方示例 → 最后问我。
