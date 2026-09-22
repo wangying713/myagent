@@ -263,6 +263,101 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(5080|3000|6379|3306|9200)'
 **同一份 OTLP 数据，改三行环境变量就能切换目标**，代码不用动——这就是选 OTLP 而不是某家私有 SDK 的价值。
 
 > 如果同时维护 Langfuse：它的 MinIO 密码必须与 compose 里 `LANGFUSE_S3_*_SECRET_ACCESS_KEY`（默认 `miniosecret`）一致，否则 OTLP 上报会 500 `SignatureDoesNotMatch`。
+> （这个坑已修：2026-09-21 12:18 重建 minio 后两边一致，之后不再报错。）
+
+### 5.1 ⚠️ Langfuse 是 v4，跑在 `events_only` 模式（2026-09-22 核实）
+
+这一点直接影响接入代码怎么写：
+
+| 现象 | 原因 |
+|---|---|
+| `POST /api/public/ingestion` 推 `trace-create` → 400 `Event type not accepted` | v4 的 `events_only` 模式**只接受 OTLP**（以及 score 事件）；v3 的 ingestion API 已禁用 |
+| `GET /api/public/traces` → `not available ... v4 events_only mode` | 同理，v3 的查询 API 已关闭 |
+| ClickHouse 的 `traces` 表 0 行 | **那是 v3 的模型**。v4 数据在 **`events_full` / `events_core`** |
+
+**验证数据是否进库，要查 `events_full`**：
+
+```bash
+cd ~/docker-stack/langfuse
+docker exec langfuse-clickhouse-1 clickhouse-client \
+  --user "$(grep '^CLICKHOUSE_USER=' .env | cut -d= -f2)" \
+  --password "$(grep '^CLICKHOUSE_PASSWORD=' .env | cut -d= -f2)" \
+  -q "select start_time, type, name, project_id, environment from events_full order by start_time desc limit 10"
+```
+
+- 列名是 **`start_time`**，不是 `timestamp`
+- `type` 取值：`GENERATION` / `TOOL` / `SPAN` 等
+- `environment` 区分来源（`local` / `default`）
+
+**结论：往这套 Langfuse 上报必须走 OTLP**（自写 OTLP processor，或用 v4 兼容的 SDK）。v3 的 `langfuse` SDK 和 ingestion API 都用不了。
+
+> 健康检查端点（不需要凭据）：`GET /api/public/health` → `{"status":"OK","version":"4.38.0"}`
+
+### 5.2 登录密码"没装全"的假象（2026-09-22 已修复）
+
+**症状**：用 `.env` 里的密码登录失败 → 去点注册 → 报「邮箱已存在」→ 看起来像"没装全"。
+
+**根因**：`LANGFUSE_INIT_*` 系列变量**只在首次初始化（用户不存在时）生效**。`.env` 在容器创建之后被改过，但容器没重建 → 新密码从未生效；而且**再重建容器也没用**（用户已存在，init 逻辑直接跳过）。
+
+诊断（对比「`.env` 应该是」vs「容器里实际是」）：
+
+```bash
+cd ~/docker-stack/langfuse
+docker compose config | grep -m1 -A1 'LANGFUSE_INIT_USER_PASSWORD'                                # 应该是
+docker inspect langfuse-langfuse-web-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep USER_PASSWORD   # 实际是
+```
+
+修复（非破坏性：直接改库里的 bcrypt 哈希，不动数据）：
+
+```bash
+cd ~/docker-stack/langfuse
+CLEAN=$(grep -m1 '^LANGFUSE_INIT_USER_PASSWORD=' .env | cut -d= -f2-)
+NEWHASH=$(docker exec langfuse-langfuse-web-1 node -e "process.stdout.write(require('/app/node_modules/.pnpm/bcryptjs@2.4.3/node_modules/bcryptjs').hashSync(process.argv[1],12))" "$CLEAN")
+docker exec langfuse-postgres-1 psql -U postgres -d postgres -c "update users set password='$NEWHASH' where email='wangying713@163.com';"
+```
+
+要点：
+- **库名是 `postgres`**（不是 `langfuse`），见 `.env` 的 `POSTGRES_DB`
+- 哈希格式必须与现有一致：**`$2a$12$` + 共 60 字符**（`bcryptjs` 默认就对；`htpasswd` 生成的是 `$2y$`，不保证兼容）
+- `bcryptjs` 在 pnpm 的嵌套目录里，`require('bcryptjs')` 解析不到，必须用完整路径
+
+验证登录是否真的通（走 NextAuth 流程，能拿到会话即成功）：
+
+```bash
+cd ~/docker-stack/langfuse
+CLEAN=$(grep -m1 '^LANGFUSE_INIT_USER_PASSWORD=' .env | cut -d= -f2-)
+JAR=/tmp/lf.txt; rm -f $JAR
+CSRF=$(curl -s --noproxy '*' -c $JAR http://localhost:3000/api/auth/csrf | python3 -c "import sys,json;print(json.load(sys.stdin)['csrfToken'])")
+curl -s --noproxy '*' -b $JAR -c $JAR -X POST http://localhost:3000/api/auth/callback/credentials \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode "csrfToken=$CSRF" --data-urlencode "email=wangying713@163.com" \
+  --data-urlencode "password=$CLEAN" --data-urlencode "json=true"
+curl -s --noproxy '*' -b $JAR http://localhost:3000/api/auth/session   # 返回 user + organizations 即成功
+```
+
+### 5.3 容器内 `localhost:3000` 连不上（正常现象，别踩）
+
+应用绑定的是**容器自身 IP**（如 `172.19.0.6:3000`），不是 `0.0.0.0`：
+
+| 从哪访问 | 结果 |
+|---|---|
+| 宿主机 `localhost:3000` | ✅ 通（Docker 端口映射 DNAT 到容器 IP） |
+| 容器内部 `localhost:3000` / `127.0.0.1:3000` | ❌ Connection refused |
+| 容器内部 `<容器IP>:3000` | ✅ 通 |
+
+**不影响使用**（agent 跑在宿主机上）。但从容器内自测时要换 IP，别以为服务挂了。
+
+### 5.4 API Key 验证（最省事的"整条链路通不通"检查）
+
+```bash
+cd ~/docker-stack/langfuse
+PK=$(grep '^LANGFUSE_INIT_PROJECT_PUBLIC_KEY=' .env | cut -d= -f2-)
+SK=$(grep '^LANGFUSE_INIT_PROJECT_SECRET_KEY=' .env | cut -d= -f2-)
+curl -s --noproxy '*' -u "$PK:$SK" http://localhost:3000/api/public/projects
+# 期望：{"data":[{"id":"mini-agent","name":"mini-agent","organization":{...}}]}
+```
+
+> Langfuse 的 Basic Auth 是 **`Public Key : Secret Key`**，不是邮箱密码——跟 OpenObserve 不一样，切换目标时这行要跟着改。
 
 ---
 
