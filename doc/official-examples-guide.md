@@ -105,6 +105,37 @@ confirm_with_fallback(prompt, default)            # auto 模式返回 default
 
 ---
 
+### 1.5 中文译本说明（`examples/basic/` 已全部中文化）
+
+`examples/basic/` 下 **24 个示例已就地翻译为中文**。
+
+| 处理 | 对象 |
+|---|---|
+| ✅ 译为中文 | docstring、注释、`instructions`（系统提示词）、用户输入、`Field(description=)`、`Annotated[str, "..."]`、print 标签、示例输出 |
+| ❌ 保留英文 | 代码标识符（变量/函数/类名）、`name=`（Agent 名，会进 trace 和 `transfer_to_<name>` 工具名）、**被代码比较的字符串**、结构化数据 |
+
+**必须保留英文的"数据契约"**（翻掉示例就失效）：
+
+| 文件 | 保留的字符串 | 为什么 |
+|---|---|---|
+| `tool_guardrails.py` | `ACME` | 输入护栏的**检测关键词**，示例 2 靠它触发 |
+| `tool_guardrails.py` | `123-45-6789` / `SSN` | 输出护栏的**检测特征** |
+| `tool_guardrails.py` | `555-1234` | 电话号码护栏的**检测特征** |
+| `stream_ws.py` | `closed before any response events` | 与上游 SDK 抛出的**错误文案**比较 |
+| `previous_response_id.py` 等 | `y` / `n` | 与用户输入比较 |
+| `prompt_template.py` | `Write a poem in {{poem_style}}` | 是让你**粘贴到 OpenAI 平台**的内容 |
+
+**行数策略**：翻译**不增删行**，24 个文件与上游逐一对应（已脚本校验）。
+好处是 `git diff` 只显示文本变化，将来和上游比对一眼能看完。
+
+⚠️ **`git pull` 会冲突**：这 24 个文件已与上游产生差异，更新框架时必然冲突。处理二选一：
+- 保留中文 → `git checkout --ours <file>`
+- 接受上游 → `git checkout --theirs <file>`（中文丢失）
+
+建议**升级前记下框架版本**，升级后按需重新翻译。
+
+---
+
 ## 2. 阅读顺序（对齐你的 6 周计划）
 
 | 周 | 主题 | 官方示例 | 目标 |
