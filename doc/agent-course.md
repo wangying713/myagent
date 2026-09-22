@@ -679,7 +679,8 @@ Go 后端的工程直觉在 Agent 领域**完全适用**。以下是你的优势
 |---|---|
 | 仓库根 | `/Users/wangying/apps/sakelei/ai`（**注意不是 `my-agent/`**） |
 | 远端 | `git@github.com:wangying713/myagent.git` |
-| 分支 | `main`（已 `-u` 绑定上游，之后直接 `git push` 即可） |
+| 分支 | `master`（远端默认分支，已 `-u` 绑定上游，之后直接 `git push` 即可） |
+| 编辑器 | `pyrightconfig.json` 指定 venv 与 extraPaths，否则会报一堆假告警 |
 
 **提交范围**（根 `.gitignore` 决定）：
 
