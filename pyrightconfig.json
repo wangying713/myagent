@@ -1,11 +1,6 @@
 {
-  // 裸 list / dict 这类泛型必须写类型参数（这条抓到过 cli.py 的真问题）
   "reportMissingTypeArgument": "error",
-
-  // standard = Pylance 的默认档：抓真 bug，不纠结 Any / 注解缺失等洁癖规则
-  // 换成 "recommended" 会开启基于 basedpyright 的全部规则，噪音较大
   "typeCheckingMode": "standard",
-
   "venvPath": "my-agent",
   "venv": ".venv",
   "extraPaths": [
