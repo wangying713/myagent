@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from agents import Agent, Runner, Usage
+from agents import Agent, Runner, TResponseInputItem, Usage
 
 from ..definitions import build_repo_agent
 from ..tools.guards import FsContext
@@ -32,7 +32,7 @@ async def ask(
     agent: Agent[FsContext],
     fs_ctx: FsContext,
     question: str,
-    history: list,
+    history: list[TResponseInputItem],
     max_turns: int,
 ) -> None:
     """问一句。history 是之前几轮的消息，用来把上下文拼回去。"""
@@ -70,7 +70,7 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"熔断      : max_turns={args.max_turns}")
     print("──────────────────────────")
 
-    history: list = []
+    history: list[TResponseInputItem] = []
     if args.question:
         await ask(agent, fs_ctx, args.question, history, args.max_turns)
         return 0
