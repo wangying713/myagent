@@ -1,0 +1,731 @@
+diff --git a/web/src/components/layouts/routes.tsx b/web/src/components/layouts/routes.tsx
+index 047cc57..a2c40e9 100644
+--- a/web/src/components/layouts/routes.tsx
++++ b/web/src/components/layouts/routes.tsx
+@@ -81,33 +81,33 @@ export type Route = {
+ 
+ export const ROUTES: Route[] = [
+   {
+-    title: "Go to...",
++    title: "跳转到...",
+     href: "", // Empty pathname since this is a dropdown
+     icon: Search,
+     menuNode: <CommandMenuTrigger />,
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Organizations",
++    title: "组织",
+     href: "/",
+     icon: Grid2X2,
+     show: ({ organization }) => organization === undefined,
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Projects",
++    title: "项目",
+     href: "/organization/[organizationId]",
+     icon: Grid2X2,
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Home",
++    title: "首页",
+     href: `/project/[projectId]`,
+     icon: Home,
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Dashboards",
++    title: "仪表盘",
+     href: `/project/[projectId]/dashboards`,
+     isActive: matchesPathname([
+       `/project/[projectId]/dashboards`,
+@@ -118,7 +118,7 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Tracing",
++    title: "调用链",
+     icon: ListTree,
+     productModule: "tracing",
+     group: RouteGroup.Observability,
+@@ -130,7 +130,7 @@ export const ROUTES: Route[] = [
+     ]),
+   },
+   {
+-    title: "Sessions",
++    title: "会话",
+     icon: Clock,
+     productModule: "tracing",
+     group: RouteGroup.Observability,
+@@ -138,7 +138,7 @@ export const ROUTES: Route[] = [
+     href: `/project/[projectId]/sessions`,
+   },
+   {
+-    title: "Users",
++    title: "用户",
+     href: `/project/[projectId]/users`,
+     icon: UsersIcon,
+     productModule: "tracing",
+@@ -146,7 +146,7 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Alerts",
++    title: "告警",
+     href: "/project/[projectId]/alerts",
+     icon: BellRing,
+     projectRbacScopes: ["alerts:read"],
+@@ -155,7 +155,7 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Prompts",
++    title: "提示词",
+     href: "/project/[projectId]/prompts",
+     icon: FileJson,
+     projectRbacScopes: ["prompts:read"],
+@@ -164,7 +164,7 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Playground",
++    title: "演练场",
+     href: "/project/[projectId]/playground",
+     icon: TerminalIcon,
+     productModule: "playground",
+@@ -172,14 +172,14 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Scores",
++    title: "评分",
+     href: `/project/[projectId]/scores`,
+     group: RouteGroup.Evaluation,
+     section: RouteSection.Main,
+     icon: SquarePercent,
+   },
+   {
+-    title: "Evaluators",
++    title: "评估器",
+     icon: Lightbulb,
+     productModule: "evaluation",
+     projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
+@@ -189,7 +189,7 @@ export const ROUTES: Route[] = [
+     legacyPathname: `/project/[projectId]/evals/legacy`,
+   },
+   {
+-    title: "Human Annotation",
++    title: "人工标注",
+     href: `/project/[projectId]/annotation-queues`,
+     projectRbacScopes: ["annotationQueues:read"],
+     group: RouteGroup.Evaluation,
+@@ -197,7 +197,7 @@ export const ROUTES: Route[] = [
+     icon: ClipboardPen,
+   },
+   {
+-    title: "Datasets",
++    title: "数据集",
+     href: `/project/[projectId]/datasets`,
+     icon: Database,
+     productModule: "datasets",
+@@ -206,7 +206,7 @@ export const ROUTES: Route[] = [
+     section: RouteSection.Main,
+   },
+   {
+-    title: "Experiments",
++    title: "实验",
+     href: `/project/[projectId]/experiments`,
+     icon: Beaker,
+     featureFlag: "experimentsV4Enabled",
+@@ -216,7 +216,7 @@ export const ROUTES: Route[] = [
+   {
+     // Keep Action required first in the secondary nav so it is not sandwiched
+     // between regular items like Upgrade Plan and Settings.
+-    title: "Update",
++    title: "更新",
+     href: "",
+     section: RouteSection.Secondary,
+     show: ({ projectId, v4UpgradeUiAvailable }) =>
+@@ -224,7 +224,7 @@ export const ROUTES: Route[] = [
+     menuNode: <V4MigrationNavItem />,
+   },
+   {
+-    title: "Cloud Status",
++    title: "云状态",
+     section: RouteSection.Secondary,
+     href: "",
+     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
+@@ -232,7 +232,7 @@ export const ROUTES: Route[] = [
+     menuNode: <CloudStatusMenu />,
+   },
+   {
+-    title: "V4 Preview",
++    title: "V4 预览",
+     href: "",
+     section: RouteSection.Secondary,
+     featureFlag: "v4BetaToggleVisible",
+@@ -242,7 +242,7 @@ export const ROUTES: Route[] = [
+     menuNode: <V4SidebarToggle />,
+   },
+   {
+-    title: "Upgrade Plan",
++    title: "升级套餐",
+     icon: Sparkle,
+     href: "/project/[projectId]/settings/billing",
+     section: RouteSection.Secondary,
+@@ -251,7 +251,7 @@ export const ROUTES: Route[] = [
+     show: ({ organization }) => organization?.plan === "cloud:hobby",
+   },
+   {
+-    title: "Upgrade Plan",
++    title: "升级套餐",
+     icon: Sparkle,
+     href: "/organization/[organizationId]/settings/billing",
+     section: RouteSection.Secondary,
+@@ -260,25 +260,25 @@ export const ROUTES: Route[] = [
+     show: ({ organization }) => organization?.plan === "cloud:hobby",
+   },
+   {
+-    title: "Settings",
++    title: "设置",
+     href: "/project/[projectId]/settings",
+     icon: Settings,
+     section: RouteSection.Secondary,
+   },
+   {
+-    title: "Settings",
++    title: "设置",
+     href: "/organization/[organizationId]/settings",
+     icon: Settings,
+     section: RouteSection.Secondary,
+   },
+   {
+-    title: "Book a call",
++    title: "预约通话",
+     section: RouteSection.Secondary,
+     href: "",
+     menuNode: <BookACallButton />,
+   },
+   {
+-    title: "Support",
++    title: "支持",
+     icon: LifeBuoy,
+     section: RouteSection.Secondary,
+     href: "", // Empty pathname since this is a dropdown
+diff --git a/web/src/features/automations/components/automations.tsx b/web/src/features/automations/components/automations.tsx
+index 383ae76..ed406bf 100644
+--- a/web/src/features/automations/components/automations.tsx
++++ b/web/src/features/automations/components/automations.tsx
+@@ -390,7 +390,7 @@ export default function AutomationsPage() {
+         title: "Automations",
+         breadcrumb: [
+           {
+-            name: "Prompts",
++            name: "提示词",
+             href: `/project/${projectId}/prompts/`,
+           },
+         ],
+diff --git a/web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx b/web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx
+index b686bf9..10d8295 100644
+--- a/web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx
++++ b/web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx
+@@ -71,7 +71,7 @@ export default function BlobStorageIntegrationPage() {
+       headerProps={{
+         title: "Blob Storage Integration",
+         breadcrumb: [
+-          { name: "Settings", href: `/project/${projectId}/settings` },
++          { name: "设置", href: `/project/${projectId}/settings` },
+         ],
+         actionButtonsLeft: (
+           <>
+diff --git a/web/src/features/dashboard/DashboardDetailPage.tsx b/web/src/features/dashboard/DashboardDetailPage.tsx
+index a1f8f5c..2a141fb 100644
+--- a/web/src/features/dashboard/DashboardDetailPage.tsx
++++ b/web/src/features/dashboard/DashboardDetailPage.tsx
+@@ -118,7 +118,7 @@ export default function DashboardDetailPage() {
+         withPadding
+         scrollable
+         headerProps={{
+-          title: "Dashboard",
++          title: "仪表盘",
+           breadcrumb: [
+             { name: "Dashboards", href: `/project/${projectId}/dashboards` },
+           ],
+diff --git a/web/src/features/dashboard/components/TracesTimeSeriesChart.tsx b/web/src/features/dashboard/components/TracesTimeSeriesChart.tsx
+index 1cdd64e..76e9d0f 100644
+--- a/web/src/features/dashboard/components/TracesTimeSeriesChart.tsx
++++ b/web/src/features/dashboard/components/TracesTimeSeriesChart.tsx
+@@ -80,7 +80,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
+       traces.data
+         ? traces.data.map((item) => ({
+             ts: new Date(item.time_dimension as any).getTime(),
+-            values: [{ label: "Traces", value: Number(item.count_count) }],
++            values: [{ label: "追踪", value: Number(item.count_count) }],
+           }))
+         : [],
+     [traces.data],
+diff --git a/web/src/features/dashboard/components/home-preset-registry.tsx b/web/src/features/dashboard/components/home-preset-registry.tsx
+index 91f7e78..2f25a3a 100644
+--- a/web/src/features/dashboard/components/home-preset-registry.tsx
++++ b/web/src/features/dashboard/components/home-preset-registry.tsx
+@@ -224,7 +224,7 @@ export const HOME_PRESET_METADATA: Record<
+   }
+ > = {
+   "home-traces": {
+-    name: "Traces",
++    name: "追踪",
+     description: "Total traces with the top trace names",
+     illustration: "HORIZONTAL_BAR",
+   },
+@@ -234,7 +234,7 @@ export const HOME_PRESET_METADATA: Record<
+     illustration: "PIVOT_TABLE",
+   },
+   "home-scores-table": {
+-    name: "Scores",
++    name: "评分",
+     description: "Score counts and averages by name",
+     illustration: "PIVOT_TABLE",
+   },
+diff --git a/web/src/features/datasets/DatasetCompareChartsPage.tsx b/web/src/features/datasets/DatasetCompareChartsPage.tsx
+index 5c77774..02edfe4 100644
+--- a/web/src/features/datasets/DatasetCompareChartsPage.tsx
++++ b/web/src/features/datasets/DatasetCompareChartsPage.tsx
+@@ -98,7 +98,7 @@ function DatasetCompareChartsLegacy() {
+         },
+         breadcrumb: [
+           {
+-            name: "Datasets",
++            name: "数据集",
+             href: `/project/${projectId}/datasets`,
+           },
+           {
+diff --git a/web/src/features/datasets/DatasetComparePage.tsx b/web/src/features/datasets/DatasetComparePage.tsx
+index 97e8dcb..98698df 100644
+--- a/web/src/features/datasets/DatasetComparePage.tsx
++++ b/web/src/features/datasets/DatasetComparePage.tsx
+@@ -78,7 +78,7 @@ function DatasetCompareLegacy() {
+         title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+         breadcrumb: [
+           {
+-            name: "Datasets",
++            name: "数据集",
+             href: `/project/${projectId}/datasets`,
+           },
+           {
+diff --git a/web/src/features/datasets/DatasetsPage.tsx b/web/src/features/datasets/DatasetsPage.tsx
+index 18ec7dd..c40ad44 100644
+--- a/web/src/features/datasets/DatasetsPage.tsx
++++ b/web/src/features/datasets/DatasetsPage.tsx
+@@ -33,7 +33,7 @@ export default function DatasetsPage() {
+     return (
+       <Page
+         headerProps={{
+-          title: "Datasets",
++          title: "数据集",
+           help: {
+             description:
+               "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+@@ -50,7 +50,7 @@ export default function DatasetsPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Datasets",
++        title: "数据集",
+         help: {
+           description:
+             "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+diff --git a/web/src/features/datasets/components/DatasetAnalytics.tsx b/web/src/features/datasets/components/DatasetAnalytics.tsx
+index 823c987..a382f3f 100644
+--- a/web/src/features/datasets/components/DatasetAnalytics.tsx
++++ b/web/src/features/datasets/components/DatasetAnalytics.tsx
+@@ -34,7 +34,7 @@ export function DatasetAnalytics(props: {
+       }}
+       values={props.selectedMetrics}
+       options={RESOURCE_METRICS}
+-      groupedOptions={[{ label: "Scores", options: props.scoreOptions }]}
++      groupedOptions={[{ label: "评分", options: props.scoreOptions }]}
+       controlButtons={
+         <DropdownMenuItem
+           onSelect={() => {
+diff --git a/web/src/features/datasets/components/DatasetItemDetailPage.tsx b/web/src/features/datasets/components/DatasetItemDetailPage.tsx
+index 04bd836..31bfbfc 100644
+--- a/web/src/features/datasets/components/DatasetItemDetailPage.tsx
++++ b/web/src/features/datasets/components/DatasetItemDetailPage.tsx
+@@ -151,7 +151,7 @@ export const DatasetItemDetailPage = ({
+         title: itemId,
+         itemType: "DATASET_ITEM",
+         breadcrumb: [
+-          { name: "Datasets", href: `/project/${projectId}/datasets` },
++          { name: "数据集", href: `/project/${projectId}/datasets` },
+           {
+             name: dataset.data?.name ?? datasetId,
+             href: `/project/${projectId}/datasets/${datasetId}`,
+diff --git a/web/src/features/datasets/components/DatasetRunItemsByItemTable.tsx b/web/src/features/datasets/components/DatasetRunItemsByItemTable.tsx
+index 1f0f62a..0e5d808 100644
+--- a/web/src/features/datasets/components/DatasetRunItemsByItemTable.tsx
++++ b/web/src/features/datasets/components/DatasetRunItemsByItemTable.tsx
+@@ -195,7 +195,7 @@ export function DatasetRunItemsByItemTable(props: {
+     }),
+     {
+       accessorKey: "scores",
+-      header: "Scores",
++      header: "评分",
+       id: "scores",
+       enableHiding: true,
+       defaultHidden: true,
+diff --git a/web/src/features/datasets/components/DatasetRunItemsByRunTable.tsx b/web/src/features/datasets/components/DatasetRunItemsByRunTable.tsx
+index eafa897..e43f436 100644
+--- a/web/src/features/datasets/components/DatasetRunItemsByRunTable.tsx
++++ b/web/src/features/datasets/components/DatasetRunItemsByRunTable.tsx
+@@ -177,7 +177,7 @@ export function DatasetRunItemsByRunTable(props: {
+     }),
+     {
+       accessorKey: "scores",
+-      header: "Scores",
++      header: "评分",
+       id: "scores",
+       enableHiding: true,
+       defaultHidden: true,
+diff --git a/web/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase.tsx b/web/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase.tsx
+index 33113fd..cc1cbef 100644
+--- a/web/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase.tsx
++++ b/web/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase.tsx
+@@ -201,7 +201,7 @@ export function SampleObservationSelectorBase(
+       ? [
+           ...EXAMPLES,
+           {
+-            label: "Datasets",
++            label: "数据集",
+             icon: Database,
+             filters: [
+               {
+diff --git a/web/src/features/events/components/EventsTable.tsx b/web/src/features/events/components/EventsTable.tsx
+index 9972d3c..1f3b7ca 100644
+--- a/web/src/features/events/components/EventsTable.tsx
++++ b/web/src/features/events/components/EventsTable.tsx
+@@ -1554,7 +1554,7 @@ export default function ObservationsEventsTable({
+     }),
+     {
+       accessorKey: "scores",
+-      header: "Scores",
++      header: "评分",
+       id: "scores",
+       enableHiding: true,
+       defaultHidden: true,
+diff --git a/web/src/features/experiments/components/table/ExperimentGridCell.tsx b/web/src/features/experiments/components/table/ExperimentGridCell.tsx
+index 38120f6..fad3f05 100644
+--- a/web/src/features/experiments/components/table/ExperimentGridCell.tsx
++++ b/web/src/features/experiments/components/table/ExperimentGridCell.tsx
+@@ -810,7 +810,7 @@ export const ExperimentGridCell = ({
+       // follows the list-view columns.
+       {
+         accessorKey: "scores",
+-        header: "Scores",
++        header: "评分",
+         children: [
+           ...(columnVisibility.observationScores !== false
+             ? orderedObservationKeys.map((key) =>
+diff --git a/web/src/features/mixpanel-integration/MixpanelIntegrationPage.tsx b/web/src/features/mixpanel-integration/MixpanelIntegrationPage.tsx
+index c00fb67..6a71303 100644
+--- a/web/src/features/mixpanel-integration/MixpanelIntegrationPage.tsx
++++ b/web/src/features/mixpanel-integration/MixpanelIntegrationPage.tsx
+@@ -86,7 +86,7 @@ export default function MixpanelIntegrationPage() {
+       headerProps={{
+         title: "Mixpanel Integration",
+         breadcrumb: [
+-          { name: "Settings", href: `/project/${projectId}/settings` },
++          { name: "设置", href: `/project/${projectId}/settings` },
+         ],
+         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+         actionButtonsRight: (
+diff --git a/web/src/features/models/ModelDetailPage.tsx b/web/src/features/models/ModelDetailPage.tsx
+index 774735f..dee58b2 100644
+--- a/web/src/features/models/ModelDetailPage.tsx
++++ b/web/src/features/models/ModelDetailPage.tsx
+@@ -123,7 +123,7 @@ export default function ModelDetailPage() {
+         },
+         breadcrumb: [
+           {
+-            name: "Settings",
++            name: "设置",
+             href: `/project/${router.query.projectId as string}/settings`,
+           },
+           {
+diff --git a/web/src/features/posthog-integration/PostHogIntegrationPage.tsx b/web/src/features/posthog-integration/PostHogIntegrationPage.tsx
+index 1615567..a3e6088 100644
+--- a/web/src/features/posthog-integration/PostHogIntegrationPage.tsx
++++ b/web/src/features/posthog-integration/PostHogIntegrationPage.tsx
+@@ -64,7 +64,7 @@ export default function PostHogIntegrationPage() {
+       headerProps={{
+         title: "PostHog Integration",
+         breadcrumb: [
+-          { name: "Settings", href: `/project/${projectId}/settings` },
++          { name: "设置", href: `/project/${projectId}/settings` },
+         ],
+         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+         actionButtonsRight: (
+diff --git a/web/src/features/prompts/PromptMetricsPage.tsx b/web/src/features/prompts/PromptMetricsPage.tsx
+index dcae2ed..e3a940f 100644
+--- a/web/src/features/prompts/PromptMetricsPage.tsx
++++ b/web/src/features/prompts/PromptMetricsPage.tsx
+@@ -379,7 +379,7 @@ export default function PromptMetricsPage({
+         },
+         breadcrumb: [
+           {
+-            name: "Prompts",
++            name: "提示词",
+             href: `/project/${projectId}/prompts/`,
+           },
+           {
+diff --git a/web/src/features/prompts/PromptsPage.tsx b/web/src/features/prompts/PromptsPage.tsx
+index 46f1dfd..c512588 100644
+--- a/web/src/features/prompts/PromptsPage.tsx
++++ b/web/src/features/prompts/PromptsPage.tsx
+@@ -121,7 +121,7 @@ export default function PromptsPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Prompts",
++        title: "提示词",
+         help: {
+           description:
+             "Manage and version your prompts in Langfuse. Edit and update them via the UI and SDK. Retrieve the production version via the SDKs. Learn more in the docs.",
+diff --git a/web/src/features/prompts/components/prompt-detail.tsx b/web/src/features/prompts/components/prompt-detail.tsx
+index 0ea6c18..e5f0546 100644
+--- a/web/src/features/prompts/components/prompt-detail.tsx
++++ b/web/src/features/prompts/components/prompt-detail.tsx
+@@ -300,7 +300,7 @@ export const PromptDetail = ({
+         },
+         breadcrumb: [
+           {
+-            name: "Prompts",
++            name: "提示词",
+             href: `/project/${projectId}/prompts/`,
+           },
+           ...breadcrumbItems.map((item) => ({
+diff --git a/web/src/features/prompts/components/prompt-new.tsx b/web/src/features/prompts/components/prompt-new.tsx
+index 908762d..b4d232f 100644
+--- a/web/src/features/prompts/components/prompt-new.tsx
++++ b/web/src/features/prompts/components/prompt-new.tsx
+@@ -26,7 +26,7 @@ export const NewPrompt = () => {
+ 
+   const breadcrumb: { name: string; href?: string }[] = [
+     {
+-      name: "Prompts",
++      name: "提示词",
+       href: `/project/${projectId}/prompts/`,
+     },
+     {
+diff --git a/web/src/features/score-analytics/components/charts/ObjectTypeFilter.tsx b/web/src/features/score-analytics/components/charts/ObjectTypeFilter.tsx
+index 4610edf..d7537f4 100644
+--- a/web/src/features/score-analytics/components/charts/ObjectTypeFilter.tsx
++++ b/web/src/features/score-analytics/components/charts/ObjectTypeFilter.tsx
+@@ -10,9 +10,9 @@ import { type ObjectType } from "@/src/features/score-analytics/lib/analytics-ur
+ 
+ const OBJECT_TYPE_OPTIONS: Array<{ value: ObjectType; label: string }> = [
+   { value: "all", label: "All Objects" },
+-  { value: "trace", label: "Traces" },
+-  { value: "session", label: "Sessions" },
+-  { value: "observation", label: "Observations" },
++  { value: "trace", label: "追踪" },
++  { value: "session", label: "会话" },
++  { value: "observation", label: "观测" },
+   { value: "dataset_run", label: "Dataset Runs" },
+ ];
+ 
+diff --git a/web/src/features/scores/ScoresAnalyticsPage.tsx b/web/src/features/scores/ScoresAnalyticsPage.tsx
+index 0feb770..280a47a 100644
+--- a/web/src/features/scores/ScoresAnalyticsPage.tsx
++++ b/web/src/features/scores/ScoresAnalyticsPage.tsx
+@@ -188,8 +188,8 @@ export default function ScoresAnalyticsPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Scores",
+-        breadcrumb: [{ name: "Scores", href: `/project/${projectId}/scores` }],
++        title: "评分",
++        breadcrumb: [{ name: "评分", href: `/project/${projectId}/scores` }],
+         help: {
+           description:
+             "A score is an evaluation of a trace or observation. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+diff --git a/web/src/features/scores/ScoresPage.tsx b/web/src/features/scores/ScoresPage.tsx
+index 1976947..a6d6f38 100644
+--- a/web/src/features/scores/ScoresPage.tsx
++++ b/web/src/features/scores/ScoresPage.tsx
+@@ -31,7 +31,7 @@ export default function ScoresPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Scores",
++        title: "评分",
+         help: {
+           description:
+             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+diff --git a/web/src/features/sessions/SessionPages.tsx b/web/src/features/sessions/SessionPages.tsx
+index b6828fa..f7d7781 100644
+--- a/web/src/features/sessions/SessionPages.tsx
++++ b/web/src/features/sessions/SessionPages.tsx
+@@ -534,7 +534,7 @@ export const SessionPage: React.FC<{
+           itemType: "SESSION",
+           breadcrumb: [
+             {
+-              name: "Sessions",
++              name: "会话",
+               href: `/project/${projectId}/sessions`,
+             },
+           ],
+@@ -972,7 +972,7 @@ export const SessionEventsPage: React.FC<{
+           itemType: "SESSION",
+           breadcrumb: [
+             {
+-              name: "Sessions",
++              name: "会话",
+               href: `/project/${projectId}/sessions`,
+             },
+           ],
+@@ -1593,7 +1593,7 @@ const LoadedSessionEventsPage: React.FC<{
+           itemType: "SESSION",
+           breadcrumb: [
+             {
+-              name: "Sessions",
++              name: "会话",
+               href: `/project/${projectId}/sessions`,
+             },
+           ],
+diff --git a/web/src/features/sessions/SessionsPage.tsx b/web/src/features/sessions/SessionsPage.tsx
+index 8f04bea..cf2fdc4 100644
+--- a/web/src/features/sessions/SessionsPage.tsx
++++ b/web/src/features/sessions/SessionsPage.tsx
+@@ -45,7 +45,7 @@ export default function SessionsPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Sessions",
++        title: "会话",
+         help: {
+           description: (
+             <>
+diff --git a/web/src/features/sessions/SessionsTable.tsx b/web/src/features/sessions/SessionsTable.tsx
+index d6b1dcb..31bbe0c 100644
+--- a/web/src/features/sessions/SessionsTable.tsx
++++ b/web/src/features/sessions/SessionsTable.tsx
+@@ -560,7 +560,7 @@ export default function SessionsTable({
+     }),
+     {
+       accessorKey: "scores",
+-      header: "Scores",
++      header: "评分",
+       id: "scores",
+       enableHiding: true,
+       defaultHidden: true,
+@@ -587,7 +587,7 @@ export default function SessionsTable({
+     }),
+     createNumberTableColumn<SessionTableRow>({
+       accessorKey: "countTraces",
+-      header: "Traces",
++      header: "追踪",
+       size: 100,
+       headerTooltip: {
+         description: "The number of traces in the session.",
+diff --git a/web/src/features/slack/SlackIntegrationPage.tsx b/web/src/features/slack/SlackIntegrationPage.tsx
+index fdba339..3e12918 100644
+--- a/web/src/features/slack/SlackIntegrationPage.tsx
++++ b/web/src/features/slack/SlackIntegrationPage.tsx
+@@ -95,7 +95,7 @@ export default function SlackIntegrationPage() {
+       headerProps={{
+         title: "Slack Integration",
+         breadcrumb: [
+-          { name: "Settings", href: `/project/${projectId}/settings` },
++          { name: "设置", href: `/project/${projectId}/settings` },
+         ],
+         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+         actionButtonsRight: <AutomationButton projectId={projectId} />,
+diff --git a/web/src/features/traces/TracePage.tsx b/web/src/features/traces/TracePage.tsx
+index 1ae5162..987eb96 100644
+--- a/web/src/features/traces/TracePage.tsx
++++ b/web/src/features/traces/TracePage.tsx
+@@ -97,7 +97,7 @@ export function TracePage({
+         itemType: "TRACE",
+         breadcrumb: [
+           {
+-            name: "Traces",
++            name: "追踪",
+             href: `/project/${router.query.projectId as string}/traces`,
+           },
+         ],
+diff --git a/web/src/features/traces/TracesTable.tsx b/web/src/features/traces/TracesTable.tsx
+index 275d052..04bfab6 100644
+--- a/web/src/features/traces/TracesTable.tsx
++++ b/web/src/features/traces/TracesTable.tsx
+@@ -966,7 +966,7 @@ function TracesTableInternal({
+       : [
+           {
+             accessorKey: "scores",
+-            header: "Scores",
++            header: "评分",
+             id: "scores",
+             enableHiding: true,
+             defaultHidden: true,
+@@ -1035,7 +1035,7 @@ function TracesTableInternal({
+     }),
+     createNumberTableColumn<TracesTableRow, bigint>({
+       accessorKey: "observationCount",
+-      header: "Observations",
++      header: "观测",
+       size: 120,
+       headerTooltip: {
+         description: "The number of observations in the trace.",
+diff --git a/web/src/features/tracing-tables/observations/ObservationsTable.tsx b/web/src/features/tracing-tables/observations/ObservationsTable.tsx
+index 611f8ad..bc7eeb1 100644
+--- a/web/src/features/tracing-tables/observations/ObservationsTable.tsx
++++ b/web/src/features/tracing-tables/observations/ObservationsTable.tsx
+@@ -1051,7 +1051,7 @@ export default function ObservationsTable({
+     },
+     {
+       accessorKey: "scores",
+-      header: "Scores",
++      header: "评分",
+       id: "scores",
+       enableHiding: true,
+       defaultHidden: true,
+diff --git a/web/src/features/users/UserDetailPage.tsx b/web/src/features/users/UserDetailPage.tsx
+index 181281d..44a7815 100644
+--- a/web/src/features/users/UserDetailPage.tsx
++++ b/web/src/features/users/UserDetailPage.tsx
+@@ -93,7 +93,7 @@ function UserDetailView({
+     <Page
+       headerProps={{
+         title: userId,
+-        breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
++        breadcrumb: [{ name: "用户", href: `/project/${projectId}/users` }],
+         itemType: "USER",
+         actionButtonsRight: (
+           <>
+diff --git a/web/src/features/users/UsersPage.tsx b/web/src/features/users/UsersPage.tsx
+index d4f50b7..0a82934 100644
+--- a/web/src/features/users/UsersPage.tsx
++++ b/web/src/features/users/UsersPage.tsx
+@@ -45,7 +45,7 @@ export default function UsersPage() {
+   return (
+     <Page
+       headerProps={{
+-        title: "Users",
++        title: "用户",
+         help: {
+           description: (
+             <>
+diff --git a/web/src/features/web-callouts/WebCalloutsPage.tsx b/web/src/features/web-callouts/WebCalloutsPage.tsx
+index 0c8b947..31a46ac 100644
+--- a/web/src/features/web-callouts/WebCalloutsPage.tsx
++++ b/web/src/features/web-callouts/WebCalloutsPage.tsx
+@@ -16,7 +16,7 @@ export default function WebCalloutsPage() {
+       headerProps={{
+         title: "Web Callouts",
+         breadcrumb: [
+-          { name: "Settings", href: `/project/${projectId}/settings` },
++          { name: "设置", href: `/project/${projectId}/settings` },
+         ],
+       }}
+     >

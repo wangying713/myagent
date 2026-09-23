@@ -1,0 +1,26 @@
+# 基于官方 Langfuse 镜像，仅替换前端构建产物为「中文版」
+#
+# 为什么不用官方 web/Dockerfile 完整构建：
+#   1. Docker 容器内存 7.7G，编译 76 万行代码时 OOM（ResourceExhausted）
+#   2. 本地已构建成功（33s），产物为 Next.js standalone 输出
+#   3. 产物内无 .node/.so 原生二进制，属纯 JS，可安全跨 darwin -> linux 移植
+#
+# 因此这里只做「产物替换」，跳过 Docker 内编译。
+FROM docker.langfuse.com/langfuse/langfuse:4
+
+# Turbopack external 模块的真实包（63 个，28.8MB）
+# .next/node_modules 下的符号链接指向 /app/node_modules/.pnpm/<pkg>，
+# 而官方镜像的 node_modules 不含这些前端运行时依赖，必须补齐。
+# 否则启动会报：Failed to load external module d3-scale-e5a532151ee2faed
+COPY pnpm/ /app/node_modules/.pnpm/
+
+# Next.js standalone 构建产物（含中文文案）
+COPY next/ /app/web/.next/
+
+# standalone 入口（server.js 为纯 JS，跨平台）
+COPY server.js /app/web/server.js
+COPY otelIngestionWorker.js /app/web/otelIngestionWorker.js
+
+# 注意：不覆盖 /app/web/node_modules 与 /app/web/public
+#   - node_modules 保留官方镜像的 linux-arm64 版本（含原生模块）
+#   - public 为静态资源，与文案无关
