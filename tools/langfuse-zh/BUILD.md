@@ -61,6 +61,7 @@ CODEBUDDY_SAFE_DELETE_ENABLED=0 pnpm exec turbo run build --filter=web
 
 # 5. 提取 standalone 产物与依赖
 mkdir -p ctx && cp -R web/.next/standalone/web/.next ctx/next
+cp -R web/.next/static ctx/static     # ⚠️ standalone 不含 static，必须单独复制
 cp web/.next/standalone/web/server.js web/.next/standalone/web/otelIngestionWorker.js ctx/
 python3 extract_deps.py --full        # 产生 ctx/pnpm（完整 store，204MB）
 
@@ -115,7 +116,20 @@ dial tcp 199.16.158.12:443: i/o timeout
 
 **解法**：先 `docker pull` 基础镜像到本地，再 `docker build --pull=false`。
 
-### 5. venv 误入库 —— 已修
+### 5. 静态资源 404 —— standalone 不含 static
+
+```
+GET /_next/static/chunks/446m0os_iy_-u.css → 404
+```
+
+Next.js **standalone 输出不包含 `.next/static`**，需单独复制。只复制 `standalone/web/.next`
+的话，容器里残留的仍是官方镜像的旧 static，而服务端产物是新 BUILD_ID，两者不匹配，
+浏览器请求的 chunk 全部 404（页面能开但无样式无交互）。
+
+**解法**：额外 `COPY static/ /app/web/.next/static/`（155MB / 976 个 chunk）。
+验证方式：容器内 `BUILD_ID` 应与本地构建产物一致。
+
+### 6. venv 误入库 —— 已修
 
 `langfuse-src/` 5.7G 且自带 `.git`，曾未加进 `.gitignore`，
 会有「幽灵子模块」风险。已排除，`git status` 干净。

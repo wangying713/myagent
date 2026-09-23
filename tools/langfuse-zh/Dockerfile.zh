@@ -17,6 +17,11 @@ COPY pnpm/ /app/node_modules/.pnpm/
 # Next.js standalone 构建产物（含中文文案）
 COPY next/ /app/web/.next/
 
+# 静态资源：standalone 输出不含 .next/static，需单独复制
+# 否则服务端产物（新 BUILD_ID）与容器残留的官方 static（旧 BUILD_ID）不匹配，
+# 浏览器请求的 chunk 全部 404
+COPY static/ /app/web/.next/static/
+
 # standalone 入口（server.js 为纯 JS，跨平台）
 COPY server.js /app/web/server.js
 COPY otelIngestionWorker.js /app/web/otelIngestionWorker.js
