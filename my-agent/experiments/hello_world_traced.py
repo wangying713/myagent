@@ -51,7 +51,7 @@ from agents import (
     Runner,
     set_default_openai_api,
     set_default_openai_client,
-    set_tracing_disabled,
+    set_trace_processors,
 )
 from openai import AsyncOpenAI
 
@@ -91,23 +91,23 @@ def setup_model() -> Settings:
     return settings
 
 
-def silence_sdk_tracing() -> None:
-    """关掉 SDK 自带的 tracing（它和我们挂的 OTel 链路是两套）。
+def detach_default_trace_exporter() -> None:
+    """摘掉 SDK 默认的 trace exporter（它会把数据发往 api.openai.com），
+    但**保留 SDK 的 tracing 机制本身**。
 
-    ⚠️ 不关会有一个真实的数据外发风险：
-       SDK 默认装了一个 BatchTraceProcessor → BackendSpanExporter，
-       目标地址是 https://api.openai.com/v1/traces/ingest。
-       而它的 api_key 会 fallback 读环境变量 OPENAI_API_KEY ——
-       我们用的是 DeepSeek，但如果环境里恰好有 OPENAI_API_KEY
-       （哪怕就是 DeepSeek 那把 sk- 开头的 key），
-       SDK 依然会把 prompt / 响应内容打包发往 api.openai.com。
-       认证大概率失败，但**数据已经离开本机了**。
+    为什么要保留机制：OpenInference 的接入原理就是「往 SDK 的 tracing 上
+    挂一个 TracingProcessor」，它消费的是 SDK 自己产生的 span。
+    两者不是两套并行埋点，而是**上下游关系**：
 
-    这里用 set_tracing_disabled(True) 彻底关掉。
-    想看 SDK 原生 span 时，可以换成：
-        set_trace_processors([BatchTraceProcessor(ConsoleSpanExporter())])
+        SDK Tracing（产生 span）
+            ├── 默认 BatchTraceProcessor  → api.openai.com   ← 要摘掉的就是它
+            └── OpenInference 的 processor → OTel → 你的平台  ← 要留下的
+
+    ⚠️ 千万不要图省事写 set_tracing_disabled(True)：
+       那会把上游一起关掉，OpenInference 再也收不到 span，
+       整条 OTel 链路静默断掉——平台里不再有新数据，且**不会报任何错**。
     """
-    set_tracing_disabled(True)
+    set_trace_processors([])
 
 
 # ────────────────────────────────────────────────────────────
@@ -188,8 +188,8 @@ async def main() -> None:
     load_observability_env()
     settings = setup_model()
 
-    # 先关掉 SDK 自带的那套 tracing，只留下面挂的 OTel 链路
-    silence_sdk_tracing()
+    # 先摘掉 SDK 默认的发往 OpenAI 的 exporter（保留 tracing 机制本身）
+    detach_default_trace_exporter()
 
     # 顺序很重要：先建好 TracerProvider 并挂上 OpenObserve，
     # 再让 Langfuse 挂它的，最后才 instrument——
