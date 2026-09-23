@@ -214,6 +214,117 @@ index 047cc57..a2c40e9 100644
      icon: LifeBuoy,
      section: RouteSection.Secondary,
      href: "", // Empty pathname since this is a dropdown
+diff --git a/web/src/features/auth/SignInPage.tsx b/web/src/features/auth/SignInPage.tsx
+index 2b3e825..59d5fe0 100644
+--- a/web/src/features/auth/SignInPage.tsx
++++ b/web/src/features/auth/SignInPage.tsx
+@@ -783,19 +783,18 @@ export default function SignInPage({
+             <LangfuseIcon alt="" />
+           </div>
+           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
+-            Sign in to your account
++            登录你的账户
+           </h2>
+         </div>
+ 
+         {isLangfuseCloud && (
+           <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+-            If you are experiencing issues signing in, please force refresh this
+-            page (CMD + SHIFT + R) or clear your browser cache.{" "}
++            如果登录遇到问题，请强制刷新此页面（CMD + SHIFT + R）或清除浏览器缓存。{" "}
+             <a
+               href="mailto:support@langfuse.com"
+               className="text-link hover:text-link-hover cursor-pointer text-xs font-bold whitespace-nowrap"
+             >
+-              (contact us)
++              (联系我们)
+             </a>
+           </div>
+         )}
+@@ -825,7 +824,7 @@ export default function SignInPage({
+                       name="email"
+                       render={({ field }) => (
+                         <FormItem>
+-                          <FormLabel>Email</FormLabel>
++                          <FormLabel>邮箱</FormLabel>
+                           <FormControl>
+                             <Input
+                               placeholder="jsdoe@example.com"
+@@ -847,14 +846,14 @@ export default function SignInPage({
+                         render={({ field }) => (
+                           <FormItem>
+                             <FormLabel>
+-                              Password{" "}
++                              密码{" "}
+                               <Link
+                                 href="/auth/reset-password"
+                                 className="text-link hover:text-link-hover ml-1 text-xs"
+                                 tabIndex={-1}
+                                 title="What is this?"
+                               >
+-                                (forgot password?)
++                                (忘记密码？)
+                               </Link>
+                             </FormLabel>
+                             <FormControl>
+@@ -882,7 +881,7 @@ export default function SignInPage({
+                       }
+                       data-testid="submit-email-password-sign-in-form"
+                     >
+-                      {showPasswordStep ? "Sign in" : "Continue"}
++                      {showPasswordStep ? "登录" : "继续"}
+                     </Button>
+                   </form>
+                 </Form>
+@@ -919,12 +918,12 @@ export default function SignInPage({
+           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
+           authProviders.credentials ? (
+             <p className="text-muted-foreground mt-10 text-center text-sm">
+-              No account yet?{" "}
++              还没有账户？{" "}
+               <Link
+                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
+                 className="text-link hover:text-link-hover leading-6 font-bold"
+               >
+-                Sign up
++                注册
+               </Link>
+             </p>
+           ) : null}
+diff --git a/web/src/features/auth/components/CloudRegionPicker.tsx b/web/src/features/auth/components/CloudRegionPicker.tsx
+index eeda611..213d48a 100644
+--- a/web/src/features/auth/components/CloudRegionPicker.tsx
++++ b/web/src/features/auth/components/CloudRegionPicker.tsx
+@@ -32,12 +32,12 @@ export function CloudRegionPicker({
+       <div className="flex w-full flex-col gap-2">
+         <div>
+           <span className="text-sm leading-none font-bold">
+-            Data Region
++            数据区域
+             <DataRegionInfo />
+           </span>
+           {isSignUpPage && selectedRegion?.name === "HIPAA" ? (
+             <p className="text-muted-foreground text-xs">
+-              Demo project is not available in the HIPAA data region.
++              Demo 项目在 HIPAA 数据区域不可用。
+             </p>
+           ) : null}
+         </div>
+@@ -109,12 +109,12 @@ const DataRegionInfo = () => (
+         title="What is this?"
+         tabIndex={-1}
+       >
+-        (what is this?)
++        (这是什么？)
+       </a>
+     </DialogTrigger>
+     <DialogContent>
+       <DialogHeader>
+-        <DialogTitle>Data Regions</DialogTitle>
++        <DialogTitle>数据区域</DialogTitle>
+       </DialogHeader>
+       <DialogBody>
+         <DialogDescription className="flex flex-col gap-2">
 diff --git a/web/src/features/automations/components/automations.tsx b/web/src/features/automations/components/automations.tsx
 index 383ae76..ed406bf 100644
 --- a/web/src/features/automations/components/automations.tsx
