@@ -4,9 +4,12 @@ version = "0.1.0"
 description = "我们自己的 Agent 项目：把 SDK 当依赖装，业务代码分开写"
 requires-python = ">=3.10"
 dependencies = [
+    "langfuse>=4.15.4",
     # 注意：这里是从 PyPI 装，不是克隆源码改。
     # 想读框架源码就去看隔壁 openai-agents-python/，那份是"参考资料"，不用改。
     "openai-agents>=0.22.3",
+    "openinference-instrumentation-openai-agents>=2.4.1",
+    "opentelemetry-exporter-otlp>=1.44.0",
 ]
 
 [project.scripts]
