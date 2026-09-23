@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import os
 import sys
 from pathlib import Path
@@ -49,9 +50,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from agents import (
     Agent,
     Runner,
+    custom_span,
     set_default_openai_api,
     set_default_openai_client,
     set_trace_processors,
+    trace,
 )
 from openai import AsyncOpenAI
 
@@ -184,28 +187,112 @@ def setup_openobserve():
     return provider
 
 
+# ────────────────────────────────────────────────────────────
+# 5) HTTP 追踪：SDK 调模型走的是 httpx，装上就有网络请求的 span
+# ────────────────────────────────────────────────────────────
+def setup_http_tracing() -> None:
+    """给 httpx 装上自动埋点。
+
+    效果：每次模型调用会多出一个 HTTP span，带 url / method / status_code /
+    请求体大小 / 耗时。注意它**不含正文**——正文在 generation span 里，
+    这是正确的分层，避免把 prompt 存两遍。
+    """
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+    HTTPXClientInstrumentor().instrument()
+    print("✓ HTTP 追踪已开启（httpx → 全局）")
+
+
+# ────────────────────────────────────────────────────────────
+# 6) 日志：把 Python logging 桥接到 OTLP
+#    关键收益：日志会自动带上当前 span 的 trace_id，无需手动拼
+# ────────────────────────────────────────────────────────────
+def setup_logs():
+    """桥接 logging → OTLP logs（只发 OpenObserve，Langfuse 不收日志）。"""
+    import logging
+
+    user = os.environ.get("OPENOBSERVE_USER", "").strip()
+    password = os.environ.get("OPENOBSERVE_PASSWORD", "").strip()
+    if not user or not password:
+        print("⚠️  未配置 OpenObserve 凭据 → 跳过日志上报")
+        return None
+
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+    # OpenObserve 三种信号同一套 API，把 /v1/traces 换成 /v1/logs 即可
+    traces_ep = os.environ.get(
+        "OPENOBSERVE_ENDPOINT", "http://localhost:5080/api/default/v1/traces"
+    )
+    logs_ep = traces_ep.replace("/v1/traces", "/v1/logs")
+
+    token = base64.b64encode(f"{user}:{password}".encode()).decode()
+    log_provider = LoggerProvider(
+        resource=Resource.create(
+            {SERVICE_NAME: os.environ.get("OTEL_SERVICE_NAME", "my-agent")}
+        )
+    )
+    log_provider.add_log_record_processor(
+        BatchLogRecordProcessor(
+            OTLPLogExporter(endpoint=logs_ep, headers={"Authorization": f"Basic {token}"})
+        )
+    )
+
+    # 挂到 root logger：之后任何模块的 logging 都会自动进 OTLP。
+    # LoggingHandler 会自动把当前 span 的 trace_id / span_id 写进日志记录，
+    # 所以在平台上「日志 ↔ trace」能互相跳转，不用你手动拼 trace_id。
+    root = logging.getLogger()
+    root.addHandler(LoggingHandler(level=logging.INFO, logger_provider=log_provider))
+    root.setLevel(logging.INFO)
+
+    print(f"✓ 日志已桥接到 OTLP  endpoint={logs_ep}")
+    return log_provider
+
+
 async def main() -> None:
     load_observability_env()
-    settings = setup_model()
 
-    # 先摘掉 SDK 默认的发往 OpenAI 的 exporter（保留 tracing 机制本身）
-    detach_default_trace_exporter()
-
-    # 顺序很重要：先建好 TracerProvider 并挂上 OpenObserve，
-    # 再让 Langfuse 挂它的，最后才 instrument——
-    # 否则 instrumentor 拿到的是占位 provider，span 会全部丢掉。
+    # ── 顺序很关键，别随手调 ──
+    # 1) 先建好 TracerProvider 并挂 exporter（后面所有埋点都依赖它）
     provider = setup_openobserve()
+    # 2) 日志桥接（让 logging 进 OTLP）
+    log_provider = setup_logs()
+    # 3) patch httpx —— 必须在创建 AsyncOpenAI 之前！
+    #    HTTPXClientInstrumentor 是 patch「类」，只影响之后创建的实例；
+    #    AsyncOpenAI 内部会实例化 httpx.AsyncClient，所以晚一步就漏掉网络请求 span。
+    setup_http_tracing()
+    # 4) 摘掉 SDK 默认发往 OpenAI 的 exporter（保留 tracing 机制本身）
+    detach_default_trace_exporter()
+    # 5) 创建模型 client（此时 httpx 已被 patch）
+    settings = setup_model()
+    # 6) Langfuse 挂它自己的 exporter
     langfuse = setup_langfuse()
+    # 7) Agent 语义埋点
     setup_instrumentation()
 
+    log = logging.getLogger("hello")
+
     # ── 你要看的 case（就是改过中文俳句的那个 hello_world）──
+    question = "讲讲编程里的递归。"
     agent = Agent(
         name="Assistant",
         instructions="你只用中文俳句回答。",
         model=settings.model,
     )
 
-    result = await Runner.run(agent, "讲讲编程里的递归。")
+    # 想让日志带上 trace_id，必须写在「真实的 OTel span」里。
+    #   · SDK 的 trace() 只是个逻辑容器，不是 OTel span —— 直接写在它里面的日志没有 trace_id
+    #   · custom_span() 才会产生真正的 OTel span —— 写在它里面的日志自动带 trace_id
+    #   · Runner.run 期间（Agent/工具内部）本来就有 span，那里的日志天然带 trace_id
+    with trace("hello_world 单轮问答"):
+        with custom_span("启动"):
+            log.info("开始执行：%s", question)
+        result = await Runner.run(agent, question)
+        with custom_span("收尾"):
+            log.info("执行完成，输出 %d 字", len(result.final_output))
+
     print("\n───── 模型输出 ─────")
     print(result.final_output)
 
@@ -219,12 +306,18 @@ async def main() -> None:
         langfuse.flush()
     if provider and hasattr(provider, "force_flush"):
         provider.force_flush()
+    if log_provider and hasattr(log_provider, "force_flush"):
+        log_provider.force_flush()
 
     print("\n───── 去哪里看 ─────")
     if langfuse:
-        print(f"  Langfuse     : {os.environ.get('LANGFUSE_BASE_URL', 'http://localhost:3000')} → Traces")
+        print(
+            f"  Langfuse     : {os.environ.get('LANGFUSE_BASE_URL', 'http://localhost:3000')} → Traces"
+        )
     if provider:
-        print("  OpenObserve  : http://localhost:5080 → Traces（组织选 default）")
+        print("  OpenObserve  : http://localhost:5080 → Traces（Agent 链路 + HTTP 请求）")
+    if log_provider:
+        print("  OpenObserve  : http://localhost:5080 → Logs（带 trace_id，可与 trace 互跳）")
     print("  提示：OpenObserve 有索引延迟，若没看到等 10-20 秒再刷新")
 
 

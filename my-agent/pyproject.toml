@@ -10,6 +10,8 @@ dependencies = [
     "openai-agents>=0.22.3",
     "openinference-instrumentation-openai-agents>=2.4.1",
     "opentelemetry-exporter-otlp>=1.44.0",
+    "opentelemetry-instrumentation-httpx>=0.65b0",
+    "opentelemetry-instrumentation-logging>=0.65b0",
 ]
 
 [project.scripts]
