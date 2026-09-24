@@ -1,4 +1,7 @@
 {
+    // 指定本项目自带的虚拟环境（Python 3.12），避免 IDE 用系统的 3.9 报 Union 语法警告。
+    // ${workspaceFolder} 表示「这个文件夹的根目录」，换机器也不用改。
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     "python.testing.pytestArgs": [
         "tests"
     ],
