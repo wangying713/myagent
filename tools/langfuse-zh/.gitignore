@@ -1,7 +1,0 @@
-dist/
-*.log
-.DS_Store
-Thumbs.db
-.vscode/
-*.cache
-node_modules/
