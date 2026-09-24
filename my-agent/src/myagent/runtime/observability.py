@@ -146,18 +146,82 @@ def _setup_logs(s: ObservabilitySettings):
 
 
 def _setup_http() -> None:
-    """给 httpx 装自动埋点。
+    """给 httpx 和 httpx2 都装上 HTTP 埋点。
+
+    ⚠️ 两个库都要，因为它们不是同一个东西：
+        httpx     —— 我们其它依赖在用
+        httpx2    —— **openai SDK 在用**（openai/_base_client.py 里 import httpx2）
+    只 patch httpx 的话，模型请求不产生 HTTP span，平台上就看不到请求地址
+    （URL）和状态码 —— 这是实测踩到的坑。
 
     时机要求：只要在**发起请求之前**完成 patch 即可（实测：先创建 client
-    再 patch，请求照样有 span）。不需要早于 client 创建。
-
-    注意：openai SDK 3.17 已改用 httpx2，本 patch 对它不生效（httpx2 暂无
-    OTel instrumentation），所以 openai 的请求不会生成 HTTP span，
-    但能看到 httpx2 自身打的 INFO 日志（含 method / url / status）。
+    再 patch，请求照样有 span）。
     """
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
     HTTPXClientInstrumentor().instrument()
+    _instrument_httpx2()
+
+
+# 请求体最多记这么多字符：tools 的 JSON Schema 可能很长，别把 span 属性撑爆
+_MAX_BODY_CHARS = 16_384
+
+
+def _instrument_httpx2() -> None:
+    """给 httpx2 手写一层埋点（官方没有对应的 instrumentation）。
+
+    做法：把 AsyncClient.send 包一层，开一个 HTTP span 并挂四个属性：
+        http.request.method        请求方法
+        url.full                   完整请求地址（含 /chat/completions）
+        http.response.status_code  状态码
+        http.request.body          请求体原文（截断到 _MAX_BODY_CHARS）
+
+    响应体不在这里读 —— 读流会把响应消费掉、影响业务；模型返回的原始内容
+    在 OpenInference 的 output.value 属性里已经有了。
+
+    用 start_span 而不是 start_as_current_span：不能把自己的 span 设成
+    current，否则会影响日志 trace_id 的归属。
+
+    只包异步客户端（项目走 AsyncOpenAI），同步的 httpx2.Client 用不到。
+    """
+    import httpx2
+    from opentelemetry import trace as otel_trace
+    from opentelemetry.trace import Status, StatusCode
+
+    original_send = httpx2.AsyncClient.send
+    if getattr(original_send, "_myagent_patched", False):
+        return
+
+    async def send_with_span(self, request, *args, **kwargs):
+        # tracer 在调用时才取，保证拿到 setup() 之后生效的那个 provider
+        tracer = otel_trace.get_tracer("myagent.httpx2")
+        span = tracer.start_span(f"HTTP {request.method}")
+        span.set_attribute("http.request.method", request.method)
+        span.set_attribute("url.full", str(request.url))
+
+        try:
+            body = request.content
+        except Exception:  # 请求体是流、或已被读过
+            body = b""
+        if body:
+            span.set_attribute(
+                "http.request.body", body[:_MAX_BODY_CHARS].decode("utf-8", "replace")
+            )
+
+        try:
+            response = await original_send(self, request, *args, **kwargs)
+        except Exception as exc:
+            span.record_exception(exc)
+            span.set_status(Status(StatusCode.ERROR, str(exc)))
+            span.end()
+            raise
+
+        span.set_attribute("http.response.status_code", response.status_code)
+        span.end()
+        return response
+
+    send_with_span._myagent_patched = True  # type: ignore[attr-defined]
+    httpx2.AsyncClient.send = send_with_span
 
 
 def _detach_sdk_exporter() -> None:
