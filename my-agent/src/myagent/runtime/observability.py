@@ -15,8 +15,8 @@
     await Runner.run(agent, ...)  #   · span 树 → Agent / turn / generation
     httpx.get(...)                #   · HTTP 请求 → method / url / status
 
-配置来源：config.env（同 config.py），支持 LANGFUSE_* / OPENOBSERVE_* / OTEL_*，
-环境变量优先于文件。缺少哪个平台的凭据就自动跳过哪个，不会报错。
+配置来源：config.env（同 config.py），支持 OPENOBSERVE_* / OTEL_*，
+环境变量优先于文件。缺少凭据就跳过上报，不会报错。
 """
 
 from __future__ import annotations
@@ -41,17 +41,10 @@ class ObservabilitySettings:
     oo_traces_endpoint: str
     oo_logs_endpoint: str
     oo_auth: str  # 已 base64 的 Basic 凭据，空串 = 未配置
-    lf_public_key: str
-    lf_secret_key: str
-    lf_host: str
 
     @property
     def has_openobserve(self) -> bool:
         return bool(self.oo_auth)
-
-    @property
-    def has_langfuse(self) -> bool:
-        return bool(self.lf_public_key and self.lf_secret_key)
 
 
 def _read_config_file(path: Path) -> dict[str, str]:
@@ -70,8 +63,8 @@ def _read_config_file(path: Path) -> dict[str, str]:
 def load_observability_settings(path: Path | None = None) -> ObservabilitySettings:
     cfg = _read_config_file(path or CONFIG_PATH)
     # 环境变量优先（临时覆盖方便调试）
-    for key in list(cfg) + ["LANGFUSE_PUBLIC_KEY", "OPENOBSERVE_USER"]:
-        if key.startswith(("LANGFUSE_", "OPENOBSERVE_", "OTEL_")) and os.environ.get(key):
+    for key in list(cfg) + ["OPENOBSERVE_USER"]:
+        if key.startswith(("OPENOBSERVE_", "OTEL_")) and os.environ.get(key):
             cfg[key] = os.environ[key].strip()
 
     traces_ep = cfg.get(
@@ -88,9 +81,6 @@ def load_observability_settings(path: Path | None = None) -> ObservabilitySettin
         oo_traces_endpoint=traces_ep,
         oo_logs_endpoint=traces_ep.replace("/v1/traces", "/v1/logs"),
         oo_auth=auth,
-        lf_public_key=cfg.get("LANGFUSE_PUBLIC_KEY", ""),
-        lf_secret_key=cfg.get("LANGFUSE_SECRET_KEY", ""),
-        lf_host=cfg.get("LANGFUSE_BASE_URL", "http://localhost:3000"),
     )
 
 
@@ -192,16 +182,6 @@ def _setup_agent_instrumentation() -> None:
     OpenAIAgentsInstrumentor().instrument()
 
 
-def _setup_langfuse(s: ObservabilitySettings):
-    """Langfuse 初始化时自己会往 OTel provider 挂 exporter，只要给 key。"""
-    if not s.has_langfuse:
-        return None
-    from langfuse import get_client
-
-    client = get_client()
-    return client if client.auth_check() else None
-
-
 # ────────────────────────────────────────────────────────────
 # 对外入口
 # ────────────────────────────────────────────────────────────
@@ -225,20 +205,18 @@ def setup(*, verbose: bool = True) -> None:
     log_provider = _setup_logs(s)
     _setup_http()
     _detach_sdk_exporter()
-    langfuse = _setup_langfuse(s)
     _setup_agent_instrumentation()
 
     # 存起来，供 flush() 使用
-    setup._providers = (provider, log_provider, langfuse)  # type: ignore[attr-defined]
+    setup._providers = (provider, log_provider)  # type: ignore[attr-defined]
     _CONFIGURED = True
 
     if verbose:
-        sinks = []
-        if s.has_openobserve:
-            sinks.append("OpenObserve(traces+logs)")
-        if langfuse:
-            sinks.append("Langfuse(traces)")
-        state = " + ".join(sinks) if sinks else "未配置任何平台（数据不会上报）"
+        state = (
+            "OpenObserve(traces + logs)"
+            if s.has_openobserve
+            else "未配置平台（数据不会上报）"
+        )
         print(f"[observability] 已接入 → {state}")
 
 
