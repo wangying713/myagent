@@ -15,7 +15,7 @@ def file_to_base64(file_path: str) -> str:
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
     )
 
     b64_file = file_to_base64(FILEPATH)
@@ -34,7 +34,7 @@ async def main():
             },
             {
                 "role": "user",
-                "content": "What is the first sentence of the introduction?",
+                "content": "引言的第一句话是什么？",
             },
         ],
     )

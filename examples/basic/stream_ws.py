@@ -1,21 +1,21 @@
-"""Responses websocket streaming example with function tools, agent-as-tool, and approval.
+"""Responses WebSocket 流式示例：包含函数工具、Agent 工具化，以及人工审批。
 
-This example shows a user-facing websocket workflow using
-`responses_websocket_session(...)`:
-- Streaming output (including reasoning summary deltas when available)
-- Regular function tools
-- An `Agent.as_tool(...)` specialist agent
-- HITL approval for a sensitive tool call
-- A follow-up turn using `previous_response_id` on the same trace
+本示例展示一个面向用户的 WebSocket 工作流，使用
+`responses_websocket_session(...)`：
+- 流式输出（有 reasoning 摘要增量时也会一并输出）
+- 普通函数工具
+- 一个通过 `Agent.as_tool(...)` 包装的专家 Agent
+- 针对敏感工具调用的 HITL 人工审批
+- 在同一条 trace 上用 `previous_response_id` 追问一轮
 
-Required environment variable:
+必需的环境变量：
 - `OPENAI_API_KEY`
 
-Optional environment variables:
-- `OPENAI_MODEL` (defaults to `gpt-5.6-sol`)
+可选的环境变量：
+- `OPENAI_MODEL`（默认 `gpt-5.6-sol`）
 - `OPENAI_BASE_URL`
 - `OPENAI_WEBSOCKET_BASE_URL`
-- `EXAMPLES_INTERACTIVE_MODE=auto` (auto-approve HITL prompts for scripted runs)
+- `EXAMPLES_INTERACTIVE_MODE=auto`（为脚本化运行自动批准 HITL 提示）
 """
 
 import asyncio
@@ -37,7 +37,7 @@ from examples.auto_mode import confirm_with_fallback
 
 @tool
 def lookup_order(order_id: str) -> dict[str, Any]:
-    """Return deterministic order data for the demo."""
+    """返回演示用的确定性订单数据。"""
     orders = {
         "ORD-1001": {
             "order_id": "ORD-1001",
@@ -71,7 +71,7 @@ def lookup_order(order_id: str) -> dict[str, Any]:
 
 @tool(needs_approval=True)
 def submit_refund(order_id: str, amount: float, reason: str) -> dict[str, Any]:
-    """Create a refund request. This tool requires approval."""
+    """创建退款申请。该工具需要人工审批。"""
     ticket = "RF-1001" if order_id == "ORD-1001" else f"RF-{order_id[-4:]}"
     return {
         "refund_ticket": ticket,
@@ -83,8 +83,8 @@ def submit_refund(order_id: str, amount: float, reason: str) -> dict[str, Any]:
 
 
 def ask_approval(question: str) -> bool:
-    """Prompt for approval (or auto-approve in examples auto mode)."""
-    return confirm_with_fallback(f"[approval] {question} [y/N]: ", default=True)
+    """请求人工审批（在示例的自动模式下会自动批准）。"""
+    return confirm_with_fallback(f"[审批] {question} [y/N]: ", default=True)
 
 
 async def run_streamed_turn(
@@ -94,8 +94,8 @@ async def run_streamed_turn(
     *,
     previous_response_id: str | None = None,
 ) -> tuple[str, str]:
-    """Run one streamed turn and handle HITL approvals if needed."""
-    print(f"\nUser: {prompt}\n")
+    """跑一轮流式对话，需要时处理 HITL 人工审批。"""
+    print(f"\n用户：{prompt}\n")
 
     result = ws.run_streamed(
         agent,
@@ -111,14 +111,14 @@ async def run_streamed_turn(
                 raw = event.data
                 if raw.type == "response.reasoning_summary_text.delta":
                     if not printed_reasoning:
-                        print("Reasoning:")
+                        print("推理过程：")
                         printed_reasoning = True
                     print(raw.delta, end="", flush=True)
                 elif raw.type == "response.output_text.delta":
                     if printed_reasoning and not printed_output:
                         print("\n")
                     if not printed_output:
-                        print("Assistant:")
+                        print("助手：")
                         printed_output = True
                     print(raw.delta, end="", flush=True)
                 continue
@@ -130,9 +130,9 @@ async def run_streamed_turn(
             if item.type == "tool_call_item":
                 tool_name = getattr(item.raw_item, "name", "unknown")
                 tool_args = getattr(item.raw_item, "arguments", "")
-                print(f"\n[tool call] {tool_name}({tool_args})")
+                print(f"\n[工具调用] {tool_name}({tool_args})")
             elif item.type == "tool_call_output_item":
-                print(f"[tool result] {item.output}")
+                print(f"[工具结果] {item.output}")
 
         if printed_reasoning or printed_output:
             print("\n")
@@ -142,7 +142,7 @@ async def run_streamed_turn(
 
         state = result.to_state()
         for interruption in result.interruptions:
-            question = f"Approve {interruption.name} with args {interruption.arguments}?"
+            question = f"批准 {interruption.name}（参数 {interruption.arguments}）吗？"
             if ask_approval(question):
                 state.approve(interruption)
             else:
@@ -151,7 +151,7 @@ async def run_streamed_turn(
         result = ws.run_streamed(agent, state)
 
     if result.last_response_id is None:
-        raise RuntimeError("The streamed run completed without a response_id.")
+        raise RuntimeError("这次流式运行结束时没有拿到 response_id。")
 
     final_output = str(result.final_output)
     print(f"response_id: {result.last_response_id}")
@@ -164,9 +164,9 @@ async def main() -> None:
     policy_agent = Agent(
         name="RefundPolicySpecialist",
         instructions=(
-            "You are a refund policy specialist. The policy is simple: orders delivered "
-            "within 7 days are eligible for a full refund, and older delivered orders "
-            "are not. Return a short answer with eligibility and a one-line reason."
+            "你是退款政策专家。政策很简单：7 天内送达的订单"
+            "可以全额退款，送达时间更早的订单则不行。"
+            "请简短回答：是否符合资格，并用一句话说明理由。"
         ),
         model=model_name,
         model_settings=ModelSettings(max_tokens=120),
@@ -175,17 +175,17 @@ async def main() -> None:
     support_agent = Agent(
         name="SupportAgent",
         instructions=(
-            "You are a support agent. For refund requests, do this in order: "
-            "1) call lookup_order, 2) call refund_policy_specialist, 3) if the user "
-            "asked to proceed and the order is eligible, call submit_refund. "
-            "When asked for only the refund ticket, return only the ticket token "
-            "(for example RF-1001)."
+            "你是一个客服 Agent。处理退款请求时，按这个顺序做："
+            "1) 调用 lookup_order，2) 调用 refund_policy_specialist，"
+            "3) 如果用户要求继续、且订单符合资格，调用 submit_refund。"
+            "当用户只要退款单号时，只返回单号本身"
+            "（例如 RF-1001）。"
         ),
         tools=[
             lookup_order,
             policy_agent.as_tool(
                 tool_name="refund_policy_specialist",
-                tool_description="Check refund eligibility and explain the policy decision.",
+                tool_description="检查退款资格并说明政策判定依据。",
             ),
             submit_refund,
         ],
@@ -197,36 +197,36 @@ async def main() -> None:
     )
 
     try:
-        # You can skip this helper and call Runner.run_streamed(...) directly.
-        # It will still work, but each run will create/connect again unless you manually
-        # reuse the same RunConfig/provider. This helper makes that reuse easy across turns
-        # (and nested agent-as-tool runs) so the websocket connection can stay warm.
+        # 你可以跳过这个 helper，直接调 Runner.run_streamed(...)。
+        # 那样也能跑，只是每次运行都会重新创建/建立连接，除非你手动
+        # 复用同一个 RunConfig/provider。这个 helper 就是为了让这种复用
+        # 在跨轮次（以及嵌套 agent-as-tool 运行）时更简单，让 WebSocket 连接保持热着。
         async with responses_websocket_session() as ws:
-            with trace("Responses WS support example") as current_trace:
-                print(f"Using model={model_name}")
+            with trace("Responses WebSocket 客服示例") as current_trace:
+                print(f"使用模型 model={model_name}")
                 print(f"trace_id={current_trace.trace_id}")
 
                 first_response_id, _ = await run_streamed_turn(
                     ws,
                     support_agent,
                     (
-                        "Customer wants a refund for order ORD-1001 because the mouse arrived "
-                        "damaged. Please check the order, ask the refund policy specialist, and "
-                        "if it is eligible submit the refund. Reply with only the refund ticket."
+                        "客户要求为订单 ORD-1001 退款，因为鼠标到货时已损坏。"
+                        "请先查订单，再询问退款政策专家，"
+                        "如果符合资格就提交退款。只需回复退款单号。"
                     ),
                 )
 
                 await run_streamed_turn(
                     ws,
                     support_agent,
-                    "What refund ticket did you just create? Reply with only the ticket.",
+                    "你刚创建的是哪个退款单号？只需回复单号。",
                     previous_response_id=first_response_id,
                 )
     except RuntimeError as exc:
         if "closed before any response events" in str(exc):
             print(
-                "\nWebsocket mode closed before sending events. This usually means the "
-                "feature is not enabled for this account/model yet."
+                "\nWebSocket 模式在发送事件之前就关闭了。这通常意味着"
+                "该功能尚未对当前账号/模型开放。"
             )
             return
         raise

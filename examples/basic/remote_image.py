@@ -8,7 +8,7 @@ URL = "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
     )
 
     result = await Runner.run(
@@ -20,7 +20,7 @@ async def main():
             },
             {
                 "role": "user",
-                "content": "What do you see in this image?",
+                "content": "你在这张图里看到了什么？",
             },
         ],
     )

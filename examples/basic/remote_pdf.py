@@ -8,7 +8,7 @@ URL = "https://www.berkshirehathaway.com/letters/2024ltr.pdf"
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
     )
 
     result = await Runner.run(
@@ -20,7 +20,7 @@ async def main():
             },
             {
                 "role": "user",
-                "content": "Can you summarize the letter?",
+                "content": "你能总结一下这封信吗？",
             },
         ],
     )

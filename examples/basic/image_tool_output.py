@@ -15,9 +15,9 @@ URL = "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&
 
 @tool
 def fetch_random_image() -> ToolOutputImage | ToolOutputImageDict:
-    """Fetch a random image."""
+    """获取一张随机图片。"""
 
-    print("Image tool called")
+    print("图片工具被调用")
     if return_typed_dict:
         return {"type": "image", "image_url": URL, "detail": "auto"}
 
@@ -27,16 +27,16 @@ def fetch_random_image() -> ToolOutputImage | ToolOutputImageDict:
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
         tools=[fetch_random_image],
     )
 
     result = await Runner.run(
         agent,
-        input="Fetch an image using the random_image tool, then describe it",
+        input="用 random_image 工具取一张图片，然后描述它",
     )
     print(result.final_output)
-    """This image features the famous clock tower, commonly known as Big Ben, ..."""
+    """这张图是著名的钟楼，通常被称为大本钟，……"""
 
 
 if __name__ == "__main__":

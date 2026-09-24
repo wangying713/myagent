@@ -6,14 +6,14 @@ from agents import Agent, Runner
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You only respond in haikus.",
+        instructions="你只用中文俳句回答。",
     )
 
-    result = await Runner.run(agent, "Tell me about recursion in programming.")
+    result = await Runner.run(agent, "讲讲编程里的递归。")
     print(result.final_output)
-    # Function calls itself,
-    # Looping in smaller pieces,
-    # Endless by design.
+    # 函数唤自己，
+    # 把难题拆成小块，
+    # 出口方得停。
 
 
 if __name__ == "__main__":

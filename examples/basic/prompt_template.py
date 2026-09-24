@@ -5,17 +5,17 @@ import random
 from agents import Agent, GenerateDynamicPromptData, Runner
 
 """
-NOTE: This example will not work out of the box, because the default prompt ID will not be available
-in your project.
+注意：本示例开箱不能用，因为这里默认的 prompt ID
+在你的项目里并不存在。
 
-To use it, please:
-1. Go to https://platform.openai.com/playground/prompts
-2. Create a new prompt variable, `poem_style`.
-3. Create a system prompt with the content:
+使用步骤：
+1. 打开 https://platform.openai.com/playground/prompts
+2. 新建一个提示词变量，名为 `poem_style`。
+3. 新建一个 system prompt，内容为：
 ```
 Write a poem in {{poem_style}}
 ```
-4. Run the example with the `--prompt-id` flag.
+4. 用 `--prompt-id` 参数运行本示例。
 """
 
 DEFAULT_PROMPT_ID = "pmpt_6965a984c7ac8194a8f4e79b00f838840118c1e58beb3332"
@@ -25,7 +25,7 @@ class DynamicContext:
     def __init__(self, prompt_id: str):
         self.prompt_id = prompt_id
         self.poem_style = random.choice(["limerick", "haiku", "ballad"])
-        print(f"[debug] DynamicContext initialized with poem_style: {self.poem_style}")
+        print(f"[debug] DynamicContext 已初始化，poem_style: {self.poem_style}")
 
 
 async def _get_dynamic_prompt(data: GenerateDynamicPromptData):
@@ -47,7 +47,7 @@ async def dynamic_prompt(prompt_id: str):
         prompt=_get_dynamic_prompt,
     )
 
-    result = await Runner.run(agent, "Tell me about recursion in programming.", context=context)
+    result = await Runner.run(agent, "讲讲编程里的递归。", context=context)
     print(result.final_output)
 
 
@@ -63,7 +63,7 @@ async def static_prompt(prompt_id: str):
         },
     )
 
-    result = await Runner.run(agent, "Tell me about recursion in programming.")
+    result = await Runner.run(agent, "讲讲编程里的递归。")
     print(result.final_output)
 
 

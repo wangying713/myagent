@@ -26,8 +26,8 @@ class LoggingHooks(AgentHooks[Any]):
         context: AgentHookContext[Any],
         agent: Agent[Any],
     ) -> None:
-        # Access the turn_input from the context to see what input the agent received
-        print(f"#### {agent.name} is starting with turn_input: {context.turn_input}")
+        # 从 context 里取 turn_input，看这个 Agent 收到了什么输入
+        print(f"#### {agent.name} 启动，turn_input: {context.turn_input}")
 
     async def on_end(
         self,
@@ -35,7 +35,7 @@ class LoggingHooks(AgentHooks[Any]):
         agent: Agent[Any],
         output: Any,
     ) -> None:
-        print(f"#### {agent.name} produced output: {output}.")
+        print(f"#### {agent.name} 产出输出：{output}。")
 
 
 class ExampleHooks(RunHooks):
@@ -43,13 +43,13 @@ class ExampleHooks(RunHooks):
         self.event_counter = 0
 
     def _usage_to_str(self, usage: Usage) -> str:
-        return f"{usage.requests} requests, {usage.input_tokens} input tokens, {usage.output_tokens} output tokens, {usage.total_tokens} total tokens"
+        return f"{usage.requests} 次请求，{usage.input_tokens} 输入 token，{usage.output_tokens} 输出 token，{usage.total_tokens} 合计 token"
 
     async def on_agent_start(self, context: AgentHookContext, agent: Agent) -> None:
         self.event_counter += 1
-        # Access the turn_input from the context to see what input the agent received
+        # 从 context 里取 turn_input，看这个 Agent 收到了什么输入
         print(
-            f"### {self.event_counter}: Agent {agent.name} started. turn_input: {context.turn_input}. Usage: {self._usage_to_str(context.usage)}"
+            f"### {self.event_counter}: Agent {agent.name} 启动。turn_input: {context.turn_input}。用量：{self._usage_to_str(context.usage)}"
         )
 
     async def on_llm_start(
@@ -60,42 +60,42 @@ class ExampleHooks(RunHooks):
         input_items: list[TResponseInputItem],
     ) -> None:
         self.event_counter += 1
-        print(f"### {self.event_counter}: LLM started. Usage: {self._usage_to_str(context.usage)}")
+        print(f"### {self.event_counter}: LLM 开始。用量：{self._usage_to_str(context.usage)}")
 
     async def on_llm_end(
         self, context: RunContextWrapper, agent: Agent, response: ModelResponse
     ) -> None:
         self.event_counter += 1
-        print(f"### {self.event_counter}: LLM ended. Usage: {self._usage_to_str(context.usage)}")
+        print(f"### {self.event_counter}: LLM 结束。用量：{self._usage_to_str(context.usage)}")
 
     async def on_agent_end(self, context: RunContextWrapper, agent: Agent, output: Any) -> None:
         self.event_counter += 1
         print(
-            f"### {self.event_counter}: Agent {agent.name} ended with output {output}. Usage: {self._usage_to_str(context.usage)}"
+            f"### {self.event_counter}: Agent {agent.name} 结束，输出 {output}。用量：{self._usage_to_str(context.usage)}"
         )
 
-    # Note: The on_tool_start and on_tool_end hooks apply only to local tools.
-    # They do not include hosted tools that run on the OpenAI server side,
-    # such as WebSearchTool, FileSearchTool, CodeInterpreterTool, HostedMCPTool,
-    # or other built-in hosted tools.
+    # 注意：on_tool_start / on_tool_end 只对本地工具生效。
+    # 不包含在 OpenAI 服务端运行的托管工具，
+    # 例如 WebSearchTool、FileSearchTool、CodeInterpreterTool、HostedMCPTool
+    # 以及其它内置托管工具。
     async def on_tool_start(self, context: RunContextWrapper, agent: Agent, tool: Tool) -> None:
         self.event_counter += 1
-        # While this type cast is not ideal,
-        # we don't plan to change the context arg type in the near future for backwards compatibility.
+        # 这个类型转换并不理想，
+        # 但出于向后兼容，短期内不打算改动 context 参数的类型。
         tool_context = cast(ToolContext[Any], context)
         print(
-            f"### {self.event_counter}: Tool {tool.name} started. name={tool_context.tool_name}, call_id={tool_context.tool_call_id}, args={tool_context.tool_arguments}. Usage: {self._usage_to_str(tool_context.usage)}"
+            f"### {self.event_counter}: 工具 {tool.name} 开始。name={tool_context.tool_name}, call_id={tool_context.tool_call_id}, args={tool_context.tool_arguments}。用量：{self._usage_to_str(tool_context.usage)}"
         )
 
     async def on_tool_end(
         self, context: RunContextWrapper, agent: Agent, tool: Tool, result: object
     ) -> None:
         self.event_counter += 1
-        # While this type cast is not ideal,
-        # we don't plan to change the context arg type in the near future for backwards compatibility.
+        # 这个类型转换并不理想，
+        # 但出于向后兼容，短期内不打算改动 context 参数的类型。
         tool_context = cast(ToolContext[Any], context)
         print(
-            f"### {self.event_counter}: Tool {tool.name} finished. result={result}, name={tool_context.tool_name}, call_id={tool_context.tool_call_id}, args={tool_context.tool_arguments}. Usage: {self._usage_to_str(tool_context.usage)}"
+            f"### {self.event_counter}: 工具 {tool.name} 结束。result={result}, name={tool_context.tool_name}, call_id={tool_context.tool_call_id}, args={tool_context.tool_arguments}。用量：{self._usage_to_str(tool_context.usage)}"
         )
 
     async def on_handoff(
@@ -103,7 +103,7 @@ class ExampleHooks(RunHooks):
     ) -> None:
         self.event_counter += 1
         print(
-            f"### {self.event_counter}: Handoff from {from_agent.name} to {to_agent.name}. Usage: {self._usage_to_str(context.usage)}"
+            f"### {self.event_counter}: 从 {from_agent.name} 交接给 {to_agent.name}。用量：{self._usage_to_str(context.usage)}"
         )
 
 
@@ -114,13 +114,13 @@ hooks = ExampleHooks()
 
 @tool
 def random_number(max: int) -> int:
-    """Generate a random number from 0 to max (inclusive)."""
+    """生成一个 0 到 max（含端点）之间的随机数。"""
     return random.randint(0, max)
 
 
 @tool
 def multiply_by_two(x: int) -> int:
-    """Return x times two."""
+    """返回 x 的两倍。"""
     return x * 2
 
 
@@ -130,7 +130,7 @@ class FinalResult(BaseModel):
 
 multiply_agent = Agent(
     name="Multiply Agent",
-    instructions="Multiply the number by 2 and then return the final result.",
+    instructions="把这个数乘以 2，然后返回最终结果。",
     tools=[multiply_by_two],
     output_type=FinalResult,
     hooks=LoggingHooks(),
@@ -138,7 +138,7 @@ multiply_agent = Agent(
 
 start_agent = Agent(
     name="Start Agent",
-    instructions="Generate a random number. If it's even, stop. If it's odd, hand off to the multiplier agent.",
+    instructions="生成一个随机数。如果是偶数就停下；如果是奇数，交接给乘法 Agent。",
     tools=[random_number],
     output_type=FinalResult,
     handoffs=[multiply_agent],
@@ -147,19 +147,19 @@ start_agent = Agent(
 
 
 async def main() -> None:
-    user_input = input_with_fallback("Enter a max number: ", "50")
+    user_input = input_with_fallback("请输入最大值：", "50")
     try:
         max_number = int(user_input)
         await Runner.run(
             start_agent,
             hooks=hooks,
-            input=f"Generate a random number between 0 and {max_number}.",
+            input=f"生成一个 0 到 {max_number} 之间的随机数。",
         )
     except ValueError:
-        print("Please enter a valid integer.")
+        print("请输入一个合法的整数。")
         return
 
-    print("Done!")
+    print("完成！")
 
 
 if __name__ == "__main__":
@@ -167,23 +167,23 @@ if __name__ == "__main__":
 """
 $ python examples/basic/lifecycle_example.py
 
-Enter a max number: 250
-### 1: Agent Start Agent started. Usage: 0 requests, 0 input tokens, 0 output tokens, 0 total tokens
-### 2: LLM started. Usage: 0 requests, 0 input tokens, 0 output tokens, 0 total tokens
-### 3: LLM ended. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
-### 4: Tool random_number started. name=random_number, call_id=call_IujmDZYiM800H0hy7v17VTS0, args={"max":250}. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
-### 5: Tool random_number finished. result=107, name=random_number, call_id=call_IujmDZYiM800H0hy7v17VTS0, args={"max":250}. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
-### 6: LLM started. Usage: 1 requests, 143 input tokens, 15 output tokens, 158 total tokens
-### 7: LLM ended. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
-### 8: Handoff from Start Agent to Multiply Agent. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
-### 9: Agent Multiply Agent started. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
-### 10: LLM started. Usage: 2 requests, 310 input tokens, 29 output tokens, 339 total tokens
-### 11: LLM ended. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
-### 12: Tool multiply_by_two started. name=multiply_by_two, call_id=call_KhHvTfsgaosZsfi741QvzgYw, args={"x":107}. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
-### 13: Tool multiply_by_two finished. result=214, name=multiply_by_two, call_id=call_KhHvTfsgaosZsfi741QvzgYw, args={"x":107}. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
-### 14: LLM started. Usage: 3 requests, 472 input tokens, 45 output tokens, 517 total tokens
-### 15: LLM ended. Usage: 4 requests, 660 input tokens, 56 output tokens, 716 total tokens
-### 16: Agent Multiply Agent ended with output number=214. Usage: 4 requests, 660 input tokens, 56 output tokens, 716 total tokens
-Done!
+请输入最大值：250
+### 1: Agent Start Agent 启动。用量：0 次请求，0 输入 token，0 输出 token，0 合计 token
+### 2: LLM 开始。用量：0 次请求，0 输入 token，0 输出 token，0 合计 token
+### 3: LLM 结束。用量：1 次请求，143 输入 token，15 输出 token，158 合计 token
+### 4: 工具 random_number 开始。name=random_number, call_id=call_IujmDZYiM800H0hy7v17VTS0, args={"max":250}。用量：1 次请求，143 输入 token，15 输出 token，158 合计 token
+### 5: 工具 random_number 结束。result=107, name=random_number, call_id=call_IujmDZYiM800H0hy7v17VTS0, args={"max":250}。用量：1 次请求，143 输入 token，15 输出 token，158 合计 token
+### 6: LLM 开始。用量：1 次请求，143 输入 token，15 输出 token，158 合计 token
+### 7: LLM 结束。用量：2 次请求，310 输入 token，29 输出 token，339 合计 token
+### 8: 从 Start Agent 交接给 Multiply Agent。用量：2 次请求，310 输入 token，29 输出 token，339 合计 token
+### 9: Agent Multiply Agent 启动。用量：2 次请求，310 输入 token，29 输出 token，339 合计 token
+### 10: LLM 开始。用量：2 次请求，310 输入 token，29 输出 token，339 合计 token
+### 11: LLM 结束。用量：3 次请求，472 输入 token，45 输出 token，517 合计 token
+### 12: 工具 multiply_by_two 开始。name=multiply_by_two, call_id=call_KhHvTfsgaosZsfi741QvzgYw, args={"x":107}。用量：3 次请求，472 输入 token，45 输出 token，517 合计 token
+### 13: 工具 multiply_by_two 结束。result=214, name=multiply_by_two, call_id=call_KhHvTfsgaosZsfi741QvzgYw, args={"x":107}。用量：3 次请求，472 输入 token，45 输出 token，517 合计 token
+### 14: LLM 开始。用量：3 次请求，472 输入 token，45 输出 token，517 合计 token
+### 15: LLM 结束。用量：4 次请求，660 输入 token，56 输出 token，716 合计 token
+### 16: Agent Multiply Agent 结束，输出 number=214。用量：4 次请求，660 输入 token，56 输出 token，716 合计 token
+完成！
 
 """

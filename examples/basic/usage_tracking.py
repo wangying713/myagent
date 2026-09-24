@@ -18,33 +18,33 @@ class Weather(BaseModel):
 
 @tool
 def get_weather(city: str) -> Weather:
-    """Get the current weather information for a specified city."""
+    """查询指定城市的当前天气信息。"""
     return Weather(city=city, temperature_range="14-20C", conditions="Sunny with wind.")
 
 
 def print_usage(usage: Usage) -> None:
-    print("\n=== Usage ===")
-    print(f"Input tokens: {usage.input_tokens}")
-    print(f"Output tokens: {usage.output_tokens}")
-    print(f"Total tokens: {usage.total_tokens}")
-    print(f"Requests: {usage.requests}")
+    print("\n=== 用量 ===")
+    print(f"输入 token: {usage.input_tokens}")
+    print(f"输出 token: {usage.output_tokens}")
+    print(f"合计 token: {usage.total_tokens}")
+    print(f"请求次数: {usage.requests}")
     for i, request in enumerate(usage.request_usage_entries):
-        print(f"  {i + 1}: {request.input_tokens} input, {request.output_tokens} output")
+        print(f"  {i + 1}: 输入 {request.input_tokens}，输出 {request.output_tokens}")
 
 
 async def main() -> None:
     agent = Agent(
         name="Usage Demo",
-        instructions="You are a concise assistant. Use tools if needed.",
+        instructions="你是一个简洁的助手。需要时使用工具。",
         tools=[get_weather],
     )
 
-    result = await Runner.run(agent, "What's the weather in Tokyo?")
+    result = await Runner.run(agent, "东京的天气怎么样？")
 
-    print("\nFinal output:")
+    print("\n最终输出：")
     print(result.final_output)
 
-    # Access usage from the run context
+    # 从运行上下文里取用量
     print_usage(result.context_wrapper.usage)
 
 

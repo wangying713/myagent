@@ -9,9 +9,9 @@ set_tracing_disabled(True)
 # import logging
 # logging.basicConfig(level=logging.DEBUG)
 
-# This is an example of how to use gpt-oss with Ollama.
-# Refer to https://cookbook.openai.com/articles/gpt-oss/run-locally-ollama for more details.
-# If you prefer using LM Studio, refer to https://cookbook.openai.com/articles/gpt-oss/run-locally-lmstudio
+# 这是一个在 Ollama 上使用 gpt-oss 的示例。
+# 详见 https://cookbook.openai.com/articles/gpt-oss/run-locally-ollama
+# 如果你更想用 LM Studio，见 https://cookbook.openai.com/articles/gpt-oss/run-locally-lmstudio
 gpt_oss_model = OpenAIChatCompletionsModel(
     model="gpt-oss:20b",
     openai_client=AsyncOpenAI(
@@ -22,16 +22,16 @@ gpt_oss_model = OpenAIChatCompletionsModel(
 
 
 async def main():
-    # Note that using a custom outputType for an agent may not work well with gpt-oss models.
-    # Consider going with the default "text" outputType.
-    # See also: https://github.com/openai/openai-agents-python/issues/1414
+    # 注意：给 Agent 用自定义 outputType 时，gpt-oss 模型可能表现不佳。
+    # 建议使用默认的 "text" 输出类型。
+    # 另见：https://github.com/openai/openai-agents-python/issues/1414
     agent = Agent(
         name="Assistant",
-        instructions="You're a helpful assistant. You provide a concise answer to the user's question.",
+        instructions="你是一个乐于助人的助手，会针对用户的问题给出简洁的回答。",
         model=gpt_oss_model,
     )
 
-    result = await Runner.run(agent, "Tell me about recursion in programming.")
+    result = await Runner.run(agent, "讲讲编程里的递归。")
     print(result.final_output)
 
 

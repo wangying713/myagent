@@ -14,12 +14,12 @@ def image_to_base64(image_path):
 
 
 async def main():
-    # Print base64-encoded image
+    # 打印 base64 编码后的图片
     b64_image = image_to_base64(FILEPATH)
 
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
     )
 
     result = await Runner.run(
@@ -37,7 +37,7 @@ async def main():
             },
             {
                 "role": "user",
-                "content": "What do you see in this image?",
+                "content": "你在这张图里看到了什么？",
             },
         ],
     )

@@ -12,15 +12,15 @@ from agents import (
     UserError,
 )
 
-"""This example demonstrates how to use an output type that is not in strict mode. Strict mode
-allows us to guarantee valid JSON output, but some schemas are not strict-compatible.
+"""本示例演示如何使用「非严格模式」的输出类型。严格模式
+可以保证 JSON 输出合法，但有些 Schema 与严格模式不兼容。
 
-In this example, we define an output type that is not strict-compatible, and then we run the
-agent with strict_json_schema=False.
+下面我们定义一个与严格模式不兼容的输出类型，
+然后用 strict_json_schema=False 来运行 Agent。
 
-We also demonstrate a custom output type.
+同时还会演示一个自定义的输出类型。
 
-To understand which schemas are strict-compatible, see:
+想了解哪些 Schema 与严格模式兼容，见：
 https://platform.openai.com/docs/guides/structured-outputs?api-mode=responses#supported-schemas
 """
 
@@ -28,11 +28,11 @@ https://platform.openai.com/docs/guides/structured-outputs?api-mode=responses#su
 @dataclass
 class OutputType:
     jokes: dict[int, str]
-    """A list of jokes, indexed by joke number."""
+    """笑话列表，以笑话编号为索引。"""
 
 
 class CustomOutputSchema(AgentOutputSchemaBase):
-    """A demonstration of a custom output schema."""
+    """自定义输出 Schema 的演示。"""
 
     def is_plain_text(self) -> bool:
         return False
@@ -51,38 +51,38 @@ class CustomOutputSchema(AgentOutputSchemaBase):
 
     def validate_json(self, json_str: str) -> Any:
         json_obj = json.loads(json_str)
-        # Just for demonstration, we'll return a list.
+        # 仅为演示，这里直接返回一个列表。
         return list(json_obj["jokes"].values())
 
 
 async def main():
     agent = Agent(
         name="Assistant",
-        instructions="You are a helpful assistant.",
+        instructions="你是一个乐于助人的助手。",
         output_type=OutputType,
     )
 
-    input = "Tell me 3 short jokes."
+    input = "给我讲 3 个短笑话。"
 
-    # First, let's try with a strict output type. This should raise an exception.
+    # 先试严格模式：这里应该会抛异常。
     try:
         await Runner.run(agent, input)
     except UserError as e:
-        print(f"Error (expected): {e}")
+        print(f"错误（预期内）：{e}")
     else:
-        raise AssertionError("Strict schema validation should have raised UserError")
+        raise AssertionError("严格 Schema 校验本应抛出 UserError")
 
-    # Now let's try again with a non-strict output type. This should work.
-    # In some cases, it will raise an error - the schema isn't strict, so the model may
-    # produce an invalid JSON object.
+    # 现在换成非严格输出类型再试一次，这次应该能跑通。
+    # 但有时也会报错 —— Schema 不是严格的，
+    # 模型可能产出不合法的 JSON。
     agent.output_type = AgentOutputSchema(OutputType, strict_json_schema=False)
     try:
         result = await Runner.run(agent, input)
         print(result.final_output)
     except ModelBehaviorError as e:
-        print(f"Non-strict output validation failed (expected possibility): {e}")
+        print(f"非严格输出校验失败（这是可能发生的情况）：{e}")
 
-    # Finally, let's try a custom output type.
+    # 最后试一下自定义输出类型。
     agent.output_type = CustomOutputSchema()
     result = await Runner.run(agent, input)
     print(result.final_output)

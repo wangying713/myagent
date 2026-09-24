@@ -18,26 +18,26 @@ from agents.decorators import (
 
 @tool
 def send_email(to: str, subject: str, body: str) -> str:
-    """Send an email to the specified recipient."""
-    return f"Email sent to {to} with subject '{subject}'"
+    """给指定收件人发送邮件。"""
+    return f"邮件已发送给 {to}，主题为「{subject}」"
 
 
 @tool
 def get_user_data(user_id: str) -> dict[str, str]:
-    """Get user data by ID."""
-    # Simulate returning sensitive data
+    """按 ID 获取用户数据。"""
+    # 这里模拟返回一批敏感数据
     return {
         "user_id": user_id,
         "name": "John Doe",
         "email": "john@example.com",
-        "ssn": "123-45-6789",  # Sensitive data that should be blocked!
+        "ssn": "123-45-6789",  # 敏感数据，应当被拦截！
         "phone": "555-1234",
     }
 
 
 @tool
 def get_contact_info(user_id: str) -> dict[str, str]:
-    """Get contact info by ID."""
+    """按 ID 获取联系人信息。"""
     return {
         "user_id": user_id,
         "name": "Jane Smith",
@@ -48,13 +48,13 @@ def get_contact_info(user_id: str) -> dict[str, str]:
 
 @tool_input_guardrail
 def reject_sensitive_words(data: ToolInputGuardrailData) -> ToolGuardrailFunctionOutput:
-    """Reject tool calls that contain sensitive words in arguments."""
+    """拒绝参数里含有敏感词的工具调用。"""
     try:
         args = json.loads(data.context.tool_arguments) if data.context.tool_arguments else {}
     except json.JSONDecodeError:
-        return ToolGuardrailFunctionOutput(output_info="Invalid JSON arguments")
+        return ToolGuardrailFunctionOutput(output_info="JSON 参数不合法")
 
-    # Check for suspicious content
+    # 检查可疑内容。（下面这些关键词属逻辑的一部分，故保留英文）
     sensitive_words = [
         "password",
         "hack",
@@ -66,43 +66,43 @@ def reject_sensitive_words(data: ToolInputGuardrailData) -> ToolGuardrailFunctio
         value_str = str(value).lower()
         for word in sensitive_words:
             if word.lower() in value_str:
-                # Reject tool call and inform the model the function was not called
+                # 拒绝这次调用，并告知模型该函数并未被执行
                 return ToolGuardrailFunctionOutput.reject_content(
-                    message=f"🚨 Tool call blocked: contains '{word}'",
+                    message=f"🚨 工具调用被拦截：包含 '{word}'",
                     output_info={"blocked_word": word, "argument": key},
                 )
 
-    return ToolGuardrailFunctionOutput(output_info="Input validated")
+    return ToolGuardrailFunctionOutput(output_info="输入已校验")
 
 
 @tool_output_guardrail
 def block_sensitive_output(data: ToolOutputGuardrailData) -> ToolGuardrailFunctionOutput:
-    """Block tool outputs that contain sensitive data."""
+    """拦截含有敏感数据的工具输出。"""
     output_str = str(data.output).lower()
 
-    # Check for sensitive data patterns
+    # 检查敏感数据特征
     if "ssn" in output_str or "123-45-6789" in output_str:
-        # Use raise_exception to halt execution completely for sensitive data
+        # 遇到敏感数据时用 raise_exception 彻底中止执行
         return ToolGuardrailFunctionOutput.raise_exception(
             output_info={"blocked_pattern": "SSN", "tool": data.context.tool_name},
         )
 
-    return ToolGuardrailFunctionOutput(output_info="Output validated")
+    return ToolGuardrailFunctionOutput(output_info="输出已校验")
 
 
 @tool_output_guardrail
 def reject_phone_numbers(data: ToolOutputGuardrailData) -> ToolGuardrailFunctionOutput:
-    """Reject function output containing phone numbers."""
+    """拒绝返回含有电话号码的函数输出。"""
     output_str = str(data.output)
     if "555-1234" in output_str:
         return ToolGuardrailFunctionOutput.reject_content(
-            message="User data not retrieved as it contains a phone number which is restricted.",
+            message="未返回用户数据：其中含有受限制的电话号码。",
             output_info={"redacted": "phone_number"},
         )
-    return ToolGuardrailFunctionOutput(output_info="Phone number check passed")
+    return ToolGuardrailFunctionOutput(output_info="电话号码检查通过")
 
 
-# Apply guardrails to tools
+# 把护栏挂到工具上
 send_email.tool_input_guardrails = [reject_sensitive_words]
 get_user_data.tool_output_guardrails = [block_sensitive_output]
 get_contact_info.tool_output_guardrails = [reject_phone_numbers]
@@ -110,68 +110,68 @@ get_contact_info.tool_output_guardrails = [reject_phone_numbers]
 agent = Agent(
     name="Secure Assistant",
     instructions=(
-        "You are a helpful assistant with access to email and user data tools. "
-        "When the user provides all required arguments for a requested tool, call it instead of "
-        "asking a follow-up question."
+        "你是一个乐于助人的助手，可以使用邮件和用户数据相关的工具。"
+        "当用户已经给出了某个工具所需的全部参数时，直接调用它，"
+        "不要再追问确认。"
     ),
     tools=[send_email, get_user_data, get_contact_info],
 )
 
 
 async def main():
-    print("=== Tool Guardrails Example ===\n")
+    print("=== 工具级护栏示例 ===\n")
 
-    # Example 1: Normal operation - should work fine
-    print("1. Normal email sending:")
+    # 示例 1：正常调用，应当顺利通过
+    print("1. 正常发送邮件：")
     result = await Runner.run(
         agent,
-        "Send an email to john@example.com with subject 'Welcome' and body "
-        "'Welcome to our service.'",
+        "给 john@example.com 发一封邮件，主题是「欢迎」，"
+        "正文是「欢迎使用我们的服务。」",
     )
-    print(f"✅ Successful tool execution: {result.final_output}\n")
+    print(f"✅ 工具调用成功：{result.final_output}\n")
 
-    # Example 2: Input guardrail triggers - function tool call is rejected but execution continues
-    print("2. Attempting to send email with suspicious content:")
+    # 示例 2：输入护栏触发 —— 工具调用被拒绝，但整体执行继续
+    print("2. 尝试发送含可疑内容的邮件：")
     result = await Runner.run(
         agent,
-        "Send an email to john@example.com with subject 'Introduction' and body "
-        "'Introducing ACME corp.'",
+        "给 john@example.com 发一封邮件，主题是「介绍」，"
+        "正文是「介绍 ACME 公司。」",
     )
-    print(f"❌ Guardrail rejected function tool call: {result.final_output}\n")
+    print(f"❌ 护栏拒绝了工具调用：{result.final_output}\n")
 
     try:
-        # Example 3: Output guardrail triggers - should raise exception for sensitive data
-        print("3. Attempting to get user data (contains SSN). Execution blocked:")
-        result = await Runner.run(agent, "Get the data for user ID user123")
-        print(f"✅ Successful tool execution: {result.final_output}\n")
+        # 示例 3：输出护栏触发 —— 遇到敏感数据应当抛异常
+        print("3. 尝试获取用户数据（含 SSN）。执行应当被中止：")
+        result = await Runner.run(agent, "获取用户 user123 的数据")
+        print(f"✅ 工具调用成功：{result.final_output}\n")
     except ToolOutputGuardrailTripwireTriggered as e:
-        print("🚨 Output guardrail triggered: Execution halted for sensitive data")
-        print(f"Details: {e.output.output_info}\n")
+        print("🚨 输出护栏触发：因含敏感数据，执行已中止")
+        print(f"详情：{e.output.output_info}\n")
 
-    # Example 4: Output guardrail triggers - reject returning function tool output but continue execution
-    print("4. Rejecting function tool output containing phone numbers:")
-    result = await Runner.run(agent, "Get contact info for user456")
-    print(f"❌ Guardrail rejected function tool output: {result.final_output}\n")
+    # 示例 4：输出护栏触发 —— 拒绝返回工具输出，但执行继续
+    print("4. 拒绝含电话号码的工具输出：")
+    result = await Runner.run(agent, "获取用户 user456 的联系人信息")
+    print(f"❌ 护栏拒绝了工具输出：{result.final_output}\n")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
 
 """
-Example output:
+示例输出：
 
-=== Tool Guardrails Example ===
+=== 工具级护栏示例 ===
 
-1. Normal email sending:
-✅ Successful tool execution: I've sent a welcome email to john@example.com with an appropriate subject and greeting message.
+1. 正常发送邮件：
+✅ 工具调用成功：我已经给 john@example.com 发送了一封欢迎邮件，主题和问候语都写好了。
 
-2. Attempting to send email with suspicious content:
-❌ Guardrail rejected function tool call: I'm unable to send the email as mentioning ACME Corp. is restricted.
+2. 尝试发送含可疑内容的邮件：
+❌ 护栏拒绝了工具调用：因为提到了 ACME 公司，我无法发送这封邮件。
 
-3. Attempting to get user data (contains SSN). Execution blocked:
-🚨 Output guardrail triggered: Execution halted for sensitive data
-   Details: {'blocked_pattern': 'SSN', 'tool': 'get_user_data'}
+3. 尝试获取用户数据（含 SSN）。执行应当被中止：
+🚨 输出护栏触发：因含敏感数据，执行已中止
+   详情：{'blocked_pattern': 'SSN', 'tool': 'get_user_data'}
 
-4. Rejecting function tool output containing sensitive data:
-❌ Guardrail rejected function tool output: I'm unable to retrieve the contact info for user456 because it contains restricted information.
+4. 拒绝含电话号码的工具输出：
+❌ 护栏拒绝了工具输出：我无法返回 user456 的联系人信息，因为其中含有受限制的内容。
 """

@@ -163,3 +163,6 @@ tmp/
 # execplans
 plans/
 .vercel
+
+# 我们的配置：含 API Key，绝不入库
+config.env

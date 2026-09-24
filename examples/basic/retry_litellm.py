@@ -20,9 +20,9 @@ def format_error(error: object) -> str:
 
 async def main() -> None:
     apply_policies = retry_policies.any(
-        # On OpenAI-backed models, provider_suggested() follows provider retry advice,
-        # including fallback retryable statuses when x-should-retry is absent
-        # (for example 408/409/429/5xx).
+        # 对 OpenAI 系的模型，provider_suggested() 会遵循厂商给出的重试建议，
+        # 包括缺少 x-should-retry 头时默认视为可重试的状态码
+        # （例如 408/409/429/5xx）。
         retry_policies.provider_suggested(),
         retry_policies.retry_after(),
         retry_policies.network_error(),
@@ -39,7 +39,7 @@ async def main() -> None:
         if isinstance(decision, RetryDecision):
             if not decision.retry:
                 print(
-                    f"[retry] stop after attempt {context.attempt}/{context.max_retries + 1}: "
+                    f"[retry] 第 {context.attempt}/{context.max_retries + 1} 次尝试后停止："
                     f"{format_error(context.error)}"
                 )
                 return False
@@ -48,14 +48,14 @@ async def main() -> None:
                 " | ".join(
                     part
                     for part in [
-                        f"[retry] retry attempt {context.attempt}/{context.max_retries + 1}",
+                        f"[retry] 第 {context.attempt}/{context.max_retries + 1} 次尝试，准备重试",
                         (
-                            f"waiting {decision.delay:.2f}s"
+                            f"等待 {decision.delay:.2f}s"
                             if decision.delay is not None
-                            else "using default backoff"
+                            else "使用默认退避"
                         ),
-                        f"reason: {decision.reason}" if decision.reason else None,
-                        f"error: {format_error(context.error)}",
+                        f"原因：{decision.reason}" if decision.reason else None,
+                        f"错误：{format_error(context.error)}",
                     ]
                     if part is not None
                 )
@@ -64,7 +64,7 @@ async def main() -> None:
 
         if not decision:
             print(
-                f"[retry] stop after attempt {context.attempt}/{context.max_retries + 1}: "
+                f"[retry] 第 {context.attempt}/{context.max_retries + 1} 次尝试后停止："
                 f"{format_error(context.error)}"
             )
         return decision
@@ -80,33 +80,33 @@ async def main() -> None:
         policy=policy,
     )
 
-    # RunConfig-level model_settings are shared defaults for the run.
-    # If an Agent also defines model_settings, the Agent wins for overlapping
-    # keys, while nested objects like retry/backoff are merged.
+    # RunConfig 级 model_settings 是整次运行的共享默认值。
+    # 如果 Agent 自己也定义了 model_settings，重叠的键以 Agent 为准，
+    # 而 retry/backoff 这类嵌套对象则是合并。
     run_config = RunConfig(model_settings=ModelSettings(retry=retry))
 
     agent = Agent(
         name="Assistant",
-        instructions="You are a concise assistant. Answer in 3 short bullet points at most.",
-        # Prefix with litellm/ to route this request through the LiteLLM adapter.
+        instructions="你是一个简洁的助手。回答最多用 3 个短句要点。",
+        # 加上 litellm/ 前缀，让这次请求走 LiteLLM 适配器。
         model="litellm/openai/gpt-4o-mini",
-        # This Agent repeats the same retry config for clarity. In real code you
-        # can keep shared defaults in RunConfig and only put per-agent overrides
-        # here when you need different retry behavior.
+        # 这里为了直观，Agent 重复了一遍同样的重试配置。实际代码里，
+        # 共享默认值放 RunConfig 即可，只有当某个 Agent 需要不同的重试行为时，
+        # 才在这里写 per-agent 覆盖。
         model_settings=ModelSettings(retry=retry),
     )
 
     print(
-        "Retry support is configured. You will only see [retry] logs if a transient failure happens."
+        "重试机制已配置好。只有真的发生瞬时故障时，你才会看到 [retry] 日志。"
     )
 
     result = await Runner.run(
         agent,
-        "Explain exponential backoff for API retries in plain English.",
+        "用大白话解释一下 API 重试里的指数退避。",
         run_config=run_config,
     )
 
-    print("\nFinal output:\n")
+    print("\n最终输出：\n")
     print(result.final_output)
 
 

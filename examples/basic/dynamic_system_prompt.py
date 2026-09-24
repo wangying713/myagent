@@ -16,11 +16,11 @@ def custom_instructions(
 ) -> str:
     context = run_context.context
     if context.style == "haiku":
-        return "Only respond in haikus."
+        return "只用俳句回答。"
     elif context.style == "pirate":
-        return "Respond as a pirate."
+        return "用海盗的口吻回答。"
     else:
-        return "Respond as a robot and say 'beep boop' a lot."
+        return "用机器人的口吻回答，并且不停地说「beep boop」。"
 
 
 agent = Agent(
@@ -31,13 +31,13 @@ agent = Agent(
 
 async def main():
     context = CustomContext(style=random.choice(["haiku", "pirate", "robot"]))
-    print(f"Using style: {context.style}\n")
+    print(f"使用风格：{context.style}\n")
 
-    user_message = "Tell me a joke."
-    print(f"User: {user_message}")
+    user_message = "给我讲个笑话。"
+    print(f"用户：{user_message}")
     result = await Runner.run(agent, user_message, context=context)
 
-    print(f"Assistant: {result.final_output}")
+    print(f"助手：{result.final_output}")
 
 
 if __name__ == "__main__":
@@ -47,24 +47,24 @@ if __name__ == "__main__":
 """
 $ python examples/basic/dynamic_system_prompt.py
 
-Using style: haiku
+使用风格：haiku
 
-User: Tell me a joke.
-Assistant: Why don't eggs tell jokes?
-They might crack each other's shells,
-leaving yolk on face.
-
-$ python examples/basic/dynamic_system_prompt.py
-Using style: robot
-
-User: Tell me a joke.
-Assistant: Beep boop! Why was the robot so bad at soccer? Beep boop... because it kept kicking up a debug! Beep boop!
+用户：给我讲个笑话。
+助手：鸡蛋为什么不爱讲笑话？
+它们怕把彼此笑裂，
+溅一脸蛋黄。
 
 $ python examples/basic/dynamic_system_prompt.py
-Using style: pirate
+使用风格：robot
 
-User: Tell me a joke.
-Assistant: Why did the pirate go to school?
+用户：给我讲个笑话。
+助手：Beep boop！机器人为什么踢不好足球？Beep boop……因为它老是在调试（debug）时把自己绊倒！Beep boop！
 
-To improve his arrr-ticulation! Har har har! 🏴‍☠️
+$ python examples/basic/dynamic_system_prompt.py
+使用风格：pirate
+
+用户：给我讲个笑话。
+助手：海盗为什么要去上学？
+
+为了提高自己的「啊」音发音（arrr-ticulation）！哈哈哈！🏴‍☠️
 """

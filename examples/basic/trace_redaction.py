@@ -1,4 +1,4 @@
-"""Export only redacted snapshots, using a local console destination and no API calls."""
+"""只导出脱敏后的快照，目标为本地控制台，不发起任何 API 调用。"""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class RedactingExporter(TracingExporter):
-    """Keep redaction and delivery within one exporter owned by the application.
+    """把「脱敏」和「投递」都收在应用自己拥有的同一个 exporter 里。
 
-    Both callbacks are trusted application code. The redactor receives a private
-    payload copy; the destination receives only successfully redacted dictionaries.
-    Replace the default processors instead of registering a separate redactor next
-    to an exporter. This example does not configure OpenAI backend ingestion.
+    两个回调都是可信的应用代码。脱敏函数拿到的是 payload 的私有副本；
+    投递目标只会收到脱敏成功的字典。
+    应当「替换掉」默认 processor，而不是在 exporter 旁边再挂一个脱敏器。
+    本示例不配置向 OpenAI 后端上报。
     """
 
     def __init__(
@@ -43,23 +43,23 @@ class RedactingExporter(TracingExporter):
         except Exception:
             pass
         else:
-            # Complete redaction of the whole batch before invoking the destination.
+            # 整批全部脱敏完成后，才调用投递目标。
             if redacted:
                 self._send(redacted)
             return
 
-        # Leave the sensitive exception context before logging: a formatter failure
-        # can otherwise print the original payload through exception chaining.
-        logger.warning("Trace redaction failed; dropping batch.")
+        # 打日志前先脱离敏感的异常上下文：否则格式化器一旦失败，
+        # 会通过异常链把原始 payload 打出来。
+        logger.warning("链路脱敏失败；已丢弃该批次。")
 
 
 def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """An example allowlist for local diagnostics, not the backend ingest schema.
+    """一个用于本地诊断的示例白名单，不是后端的入库 schema。
 
-    Retain only the event category and IDs needed to link events. All names,
-    metadata, errors, and span data are omitted. Applications must ensure that
-    caller-supplied trace/span/parent IDs contain no sensitive information, or
-    replace this policy with their own ID mapping before using the destination.
+    只保留关联事件所需的事件类别与各类 ID。所有名称、
+    元数据、错误和 span 数据一律省略。应用必须保证
+    调用方提供的 trace/span/parent ID 不含敏感信息，
+    或者在使用投递目标前换成自己的 ID 映射方案。
     """
     return {
         key: payload[key] for key in ("object", "id", "trace_id", "parent_id") if key in payload
@@ -69,14 +69,14 @@ def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def main() -> None:
     exporter = RedactingExporter(redact_payload, lambda batch: print(json.dumps(batch)))
     processor = BatchTraceProcessor(exporter)
-    # Replacement is essential: add_trace_processor would retain the default exporter.
+    # 必须用「替换」：add_trace_processor 会把默认 exporter 一起留下来。
     set_trace_processors([processor])
     try:
-        with trace("Example private workflow", metadata={"customer": "synthetic-customer"}):
-            with custom_span("Example private operation", data={"message": "synthetic-secret"}):
+        with trace("示例私有工作流", metadata={"customer": "synthetic-customer"}):
+            with custom_span("示例私有操作", data={"message": "synthetic-secret"}):
                 pass
     finally:
-        # shutdown drains queued data through the same redaction boundary.
+        # shutdown 会把队列里的数据经由同一条脱敏边界排干。
         processor.shutdown()
 
 
