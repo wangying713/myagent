@@ -5,6 +5,16 @@
 **这里是我们的项目目录，业务代码都写在这。** SDK 是从 PyPI 装的依赖，不是克隆源码改——
 框架源码放在隔壁 `../openai-agents-python/`，那份只当参考资料读。
 
+## 学习 demo（统一上报 OpenObserve）
+
+在本目录运行：
+
+```bash
+uv run python -m myagent.runtime.lab experiments/hello_world_traced.py
+```
+
+所有 demo 的运行命令、配置与查看方法见 [experiments/README.md](experiments/README.md)。
+
 ---
 
 ## 一、目录结构
@@ -290,6 +300,17 @@ def build_order_agent(model: str) -> Agent[FsContext]:
 ---
 
 ## 附：一次请求发生了什么
+
+通过 `python -m myagent.runtime.lab experiments/image_tool_output.py` 运行时，追踪预览按节点记录：
+
+| 节点 | 输入 | 输出 |
+|---|---|---|
+| 脚本入口 | 脚本名称和启动参数 | 执行状态、调用次数和 Token 汇总 |
+| Agent（例如 Assistant） | Agent 启动时收到的输入 | 生命周期回调中的真实最终结果；交接时记录目标 Agent |
+| HTTP POST | 已缓冲的请求 JSON | 已缓冲的响应 JSON；流式请求有 SDK 汇总时明确标注来源 |
+| 工具 | 工具参数 | 工具返回值 |
+
+预览对空字符串显示 `""`，对未采集或失败且没有返回内容的情况显示具体说明。内容沿用脱敏和长度限制；来源可在 `app.preview.input.source`、`app.preview.output.source` 属性中核对。只有重新运行生成的追踪包含这些字段，旧记录不会被改写。
 
 ```
 你提问

@@ -9,45 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from agents import Agent, RunContextWrapper, Runner, function_tool, set_default_openai_api, set_default_openai_client
-from openai import AsyncOpenAI
+from agents import Agent, RunContextWrapper, Runner, function_tool
 from opentelemetry import trace
 
-from myagent.runtime.config import load_settings
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("probe")
-
-
-def setup() -> str:
-    s = load_settings()
-    set_default_openai_client(
-        AsyncOpenAI(base_url=s.base_url, api_key=s.api_key), use_for_tracing=False
-    )
-    set_default_openai_api("chat_completions")
-
-    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-    from opentelemetry.sdk.trace import TracerProvider
-
-    provider = trace.get_tracer_provider()
-    if not hasattr(provider, "add_span_processor"):
-        provider = TracerProvider(resource=Resource.create({SERVICE_NAME: "probe"}))
-        trace.set_tracer_provider(provider)
-
-    # 额外挂一个控制台 exporter，用来观察「到底导出了哪些 span」
-    from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
-
-    provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-
-    from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
-
-    OpenAIAgentsInstrumentor().instrument()
-    return s.model
 
 
 @function_tool
@@ -76,7 +42,7 @@ def probe(ctx: RunContextWrapper, keyword: str) -> str:
 
     print("\n【3】写一条普通日志，看它是否自带 trace 信息")
     log.info("这是一条普通 logging 日志，keyword=%s", keyword)
-    print("     ↑ 注意上面日志行里【没有】trace_id —— 默认不会关联")
+    print("     logging 已发送给平台，trace_id / span_id 是结构化字段，无需拼进消息")
 
     # 手动关联的做法：把 trace_id 拼进日志
     if sc and sc.trace_id:
@@ -95,12 +61,10 @@ def probe(ctx: RunContextWrapper, keyword: str) -> str:
 
 
 async def main() -> None:
-    model = setup()
     agent = Agent(
         name="ProbeAgent",
         instructions="你必须调用 probe 工具，然后原样复述它的返回值。",
         tools=[probe],
-        model=model,
     )
     result = await Runner.run(agent, "请调用 probe 工具，keyword 传 'hello'。")
     print("最终输出:", result.final_output)

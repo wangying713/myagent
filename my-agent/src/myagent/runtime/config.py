@@ -40,7 +40,7 @@ def _read_env_file(path: Path) -> dict[str, str]:
     return cfg
 
 
-def load_settings(env_file: Path | None = None, root_override: str = "") -> Settings:
+def load_settings(env_file: Path | None = None, root_override: str = "", *, allow_missing_key: bool = False) -> Settings:
     """读配置并校验。校验不过就抛 ValueError，错误信息说清"去哪改"。"""
     cfg = _read_env_file(env_file or CONFIG_PATH)
     for key in OVERRIDABLE:
@@ -49,7 +49,7 @@ def load_settings(env_file: Path | None = None, root_override: str = "") -> Sett
 
     api_key = cfg.get("OPENAI_API_KEY", "")
     # 没填 / 还是占位符 / 掺了非 ASCII（粘贴常出问题）都在这里拦掉
-    if not api_key.isascii() or "在这里" in api_key or len(api_key) < 20:
+    if (api_key or not allow_missing_key) and (not api_key.isascii() or "在这里" in api_key or len(api_key) < 20):
         raise ValueError(f"没有有效的 API Key，请打开 {CONFIG_PATH} 填写 OPENAI_API_KEY")
 
     # expanduser：让 --root ~/apps/xxx 这种写法也能用（Path 不会自动展开 ~）

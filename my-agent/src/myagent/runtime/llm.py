@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from .config import Settings
 
 
-def configure(settings: Settings, *, console_trace: bool = True) -> None:
+def configure(settings: Settings, *, console_trace: bool = True, reset_tracing: bool = True) -> None:
     """把 SDK 指向我们的模型。
 
     三件事，一件都不能少：
@@ -26,6 +26,9 @@ def configure(settings: Settings, *, console_trace: bool = True) -> None:
     client = AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key)
     set_default_openai_client(client, use_for_tracing=False)
     set_default_openai_api("chat_completions")
+
+    if not reset_tracing:
+        return
 
     if console_trace:
         set_trace_processors([BatchTraceProcessor(ConsoleSpanExporter())])

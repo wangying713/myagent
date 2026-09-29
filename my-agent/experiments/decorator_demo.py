@@ -1,6 +1,6 @@
 """装饰器（@xxx）到底是什么意思 —— 一步步跑给你看。
 
-运行：python3 my-agent/experiments/decorator_demo.py
+运行（my-agent 目录）：uv run python -m myagent.runtime.lab experiments/decorator_demo.py
 只用标准库，跟 agents 无关，任何 Python 3 都能跑。
 看输出比看文字快。
 """

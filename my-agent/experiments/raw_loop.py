@@ -5,9 +5,9 @@
     手写一遍之后，"框架"就退化成了"帮我处理了各种边界情况的同一个东西"——黑盒被拆开了。
 
 运行（在 my-agent/ 目录下）：
-    uv run python experiments/raw_loop.py --step 1    # 裸调用：一次请求，没有工具
-    uv run python experiments/raw_loop.py --step 2    # 带工具：看模型怎么"说"要调工具
-    uv run python experiments/raw_loop.py --step 3    # 完整循环：这就是 Agent
+    uv run python -m myagent.runtime.lab experiments/raw_loop.py --step 1    # 裸调用：一次请求，没有工具
+    uv run python -m myagent.runtime.lab experiments/raw_loop.py --step 2    # 带工具：看模型怎么"说"要调工具
+    uv run python -m myagent.runtime.lab experiments/raw_loop.py --step 3    # 完整循环：这就是 Agent
 
 注意：这是学习沙盒，不是业务代码。跑完可以删，不影响项目。
 """
@@ -21,6 +21,7 @@ from pathlib import Path
 from openai import OpenAI
 
 from myagent.runtime.config import load_settings
+from myagent.runtime.observe import recorded_call
 from myagent.tools.guards import safe_resolve
 
 SYSTEM = "你是一个代码仓库分析助手。需要了解目录结构时，调用 list_dir 工具。"
@@ -87,7 +88,7 @@ TOOLS_SCHEMA = [
 
 def step1(client: OpenAI, model: str) -> None:
     print("=== step 1：裸调用（无工具）===\n")
-    resp = client.chat.completions.create(
+    resp = recorded_call("LLM", client.chat.completions.create,
         model=model,
         messages=[
             {"role": "system", "content": SYSTEM},
@@ -108,7 +109,7 @@ def step1(client: OpenAI, model: str) -> None:
 
 def step2(client: OpenAI, model: str) -> None:
     print("=== step 2：带工具（模型只会「说」）===\n")
-    resp = client.chat.completions.create(
+    resp = recorded_call("LLM", client.chat.completions.create,
         model=model,
         messages=[
             {"role": "system", "content": SYSTEM},
@@ -152,7 +153,7 @@ def step3(client: OpenAI, model: str, root: Path, max_turns: int = 8) -> None:
         print(f"--- 第 {turn} 轮 ---")
 
         # ① Reason：把 系统提示词 + 全部历史 + 工具清单 发给模型
-        resp = client.chat.completions.create(
+        resp = recorded_call("LLM", client.chat.completions.create,
             model=model, messages=messages, tools=TOOLS_SCHEMA
         )
         msg = resp.choices[0].message
@@ -176,7 +177,7 @@ def step3(client: OpenAI, model: str, root: Path, max_turns: int = 8) -> None:
         for tc in msg.tool_calls:
             args = json.loads(tc.function.arguments)  # 字符串 → dict
             print(f"  执行 {tc.function.name}({args})")
-            result = TOOL_IMPL[tc.function.name](root, **args)
+            result = recorded_call("TOOL", TOOL_IMPL[tc.function.name], root, **args)
             print(f"  返回 {len(result)} 字符")
 
             # ④ Observe：结果塞回历史，带上一模一样的 tool_call_id

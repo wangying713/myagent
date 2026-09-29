@@ -8,12 +8,12 @@
 业务代码的用法只有一行：
 
     from myagent.runtime.observability import setup
-    setup()                       # ⚠️ 必须在 llm.configure() 之后调用
+    setup()                       # 通常由 runtime.lab 统一调用
 
     agent = Agent(...)            # 之后全部自动上报，业务代码零侵入：
     log.info("开始处理")           #   · 日志 → 自动带 trace_id
     await Runner.run(agent, ...)  #   · span 树 → Agent / turn / generation
-    httpx.get(...)                #   · HTTP 请求 → method / url / status
+    # HTTP 基础信息及 JSON 正文默认采集；debug_http=True 额外增加响应请求 ID
 
 配置来源：config.env（同 config.py），支持 OPENOBSERVE_* / OTEL_*，
 环境变量优先于文件。缺少凭据就跳过上报，不会报错。
@@ -24,10 +24,11 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import CONFIG_PATH
+from .config import CONFIG_PATH, _read_env_file
 
 _CONFIGURED = False
 
@@ -47,23 +48,10 @@ class ObservabilitySettings:
         return bool(self.oo_auth)
 
 
-def _read_config_file(path: Path) -> dict[str, str]:
-    cfg: dict[str, str] = {}
-    if not path.exists():
-        return cfg
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        cfg[key.strip()] = value.strip().strip('"').strip("'")
-    return cfg
-
-
 def load_observability_settings(path: Path | None = None) -> ObservabilitySettings:
-    cfg = _read_config_file(path or CONFIG_PATH)
+    cfg = _read_env_file(path or CONFIG_PATH)
     # 环境变量优先（临时覆盖方便调试）
-    for key in list(cfg) + ["OPENOBSERVE_USER"]:
+    for key in set(cfg) | {"OPENOBSERVE_USER", "OPENOBSERVE_PASSWORD", "OPENOBSERVE_ENDPOINT", "OPENOBSERVE_LOGS_ENDPOINT", "OTEL_SERVICE_NAME"}:
         if key.startswith(("OPENOBSERVE_", "OTEL_")) and os.environ.get(key):
             cfg[key] = os.environ[key].strip()
 
@@ -79,7 +67,7 @@ def load_observability_settings(path: Path | None = None) -> ObservabilitySettin
     return ObservabilitySettings(
         service_name=cfg.get("OTEL_SERVICE_NAME", "my-agent"),
         oo_traces_endpoint=traces_ep,
-        oo_logs_endpoint=traces_ep.replace("/v1/traces", "/v1/logs"),
+        oo_logs_endpoint=cfg.get("OPENOBSERVE_LOGS_ENDPOINT", traces_ep.replace("/v1/traces", "/v1/logs")),
         oo_auth=auth,
     )
 
@@ -107,13 +95,18 @@ def _setup_traces(s: ObservabilitySettings):
         )
         trace.set_tracer_provider(provider)
 
+    from .span_export import DisplaySpanExporter
+    from .telemetry import DemoSpanProcessor
+    provider.add_span_processor(DemoSpanProcessor())
+
     if s.has_openobserve:
         provider.add_span_processor(
             BatchSpanProcessor(
-                OTLPSpanExporter(
+                DisplaySpanExporter(OTLPSpanExporter(
                     endpoint=s.oo_traces_endpoint,
+                    timeout=5,
                     headers={"Authorization": f"Basic {s.oo_auth}"},
-                )
+                ))
             )
         )
     return provider
@@ -125,7 +118,8 @@ def _setup_logs(s: ObservabilitySettings):
     收益：日志自动携带当前 span 的 trace_id，平台上「日志 ↔ trace」可互跳。
     """
     from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs import LoggerProvider
+    from opentelemetry.instrumentation.logging.handler import LoggingHandler
     from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
     from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
@@ -135,93 +129,25 @@ def _setup_logs(s: ObservabilitySettings):
             BatchLogRecordProcessor(
                 OTLPLogExporter(
                     endpoint=s.oo_logs_endpoint,
+                    timeout=5,
                     headers={"Authorization": f"Basic {s.oo_auth}"},
                 )
             )
         )
     root = logging.getLogger()
-    root.addHandler(LoggingHandler(level=logging.INFO, logger_provider=provider))
+    handler = LoggingHandler(level=logging.INFO, logger_provider=provider)
+    # 上报失败产生的内部日志不能再次上报，否则服务离线时会不断重试。
+    from .telemetry import DemoLogFilter
+    handler.addFilter(DemoLogFilter())
+    root.addHandler(handler)
     root.setLevel(logging.INFO)
     return provider
 
 
-def _setup_http() -> None:
-    """给 httpx 和 httpx2 都装上 HTTP 埋点。
+def _setup_http(*, debug_http: bool = False) -> None:
+    from .http_telemetry import instrument_http
 
-    ⚠️ 两个库都要，因为它们不是同一个东西：
-        httpx     —— 我们其它依赖在用
-        httpx2    —— **openai SDK 在用**（openai/_base_client.py 里 import httpx2）
-    只 patch httpx 的话，模型请求不产生 HTTP span，平台上就看不到请求地址
-    （URL）和状态码 —— 这是实测踩到的坑。
-
-    时机要求：只要在**发起请求之前**完成 patch 即可（实测：先创建 client
-    再 patch，请求照样有 span）。
-    """
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-
-    HTTPXClientInstrumentor().instrument()
-    _instrument_httpx2()
-
-
-# 请求体最多记这么多字符：tools 的 JSON Schema 可能很长，别把 span 属性撑爆
-_MAX_BODY_CHARS = 16_384
-
-
-def _instrument_httpx2() -> None:
-    """给 httpx2 手写一层埋点（官方没有对应的 instrumentation）。
-
-    做法：把 AsyncClient.send 包一层，开一个 HTTP span 并挂四个属性：
-        http.request.method        请求方法
-        url.full                   完整请求地址（含 /chat/completions）
-        http.response.status_code  状态码
-        http.request.body          请求体原文（截断到 _MAX_BODY_CHARS）
-
-    响应体不在这里读 —— 读流会把响应消费掉、影响业务；模型返回的原始内容
-    在 OpenInference 的 output.value 属性里已经有了。
-
-    用 start_span 而不是 start_as_current_span：不能把自己的 span 设成
-    current，否则会影响日志 trace_id 的归属。
-
-    只包异步客户端（项目走 AsyncOpenAI），同步的 httpx2.Client 用不到。
-    """
-    import httpx2
-    from opentelemetry import trace as otel_trace
-    from opentelemetry.trace import Status, StatusCode
-
-    original_send = httpx2.AsyncClient.send
-    if getattr(original_send, "_myagent_patched", False):
-        return
-
-    async def send_with_span(self, request, *args, **kwargs):
-        # tracer 在调用时才取，保证拿到 setup() 之后生效的那个 provider
-        tracer = otel_trace.get_tracer("myagent.httpx2")
-        span = tracer.start_span(f"HTTP {request.method}")
-        span.set_attribute("http.request.method", request.method)
-        span.set_attribute("url.full", str(request.url))
-
-        try:
-            body = request.content
-        except Exception:  # 请求体是流、或已被读过
-            body = b""
-        if body:
-            span.set_attribute(
-                "http.request.body", body[:_MAX_BODY_CHARS].decode("utf-8", "replace")
-            )
-
-        try:
-            response = await original_send(self, request, *args, **kwargs)
-        except Exception as exc:
-            span.record_exception(exc)
-            span.set_status(Status(StatusCode.ERROR, str(exc)))
-            span.end()
-            raise
-
-        span.set_attribute("http.response.status_code", response.status_code)
-        span.end()
-        return response
-
-    send_with_span._myagent_patched = True  # type: ignore[attr-defined]
-    httpx2.AsyncClient.send = send_with_span
+    instrument_http(debug_http=debug_http)
 
 
 def _detach_sdk_exporter() -> None:
@@ -241,20 +167,32 @@ def _detach_sdk_exporter() -> None:
 
 
 def _setup_agent_instrumentation() -> None:
+    from .agent_io import instrument_agent_io
+    instrument_agent_io()
+    from .request_causality import instrument_tool_context
+    instrument_tool_context()
     from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 
     OpenAIAgentsInstrumentor().instrument()
+    from agents import set_trace_processors
+    from openinference.instrumentation import OITracer, TraceConfig
+    from opentelemetry import trace
+    from .compact_tracing import CompactTracingProcessor
+
+    set_trace_processors([CompactTracingProcessor(
+        OITracer(trace.get_tracer("myagent.agents"), config=TraceConfig())
+    )])
 
 
 # ────────────────────────────────────────────────────────────
 # 对外入口
 # ────────────────────────────────────────────────────────────
-def setup(*, verbose: bool = True) -> None:
+def setup(*, verbose: bool = True, debug_http: bool = False) -> None:
     """一次性接入可观测。幂等，重复调用无副作用。
 
-    ⚠️ 必须在 llm.configure() **之后**调用：configure() 会重置 SDK 的
+    默认 configure() 会重置 SDK 的
     trace processor，若 setup() 先执行，它装上的 OpenInference processor
-    会被覆盖掉，导致整条链路静默失效（平台无数据、也不报错）。
+    会被覆盖掉。lab 使用 reset_tracing=False 保留处理器。
 
     典型用法：
         configure(settings, console_trace=False)   # 先配模型
@@ -267,7 +205,7 @@ def setup(*, verbose: bool = True) -> None:
     s = load_observability_settings()
     provider = _setup_traces(s)
     log_provider = _setup_logs(s)
-    _setup_http()
+    _setup_http(debug_http=debug_http)
     _detach_sdk_exporter()
     _setup_agent_instrumentation()
 
@@ -292,7 +230,8 @@ def flush() -> None:
     """
     for p in getattr(setup, "_providers", ()):  # type: ignore[arg-type]
         if p is not None and hasattr(p, "force_flush"):
-            p.force_flush()
+            if p.force_flush(timeout_millis=6000) is False:
+                print("[observability] 刷新超时，部分数据可能尚未送达", file=sys.stderr)
         elif p is not None and hasattr(p, "flush"):
             p.flush()
 
