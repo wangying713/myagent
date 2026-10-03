@@ -127,18 +127,20 @@ class PrintStream:
             sc = trace.get_current_span().get_span_context()
             key = (threading.get_ident(), task, sc.trace_id, sc.span_id)
             pending, ctx = self.pending.pop(key, ("", context.get_current()))
-            parts = (pending + value).split("\n")
-            for line in parts[:-1]:
-                line = line.rstrip("\r")
-                for offset in range(0, len(line), 16000):
-                    self._emit(line[offset:offset + 16000], ctx)
-            # 限制单条日志大小，长输出分块保留，不悄悄丢掉。
-            tail = parts[-1]
-            while len(tail) > 16000:
-                self._emit(tail[:16000], ctx)
-                tail = tail[16000:]
-            if tail:
-                self.pending[key] = (tail, ctx)
+            text = pending + value
+            if text.endswith("\n"):
+                # One print() can contain embedded newlines. Keep that block as
+                # one log event instead of turning Markdown/JSON into many rows.
+                text = text[:-1].removesuffix("\r")
+                for offset in range(0, len(text), 16000):
+                    self._emit(text[offset:offset + 16000], ctx)
+            else:
+                # Bound an unterminated stream while retaining its original text.
+                while len(text) > 16000:
+                    self._emit(text[:16000], ctx)
+                    text = text[16000:]
+                if text:
+                    self.pending[key] = (text, ctx)
         return result
 
     def flush(self):

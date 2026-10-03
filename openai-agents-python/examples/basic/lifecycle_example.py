@@ -124,15 +124,18 @@ def multiply_by_two(x: int) -> int:
     return x * 2
 
 
+# 暂时没用到：等换到支持 json_schema 的模型端点，可以填回下面两个 Agent 的 output_type。
 class FinalResult(BaseModel):
     number: int
 
 
+# 两个 Agent 都去掉了 output_type=FinalResult。
+# 设了它，SDK 会往请求里带 response_format={"type": "json_schema", ...}，
+# 当前模型端点不支持这个类型，会直接 400。去掉后只能拿到自然语言输出。
 multiply_agent = Agent(
     name="Multiply Agent",
     instructions="把这个数乘以 2，然后返回最终结果。",
     tools=[multiply_by_two],
-    output_type=FinalResult,
     hooks=LoggingHooks(),
 )
 
@@ -140,7 +143,6 @@ start_agent = Agent(
     name="Start Agent",
     instructions="生成一个随机数。如果是偶数就停下；如果是奇数，交接给乘法 Agent。",
     tools=[random_number],
-    output_type=FinalResult,
     handoffs=[multiply_agent],
     hooks=LoggingHooks(),
 )

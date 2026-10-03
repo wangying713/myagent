@@ -9,13 +9,9 @@
 from __future__ import annotations
 
 import asyncio
-from agents import Agent, Runner, ToolOutputImageDict
+from agents import Agent, Runner
 from agents.decorators import tool
 
-
-# 开关：True 返回图片（要求模型能看图），False 返回纯文本（任何模型都能跑）。
-# 当前 config.env 配的是 deepseek-chat，不支持图片输入，所以默认走 False。
-RETURN_IMAGE = False
 
 URL = "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=400&q=80"
 
@@ -24,21 +20,15 @@ URL = "https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&
 #     fetch_random_image = tool(fetch_random_image)
 # 包装时会把函数名、文档字符串、参数类型登记成工具的名字、说明、参数表。
 @tool
-def fetch_random_image() -> str | ToolOutputImageDict:
-    # ↑ 返回值标注要盖住「所有 return 分支」：纯文本是 str，
-    #   图片那条分支返回的是字典，所以两样都得写上。
-    """获取一张随机图片。"""
+def fetch_random_image(subject: str) -> dict[str, str]:
+    """按主题获取一张图片。"""
     # ↑ 上面这行不是注释，是「文档字符串」，会被当作工具说明发给模型。
     #   模型靠它判断该不该调这个工具，所以要写清楚。
 
-    print("  [工具被调用] fetch_random_image")   # 打出来好确认工具真的被调了
+    print(f"  [工具被调用] fetch_random_image(subject={subject!r})")
 
-    if RETURN_IMAGE:
-        # 图片要能被模型"看到"，前提是模型支持图片输入（gpt-4o、qwen-vl 这类）
-        return {"type": "image", "image_url": URL, "detail": "auto"}
-
-    # 纯文本：任何模型都能跑，用来观察「工具被调用 → 结果回传 → 模型作答」这条链路
-    return f"图片地址：{URL}"
+    # 返回结构化结果，工具 span 的 output.value 会呈现为 JSON，便于排查。
+    return {"requested_subject": subject, "image_url": URL}
 
 
 async def main() -> None:
@@ -48,7 +38,7 @@ async def main() -> None:
         tools=[fetch_random_image],   # 传函数本身（不加括号），交给模型自己决定调不调
     )
 
-    question = "用 fetch_random_image 工具取一张图片，然后描述它"
+    question = "用 fetch_random_image 工具找一张关于伦敦的图片，然后告诉我你传了什么参数、工具返回了什么"
     result = await Runner.run(agent, question)
 
     print(result.final_output)
