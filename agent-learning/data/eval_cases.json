@@ -1,0 +1,6 @@
+[
+  {"id":"positive","a":17,"b":23,"expected":391},
+  {"id":"zero","a":0,"b":25,"expected":0},
+  {"id":"negative","a":-3,"b":8,"expected":-24},
+  {"id":"small","a":12,"b":8,"expected":96}
+]

@@ -1,32 +1,26 @@
-# ─────────────────────────────────────────────────────────────
-# 官方参考仓库：已 vendor 进本仓库，文件统一由本仓库管理
-#   · 它原来的 .git（32M 历史）挪到了 .official-repo-git-backup/，
-#     不入库；不想留可以 rm -rf 掉，需要 git log 时再挪回去
-#   · 框架版本仍由 my-agent/pyproject.toml 的 openai-agents>=0.22.3 锁定
-# ─────────────────────────────────────────────────────────────
-.official-repo-git-backup/
+# Python environments and generated files
+**/.venv/
+**/__pycache__/
+*.py[cod]
 
-# 虚拟环境（各子目录自带的 .gitignore 也覆盖了一部分，这里是兜底）
-.venv/
+# Local credentials
+.env
+*.env
+!*.env.example
+config.env
 
-# ─────────────────────────────────────────────────────────────
-# Langfuse 源码（B 方案：fork + i18n + 自建镜像）
-#   · 自带 .git，是上游仓库的克隆，提交会变成"幽灵子模块"
-#   · 含 node_modules(2.5G) + .next(2.8G)，共 5.7G
-#   · 换机器重新 git clone --depth=1 即可，不需要入库
-# ─────────────────────────────────────────────────────────────
-tools/langfuse-src/
-
-# macOS / 编辑器
+# Local editor and operating system files
 .DS_Store
 .vscode/
 
-# 运行产物与缓存
-.tmp/
-.cache/
-*.log
+# Archived upstream Git metadata and generated caches
+.official-repo-git-backup/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# 凭据（子目录里各自也有一份 .gitignore，这里是兜底）
-config.env
-*.env
-!*.env.example
+# Legacy local OpenObserve notes contain machine credentials
+old-workspace/doc/readme.md
+
+# Local learning sessions and generated reports
+agent-learning/.local/
