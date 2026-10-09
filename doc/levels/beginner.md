@@ -2,7 +2,7 @@
 
 **目标：**能独立写出“构造消息 → 调用模型 → 执行受控工具 → 回填结果 → 停止”的程序。
 
-**前置：**Python 字典、列表、函数、异常和 `with`。遇到不熟的语法可以先查本节代码，不需要先学习机器学习训练、向量数据库或框架。
+**前置：**Python 字典、列表、函数和基本异常。Agent 示例会用到 `with`；若还不熟悉，可先看独立的 [Python with 语法练习](../../python-learning/with_statement.py)，它不属于 Agent 课程 demo。
 
 所有命令在 `agent-learning/` 目录执行。已有 `.env` 不要覆盖。先运行 `uv sync --locked` 和 `uv run python verify_observe.py`，确保观测记录能查回。详见 [观测说明](../openobserve.md)。
 

@@ -103,7 +103,15 @@ agent-learning/
 └── tests/                      # 假 HTTP + 内存 exporter，完全离线
 ```
 
-从 `agent-learning/` 目录运行 demo，使用模块形式，例如 `uv run python -m demos.beginner.beginner_01_chat`。这样课程示例集中在 `demos/`，同时仍能直接导入同目录的底层客户端和工具实现。
+从 `agent-learning/` 目录运行 Agent demo，使用模块形式，例如 `uv run python -m demos.beginner.beginner_01_chat`。这样课程示例集中在 `demos/`，同时仍能直接导入同目录的底层客户端和工具实现。
+
+Python 语法练习单独放在仓库根目录的 [`python-learning/`](../python-learning/)；它不计入 Agent 课程级别和 demo 数量。
+
+```text
+python-learning/
+├── README.md
+└── with_statement.py       # with、as、异常清理和 SQLite 事务
+```
 
 `httpx` 负责 HTTP；`python-dotenv` 读取本地配置；OpenTelemetry SDK 负责观测。它们都不会替你决定 Agent 下一步。项目不使用模型 SDK，也不使用 Agent 框架，循环仍是普通 Python。
 

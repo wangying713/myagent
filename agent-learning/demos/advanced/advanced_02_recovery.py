@@ -17,6 +17,7 @@ class LocalJobs:
             path: SQLite 数据库文件路径。
         """
         self.path = str(path)
+        # 连接管理器负责提交或回滚事务；closing 确保最后关闭连接。
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS jobs "
@@ -41,6 +42,7 @@ class LocalJobs:
         """
         if not job_id or not title:
             raise ValueError("任务 ID 和标题不能为空")
+        # 事务处理完成后关闭连接。
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
@@ -71,6 +73,7 @@ class LocalJobs:
         # approved 只是教学中模拟的审批结果，不是生产权限系统。
         if approved is not True:
             raise PermissionError("任务未获批准，保持待审批状态")
+        # 事务处理完成后关闭连接。
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(

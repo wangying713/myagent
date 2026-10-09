@@ -40,8 +40,8 @@ def solve(model: DeepSeekClient) -> str:
 # main 是本文件的主流程函数；-> None 表示它不打算返回结果，而是直接打印信息。
 def main() -> None:
     """运行思考模式示例并打印 trace ID、答案和 token 用量。"""
-    # with 用于管理资源：进入时创建客户端，离开代码块时自动关闭并结束 trace。
-    # 字符串 advanced_thinking 是这次运行的名称，方便在 OpenObserve 中辨认。
+    # 运行结束后自动关闭 HTTP 客户端并结束 trace。
+    # advanced_thinking 是这次运行的名称，方便在 OpenObserve 中辨认。
     with DeepSeekClient("advanced_thinking") as model:
         # print 可以打印多个值；逗号会让它们以空格分隔显示。
         print("trace_id:", model.trace_id)
