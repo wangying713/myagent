@@ -267,7 +267,7 @@ def main():
     if args.evaluate:
         from demos.advanced.advanced_03_evaluation import evaluate
 
-        for row in evaluate(live=True):
+        for row in evaluate():
             require(row["passed"], "真实评估未通过：" + row["case"])
             check_trace(
                 settings, row["trace_id"], row["llm_calls"], row["tool_calls"]

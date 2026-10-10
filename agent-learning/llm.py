@@ -1,6 +1,7 @@
 """直接 HTTP 调 DeepSeek；业务只管 messages/tools，观测和生命周期在这里。"""
 
 import json
+from copy import deepcopy
 from typing import Callable
 
 import httpx
@@ -70,6 +71,7 @@ class DeepSeekClient:
         lesson: 标记本次运行来源的课程名称。
         calls: 本次运行的模型请求次数。
         tool_calls: 本次运行的工具执行次数。
+        tool_results: 实际执行的工具请求与结果，供业务校验使用。
         total_tokens: 模型响应报告的累计 token 数。
         trace_id: 本次运行的 OpenTelemetry trace ID。
     """
@@ -107,6 +109,7 @@ class DeepSeekClient:
         self.lesson = lesson
         self.calls = 0
         self.tool_calls = 0
+        self.tool_results = []
         self.total_tokens = 0
         self.trace_id = "disabled"
         self._active = False
@@ -538,6 +541,9 @@ class DeepSeekClient:
         ) as span:
             self.telemetry.payload(span, "app.tool.request", call)
             result = dispatch(call)
+            self.tool_results.append(
+                {"request": deepcopy(call), "response": deepcopy(result)}
+            )
             self.telemetry.payload(span, "app.tool.response", result)
             if not result.get("ok", False):
                 span.set_status(StatusCode.ERROR, "ToolError")

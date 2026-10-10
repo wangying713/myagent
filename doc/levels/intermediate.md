@@ -1,6 +1,6 @@
 # 中级：让 Agent 使用资料，并处理真实程序的边界
 
-**目标：**从一次演示走向可验证的小应用。先完成初级，理解消息和工具配对。本级 5 个 demo 均已提供完整代码；可靠性实验完全离线，其余使用已有模型配置。
+**目标：**从一次演示走向可验证的小应用。先完成初级，理解消息和工具配对。本级 4 个 demo 均已提供完整代码，使用已有模型配置。
 
 ## I01：结构化输出与业务校验
 
@@ -21,18 +21,6 @@
 比较终端逐段显示与 trace 中聚合正文。检查 `app.stream.complete`。测试中的中断流会保存部分正文但报告失败；流中的工具参数也必须拼完整后才能执行。
 
 **通过标准：**能解释“已经显示半句话”为什么不等于请求完成，能说明片段数不能用来计算 token。
-
-## I03：有限重试与故障实验
-
-- 文档：[失败、预算和安全](../lessons/06-reliability.md)。
-- 运行：`uv run python -m demos.intermediate.intermediate_03_reliability`。
-- 阅读：`retry_chat()` → `offline_lab.py`。
-
-本实验不需要密钥，不访问 DeepSeek，也不向 OpenObserve 写入。第一种场景模拟 503 后恢复，应出现 2 次请求、3 个内存 span；第二种模拟 401，只尝试一次。离线 trace 与真实上报使用相同的观测代码，仅 exporter 换成内存。
-
-这里显式展示最多 3 次尝试和退避。没有给所有请求偷偷加重试，也没有对工具副作用做重放。退避示例未实现生产级抖动或 `Retry-After` 处理。
-
-**通过标准：**能解释哪些错误应改配置、哪些可重试；能修改假响应让三次都失败；能证明每次实际尝试都有记录。
 
 ## I04：最小 RAG 与引用检查
 
@@ -78,11 +66,10 @@ uv run python -m demos.intermediate.intermediate_05_memory --db .local/sessions.
 ## 中级验收
 
 ```bash
-uv run python -m demos.intermediate.intermediate_03_reliability
 uv run python verify_live.py --level intermediate
 uv run python -m unittest discover -s tests -v
 ```
 
-真实验收通常共 5 次模型请求，覆盖 JSON、流式、检索命中、无资料和会话恢复。离线测试覆盖重试、引用伪造、并发覆盖与失败保存等边界。
+真实验收通常共 5 次模型请求，覆盖 JSON、流式、检索命中、无资料和会话恢复。离线测试覆盖模型请求失败、引用伪造、并发覆盖与失败保存等边界。失败处理与重试原理见 [失败、预算和安全](../lessons/06-reliability.md)。
 
 下一阶段：[高级](advanced.md)。

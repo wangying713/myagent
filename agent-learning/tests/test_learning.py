@@ -180,6 +180,10 @@ class LearningTests(unittest.TestCase):
         client, exporter = self.client(handler)
         with client as model:
             self.assertEqual(run_agent(model, "17*23"), "391")
+        self.assertEqual(
+            client.tool_results,
+            [{"request": call(), "response": {"ok": True, "result": 391}}],
+        )
         spans = exporter.get_finished_spans()
         self.assertEqual(len(spans), 4)
         root = spans[-1]
@@ -241,6 +245,9 @@ class LearningTests(unittest.TestCase):
         ]
         self.assertEqual(len(tools), 2)
         self.assertEqual(tools[1].status.status_code, StatusCode.ERROR)
+        self.assertEqual(
+            [r["response"]["ok"] for r in client.tool_results], [True, False]
+        )
 
     def test_stream_aggregates_chunks_and_final_usage(self):
         chunks = [

@@ -1,4 +1,4 @@
-"""离线实验支持：假 HTTP、内存 trace；不读取密钥、不连接外部服务。"""
+"""离线回归测试支持：假 HTTP、内存 trace；不读取密钥、不连接外部服务。"""
 
 import httpx
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (

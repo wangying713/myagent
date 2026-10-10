@@ -42,7 +42,7 @@
 
 ## 用离线测试学习失败
 
-先运行 `uv run python -m demos.intermediate.intermediate_03_reliability`，观察 503 后恢复和 401 不重试。这里显式调用 `retry_chat()`，底层 `chat()` 本身仍不自动重试。模拟模型交互只记录到内存。恢复与幂等实验见 [高级 A02](../levels/advanced.md)。
+底层 `chat()` 不自动重试。使用回归测试检查模型请求失败、工具参数异常和预算耗尽时的实际行为。
 
 ```bash
 uv run python -m unittest discover -s tests -v

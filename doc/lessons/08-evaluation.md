@@ -8,7 +8,7 @@
 
 ## 做一张小而固定的评估表
 
-现有 `demos/advanced/advanced_03_evaluation.py` 默认离线运行固定计算用例；`--live` 改用真实 DeepSeek。具体实验见 [高级 A03](../levels/advanced.md)。
+现有 `demos/advanced/advanced_03_evaluation.py` 使用真实 DeepSeek 运行固定计算用例，并上报 OpenObserve，会消耗 token。具体实验见 [高级 A03](../levels/advanced.md)。
 
 | 用例 | 期望行为 | 验证方法 |
 |---|---|---|

@@ -26,13 +26,13 @@ uv run python verify_observe.py --trace-id 替换成实际32位trace_id --expect
 
 ## 按初级、中级、高级学习
 
-本套课程已提供 **3 个级别、12 个可运行 demo**。每级文档列出前置知识、运行命令、阅读顺序、练习、观测点和通过标准。先做初级，不必一次读完整套材料。
+本套课程已提供 **3 个级别、10 个可运行 demo**，均围绕真实模型交互。每级文档列出前置知识、运行命令、阅读顺序、练习、观测点和通过标准。先做初级，不必一次读完整套材料。
 
 | 级别 | 目标与内容 | demo 数 | 分级文档 |
 |---|---|---:|---|
 | 初级 | HTTP、消息历史、工具协议、手写循环 | 3 | [初级课程](levels/beginner.md) |
-| 中级 | JSON、流式、有限重试、关键词 RAG、SQLite 会话 | 5 | [中级课程](levels/intermediate.md) |
-| 高级 | 思考模式、审批与恢复、固定用例评估、只读资料 Agent | 4 | [高级课程](levels/advanced.md) |
+| 中级 | JSON、流式、关键词 RAG、SQLite 会话 | 4 | [中级课程](levels/intermediate.md) |
+| 高级 | 思考模式、固定用例评估、只读资料 Agent | 3 | [高级课程](levels/advanced.md) |
 
 ### Demo 对照表
 
@@ -45,15 +45,13 @@ uv run python verify_observe.py --trace-id 替换成实际32位trace_id --expect
 | B03 | `demos/beginner/beginner_03_agent_loop.py` | 真实模型 + 本地工具 | 工具结果与最终答案一致，循环有限 |
 | I01 | `demos/intermediate/intermediate_01_json.py` | 真实模型 | JSON 解析后还要通过业务校验 |
 | I02 | `demos/intermediate/intermediate_02_stream.py` | 真实模型 | 正确重组消息，仅一个模型 span |
-| I03 | `demos/intermediate/intermediate_03_reliability.py` | 完全离线 | 503 有限重试，401 不重复尝试 |
 | I04 | `demos/intermediate/intermediate_04_rag.py` | 本地检索 + 真实模型 | 引用存在；未命中时明确依据不足 |
 | I05 | `demos/intermediate/intermediate_05_memory.py` | SQLite + 真实模型 | 重新加载历史、隔离会话、防止覆盖 |
 | A01 | `demos/advanced/advanced_01_thinking.py` | 真实模型 | 最终结果验算，并比较资源开销 |
-| A02 | `demos/advanced/advanced_02_recovery.py` | 完全离线 | 未批准不执行，重放只产生一个本地结果 |
-| A03 | `demos/advanced/advanced_03_evaluation.py` | 默认离线，`--live` 调真实模型 | 同时校验答案、工具证据和预算 |
+| A03 | `demos/advanced/advanced_03_evaluation.py` | 真实模型 + 本地工具 | 同时校验答案、工具证据和预算 |
 | A04 | `demos/advanced/advanced_04_knowledge_agent.py` | 真实模型 + 只读检索工具 | 搜索、回填、引用校验完整可见 |
 
-真实模型交互统一经底层客户端上报。离线 demo 的模拟响应只写内存，不向 OpenObserve 发送测试噪音。恢复 demo 不调用模型，操作限于临时 SQLite 数据库。
+真实模型交互统一经底层客户端上报。假 HTTP 和内存观测仅供回归测试使用，不向 OpenObserve 发送测试噪音。删除示例后保留原有编号，便于对照既有记录。
 
 ### 按级验收
 
@@ -88,12 +86,12 @@ uv run python verify_live.py --level advanced
 agent-learning/
 ├── demos/
 │   ├── beginner/               # B01–B03：HTTP、消息、手写 Agent 循环
-│   ├── intermediate/           # I01–I05：JSON、流式、可靠性、RAG、会话
-│   └── advanced/               # A01–A04：思考、恢复、评估、综合 Agent
+│   ├── intermediate/           # I01、I02、I04、I05：JSON、流式、RAG、会话
+│   └── advanced/               # A01、A03、A04：思考、评估、综合 Agent
 ├── toolbox.py                  # 工具说明、白名单、参数检查、实际函数
 ├── retrieval.py                # 检索与引用校验
 ├── session_store.py            # 会话隔离与版本控制
-├── offline_lab.py              # 假 HTTP 和内存观测
+├── offline_lab.py              # 回归测试用假 HTTP 和内存观测
 ├── data/                       # 虚构资料与评估用例
 ├── llm.py                      # 直接 HTTP 请求；所有模型/工具交互的统一入口
 ├── telemetry.py                # span、脱敏、限长、批量导出

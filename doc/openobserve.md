@@ -38,7 +38,9 @@ agent.run
 | 上报请求本身 | 不埋点，避免上报产生更多上报 |
 | 日志与指标 | 初期不重复发送同一份请求/响应到 Logs，也不单独发送 metrics |
 
-所有真实模型示例经由 `llm.py`。故障注入与默认离线评估使用同一客户端、假 HTTP 和内存 exporter，不读取本机密钥、不连接模型或 OpenObserve；恢复 demo 不调用模型。新实验也使用 `DeepSeekClient`，直接绕过它调用 `httpx` 不会自动被捕获。`with` 的退出逻辑负责结束运行并刷出记录，包括发生异常时。业务脚本不用接触 OpenTelemetry。
+所有真实模型示例经由 `llm.py`，固定用例评估也调用真实模型并上报。回归测试使用同一客户端、假 HTTP 和内存 exporter，不读取本机密钥、不连接模型或 OpenObserve。新实验也使用 `DeepSeekClient`，直接绕过它调用 `httpx` 不会自动被捕获。`with` 的退出逻辑负责结束运行并刷出记录，包括发生异常时。业务脚本不用接触 OpenTelemetry。
+
+OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放在 `telemetry.py`。demo 只使用 `DeepSeekClient`，模型请求和工具执行自动记录；评估使用客户端的 `tool_results`，不需要通过 span 获取业务结果。`passed` 表示业务评估通过，完整入库另由 `verify_observe.py` 或 `verify_live.py` 查询确认。
 
 ## 在 UI 里看什么
 

@@ -2,7 +2,22 @@
 
 日期：2026-10-05。已完成本轮三级课程 review、补充实现和验收。使用现有 `.env`，服务名为 `chat-demo`；原有凭据和历史观测数据未更改。
 
-## 本轮结果
+2026-10-09 更新：课程已清理纯本地恢复和模拟重试 demo，当前共 10 个（初级 3、中级 4、高级 3）。评估入口已统一为真实模型调用；下面的 trace 表及调用统计保留为 2026-10-05 的历史验收证据。
+
+课程清理后 22 项离线回归测试全部通过，评估回归通过测试侧注入假 HTTP 验证答案与工具证据；清理阶段未重新调用真实模型。
+
+## 2026-10-09 观测鉴权修复验证
+
+评估运行曾遇到 OpenObserve HTTP 401，原因是本机 `.env` 的 Basic 编码末尾多了一个字符。修正已有凭据后，`verify_observe.py` 成功上报并查回检查记录。重新运行四个真实评估用例，全部通过，无 401；共 8 次模型请求、4 次工具执行，4 个 trace 的 16 个 span 全部查回，并核对层级、请求响应正文、用量和实际工具结果。
+
+| 用例 | span 数 | trace_id |
+|---|---:|---|
+| positive | 4 | `c4682849ec54893c34a9303231bbbcec` |
+| zero | 4 | `90a7a8db07c68275c9de38c4ea72446a` |
+| negative | 4 | `2ef7df80ee4a6d1f6b7a228e36a92f1f` |
+| small | 4 | `e681e7d0f63af0b59c02183468e88825` |
+
+## 2026-10-05 验收结果
 
 - 三级共 12 个可运行 demo：初级 3 个，中级 5 个，高级 4 个。
 - 25 项离线测试全部通过；故障、恢复和离线评估脚本独立运行成功。
@@ -33,16 +48,13 @@
 
 真实实验同时验证业务结果与观测：问候、暗号、17×23 的最终数字和工具结果、订单字段、完整流式文字、检索引用、无资料时不调用模型、SQLite 恢复后的项目代号、思考题答案 74、资料助手的 30 天恢复依据。四个真实评估用例还逐项检查工具参数和结果。
 
-所有真实运行均核对完整 span 数量、类型、父子关系、请求响应正文、输入用量，以及模型密钥未进入记录。离线测试覆盖不合法协议、token 字段、开关拼写、有限重试、参数限制、预算、流中断、上报失败、部分拒收、引用伪造、会话冲突和事务回滚。
+所有真实运行均核对完整 span 数量、类型、父子关系、请求响应正文、输入用量，以及模型密钥未进入记录。当前离线测试覆盖不合法协议、token 字段、开关拼写、参数限制、预算、流中断、上报失败、部分拒收、引用伪造、会话冲突和失败保存。
 
 ## 重现命令
 
 ```bash
 cd /Users/wangying/apps/sakelei/ai/agent-learning
 uv run python -m unittest discover -s tests -v
-uv run python -m demos.intermediate.intermediate_03_reliability
-uv run python -m demos.advanced.advanced_02_recovery
-uv run python -m demos.advanced.advanced_03_evaluation
 uv run python verify_live.py --level all --evaluate --report .local/verification-levels.json
 ```
 
@@ -50,6 +62,6 @@ uv run python verify_live.py --level all --evaluate --report .local/verification
 
 ## 验证边界
 
-已验证的是教学级成功路径和离线边界，不是生产可靠性认证。思考模式配合工具、向量检索、自动长期记忆、远程副作用幂等、多用户身份鉴权、分布式恢复与生产并发仍未实现。恢复实验的审批是模拟输入，事务保证仅限同一 SQLite 数据库。
+已验证的是教学级成功路径和离线边界，不是生产可靠性认证。思考模式配合工具、向量检索、自动长期记忆、远程副作用幂等、多用户身份鉴权、分布式恢复与生产并发仍未实现。
 
 这些 trace 可能随服务的保留策略清除。查询脚本默认查最近 24 小时，日后需调整 UI 时间范围，或重新运行对应实验。

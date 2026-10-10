@@ -9,10 +9,8 @@ from unittest.mock import patch
 
 import httpx
 
-from demos.advanced.advanced_02_recovery import LocalJobs
 from demos.advanced.advanced_03_evaluation import evaluate, grade
 from demos.advanced.advanced_04_knowledge_agent import run_knowledge_agent
-from demos.intermediate.intermediate_03_reliability import retry_chat
 from demos.intermediate.intermediate_04_rag import answer_question
 from demos.intermediate.intermediate_05_memory import ask
 from llm import ModelError
@@ -62,20 +60,6 @@ class LevelTests(unittest.TestCase):
                     with model:
                         model.chat([])
                 self.assertEqual(len(memory.get_finished_spans()), 2)
-
-    def test_retry_limits_and_permanent_errors(self):
-        for status, expected in [(503, 3), (401, 1)]:
-            model, memory = offline_client(
-                "retry",
-                lambda req: httpx.Response(status, json={"error": "simulated"}),
-            )
-            delays = []
-            with self.assertRaises(ModelError):
-                with model:
-                    retry_chat(model, [], sleep=delays.append)
-            self.assertEqual(model.calls, expected)
-            self.assertEqual(len(memory.get_finished_spans()), expected + 1)
-            self.assertEqual(len(delays), expected - 1)
 
     def test_keyword_retrieval_and_unknown_topic(self):
         self.assertEqual(
@@ -195,42 +179,64 @@ class LevelTests(unittest.TestCase):
             )
         self.assertEqual(len(memory.get_finished_spans()), 4)
 
-    def test_recovery_requires_approval_and_replay_is_idempotent(self):
-        with TemporaryDirectory() as folder:
-            path = Path(folder) / "jobs.db"
-            jobs = LocalJobs(path)
-            jobs.plan("job1", "固定内容")
-            with self.assertRaises(PermissionError):
-                jobs.execute("job1", approved=False)
-            self.assertEqual(jobs.ticket_count(), 0)
-            first = jobs.execute("job1", approved=True)
-            restarted = LocalJobs(path)
-            self.assertEqual(restarted.execute("job1", approved=True), first)
-            self.assertEqual(restarted.ticket_count(), 1)
-            with self.assertRaises(ValueError):
-                restarted.plan("job1", "篡改内容")
-
-    def test_crash_before_commit_rolls_back_effect_and_checkpoint(self):
-        def crash():
-            raise RuntimeError("simulated crash")
-
-        with TemporaryDirectory() as folder:
-            jobs = LocalJobs(Path(folder) / "jobs.db")
-            jobs.plan("job1", "任务")
-            with self.assertRaises(RuntimeError):
-                jobs.execute("job1", approved=True, before_commit=crash)
-            self.assertEqual(jobs.ticket_count(), 0)
-            jobs.execute("job1", approved=True)
-            self.assertEqual(jobs.ticket_count(), 1)
-
     def test_evaluation_does_not_accept_correct_text_without_tool(self):
         score = grade({"a": 17, "b": 23, "expected": 391}, "391", [])
         self.assertTrue(score["answer_correct"])
         self.assertFalse(score["tool_correct"])
-        self.assertTrue(all(r["passed"] for r in evaluate()))
-        wrong = evaluate(
-            cases=[{"id": "wrong_reference", "a": 17, "b": 23, "expected": 999}]
+        failed_tool = {
+            "request": {
+                "function": {"name": "multiply", "arguments": "bad JSON"}
+            },
+            "response": {"ok": False, "error": "invalid_json"},
+        }
+        self.assertFalse(
+            grade({"a": 17, "b": 23, "expected": 391}, "391", [failed_tool])[
+                "tool_correct"
+            ]
         )
+
+        def handler(request):
+            messages = json.loads(request.content)["messages"]
+            if messages[-1]["role"] == "tool":
+                result = json.loads(messages[-1]["content"])
+                return httpx.Response(
+                    200, json=completion(str(result["result"]))
+                )
+            return httpx.Response(
+                200,
+                json=completion(
+                    calls=[
+                        {
+                            "id": "eval-call",
+                            "type": "function",
+                            "function": {
+                                "name": "multiply",
+                                "arguments": json.dumps({"a": 17, "b": 23}),
+                            },
+                        }
+                    ]
+                ),
+            )
+
+        def mock_client(*args, **kwargs):
+            model, _ = offline_client(args[0], handler)
+            # 不采集观测正文时，实际工具结果仍可用于评估。
+            model.telemetry.capture_content = False
+            return model
+
+        module = "demos.advanced.advanced_03_evaluation"
+        with patch(module + ".DeepSeekClient", side_effect=mock_client):
+            rows = evaluate(
+                cases=[{"id": "positive", "a": 17, "b": 23, "expected": 391}]
+            )
+            self.assertTrue(rows[0]["passed"])
+            self.assertEqual(rows[0]["llm_calls"], 2)
+            self.assertEqual(rows[0]["tool_calls"], 1)
+            wrong = evaluate(
+                cases=[
+                    {"id": "wrong_reference", "a": 17, "b": 23, "expected": 999}
+                ]
+            )
         self.assertFalse(wrong[0]["passed"])
 
 
