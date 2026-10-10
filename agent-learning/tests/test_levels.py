@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 import httpx
 
-from demos.advanced.advanced_03_evaluation import evaluate, grade
-from demos.advanced.advanced_04_knowledge_agent import run_knowledge_agent
-from demos.intermediate.intermediate_04_rag import answer_question
-from demos.intermediate.intermediate_05_memory import ask
+from demos.advanced.advanced_02_evaluation import evaluate, grade
+from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
+from demos.intermediate.intermediate_03_rag import answer_question
+from demos.intermediate.intermediate_04_memory import ask
 from llm import ModelError
 from offline_lab import completion, offline_client
 from retrieval import search_documents, validate_answer
@@ -224,7 +224,7 @@ class LevelTests(unittest.TestCase):
             model.telemetry.capture_content = False
             return model
 
-        module = "demos.advanced.advanced_03_evaluation"
+        module = "demos.advanced.advanced_02_evaluation"
         with patch(module + ".DeepSeekClient", side_effect=mock_client):
             rows = evaluate(
                 cases=[{"id": "positive", "a": 17, "b": 23, "expected": 391}]

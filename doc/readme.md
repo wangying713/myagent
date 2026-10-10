@@ -45,13 +45,13 @@ uv run python verify_observe.py --trace-id 替换成实际32位trace_id --expect
 | B03 | `demos/beginner/beginner_03_agent_loop.py` | 真实模型 + 本地工具 | 工具结果与最终答案一致，循环有限 |
 | I01 | `demos/intermediate/intermediate_01_json.py` | 真实模型 | JSON 解析后还要通过业务校验 |
 | I02 | `demos/intermediate/intermediate_02_stream.py` | 真实模型 | 正确重组消息，仅一个模型 span |
-| I04 | `demos/intermediate/intermediate_04_rag.py` | 本地检索 + 真实模型 | 引用存在；未命中时明确依据不足 |
-| I05 | `demos/intermediate/intermediate_05_memory.py` | SQLite + 真实模型 | 重新加载历史、隔离会话、防止覆盖 |
+| I03 | `demos/intermediate/intermediate_03_rag.py` | 本地检索 + 真实模型 | 引用存在；未命中时明确依据不足 |
+| I04 | `demos/intermediate/intermediate_04_memory.py` | SQLite + 真实模型 | 重新加载历史、隔离会话、防止覆盖 |
 | A01 | `demos/advanced/advanced_01_thinking.py` | 真实模型 | 最终结果验算，并比较资源开销 |
-| A03 | `demos/advanced/advanced_03_evaluation.py` | 真实模型 + 本地工具 | 同时校验答案、工具证据和预算 |
-| A04 | `demos/advanced/advanced_04_knowledge_agent.py` | 真实模型 + 只读检索工具 | 搜索、回填、引用校验完整可见 |
+| A02 | `demos/advanced/advanced_02_evaluation.py` | 真实模型 + 本地工具 | 同时校验答案、工具证据和预算 |
+| A03 | `demos/advanced/advanced_03_knowledge_agent.py` | 真实模型 + 只读检索工具 | 搜索、回填、引用校验完整可见 |
 
-真实模型交互统一经底层客户端上报。假 HTTP 和内存观测仅供回归测试使用，不向 OpenObserve 发送测试噪音。删除示例后保留原有编号，便于对照既有记录。
+真实模型交互统一经底层客户端上报。假 HTTP 和内存观测仅供回归测试使用，不向 OpenObserve 发送测试噪音。各级 demo 从 01 连续编号，按文件名顺序学习即可。
 
 ### 按级验收
 
@@ -86,8 +86,8 @@ uv run python verify_live.py --level advanced
 agent-learning/
 ├── demos/
 │   ├── beginner/               # B01–B03：HTTP、消息、手写 Agent 循环
-│   ├── intermediate/           # I01、I02、I04、I05：JSON、流式、RAG、会话
-│   └── advanced/               # A01、A03、A04：思考、评估、综合 Agent
+│   ├── intermediate/           # I01–I04：JSON、流式、RAG、会话
+│   └── advanced/               # A01–A03：思考、评估、综合 Agent
 ├── toolbox.py                  # 工具说明、白名单、参数检查、实际函数
 ├── retrieval.py                # 检索与引用校验
 ├── session_store.py            # 会话隔离与版本控制

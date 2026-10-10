@@ -14,10 +14,10 @@
 
 **通过标准：**能区分思考开关与流式开关，能解释 max_tokens 太小时为什么可能没有最终答案。思考模式配合工具需要额外遵循回传规则，本课程的真实高级验收只验证单次思考调用。
 
-## A03：固定用例评估
+## A02：固定用例评估
 
 - 文档：[评估与交付](../lessons/08-evaluation.md)。
-- 运行：`uv run python -m demos.advanced.advanced_03_evaluation`。
+- 运行：`uv run python -m demos.advanced.advanced_02_evaluation`。
 - 阅读：`data/eval_cases.json` → `evaluate()` → `grade()`。
 
 使用真实 DeepSeek，四个固定用例覆盖正数、零和负数。评估同时检查最终数字、实际工具参数和结果、预算。只有答案碰巧正确但没有工具证据，不能通过。
@@ -28,17 +28,17 @@
 
 **通过标准：**能故意改错一条参考答案并看到评估失败；能拒绝“正确答案但没用工具”；保持用例不变比较两种 prompt 的通过率、用量和调用次数。
 
-## A04：综合项目——只读资料 Agent
+## A03：综合项目——只读资料 Agent
 
-- 运行：`uv run python -m demos.advanced.advanced_04_knowledge_agent`。
+- 运行：`uv run python -m demos.advanced.advanced_03_knowledge_agent`。
 - 阅读：`run_knowledge_agent()` → `SEARCH_TOOLS` / `dispatch_search()` → `validate_answer()`。
 - 典型为 2 次模型调用 + 1 次搜索 + 根，共 4 个 span；允许在预算内调整关键词再次搜索。
 
 本项目复用中级资料，但控制流程变了：中级由程序固定先检索；这里模型生成搜索参数，程序只允许 `search_documents`，执行结果回填给模型，最终答案必须通过来源 ID 校验。第一轮强制请求工具，后续自动决定是否继续搜索。
 
 ```bash
-uv run python -m demos.advanced.advanced_04_knowledge_agent '星河笔记误删的笔记能恢复多久？请给出资料依据。'
-uv run python -m demos.advanced.advanced_04_knowledge_agent '星河笔记支持导出哪些格式？'
+uv run python -m demos.advanced.advanced_03_knowledge_agent '星河笔记误删的笔记能恢复多久？请给出资料依据。'
+uv run python -m demos.advanced.advanced_03_knowledge_agent '星河笔记支持导出哪些格式？'
 ```
 
 限制包括：最多 4 轮模型调用、4 次工具执行、累计 token 软预算 8000、查询最长 200 字符、每次返回至多两个片段、无任意路径读写或 shell。答案校验能发现引用不存在，不能自动判定每句话都被资料支持。
@@ -48,7 +48,7 @@ uv run python -m demos.advanced.advanced_04_knowledge_agent '星河笔记支持�
 ## 高级验收与毕业要求
 
 ```bash
-uv run python -m demos.advanced.advanced_03_evaluation
+uv run python -m demos.advanced.advanced_02_evaluation
 uv run python verify_live.py --level advanced
 ```
 

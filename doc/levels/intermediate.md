@@ -22,17 +22,17 @@
 
 **通过标准：**能解释“已经显示半句话”为什么不等于请求完成，能说明片段数不能用来计算 token。
 
-## I04：最小 RAG 与引用检查
+## I03：最小 RAG 与引用检查
 
 - 文档：[检索、记忆与状态](../lessons/07-retrieval-memory.md)。
-- 运行：`uv run python -m demos.intermediate.intermediate_04_rag`。
+- 运行：`uv run python -m demos.intermediate.intermediate_03_rag`。
 - 阅读：`data/knowledge.json` → `search_documents()` → `answer_question()` → `validate_answer()`。
 
 知识库是三条虚构产品资料；检索使用关键词计分，没有向量数据库。程序固定执行一次搜索，再把命中片段放进 user 消息，最后让模型输出带来源 ID 的 JSON。常规运行共 3 个 span：根、检索、模型。
 
 ```bash
-uv run python -m demos.intermediate.intermediate_04_rag '星河笔记支持导出哪些格式？'
-uv run python -m demos.intermediate.intermediate_04_rag '是否支持脑机接口？'
+uv run python -m demos.intermediate.intermediate_03_rag '星河笔记支持导出哪些格式？'
+uv run python -m demos.intermediate.intermediate_03_rag '是否支持脑机接口？'
 ```
 
 后一题没有关键词命中，程序直接返回依据不足：0 次模型请求，仍有根与检索两条 span。`local-retrieval` 是本地步骤标识，不是伪造模型 tool call 插入 API 历史；这里是固定检索流程。
@@ -41,10 +41,10 @@ uv run python -m demos.intermediate.intermediate_04_rag '是否支持脑机接�
 
 **通过标准：**能分别检查检索命中与答案依据；添加第四条虚构资料并验证；能让凭空生成的来源 ID 被程序拒绝。
 
-## I05：SQLite 会话持久化
+## I04：SQLite 会话持久化
 
-- 运行：`uv run python -m demos.intermediate.intermediate_05_memory`。
-- 阅读：`demos/intermediate/intermediate_05_memory.py` → `session_store.py`。
+- 运行：`uv run python -m demos.intermediate.intermediate_04_memory`。
+- 阅读：`demos/intermediate/intermediate_04_memory.py` → `session_store.py`。
 
 默认演示使用临时数据库：写入 Alice 的项目代号，重新创建存储对象后读取，再询问代号；检查 Bob 的历史为空。正常 2 次模型请求、3 条 span。默认退出会删除临时库，避免积累练习数据。
 
@@ -52,9 +52,9 @@ uv run python -m demos.intermediate.intermediate_04_rag '是否支持脑机接�
 
 ```bash
 mkdir -p .local
-uv run python -m demos.intermediate.intermediate_05_memory --db .local/sessions.sqlite3 --session alice --ask '请记住我的项目代号是海盐。'
-uv run python -m demos.intermediate.intermediate_05_memory --db .local/sessions.sqlite3 --session alice --ask '我的项目代号是什么？'
-uv run python -m demos.intermediate.intermediate_05_memory --db .local/sessions.sqlite3 --session bob --ask '我的项目代号是什么？'
+uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session alice --ask '请记住我的项目代号是海盐。'
+uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session alice --ask '我的项目代号是什么？'
+uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session bob --ask '我的项目代号是什么？'
 ```
 
 `.local/` 已被 Git 忽略。会话内容作为业务数据保存在本机，不等于观测副本的脱敏内容。使用虚构资料即可。

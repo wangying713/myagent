@@ -8,6 +8,7 @@ Agent 开发课程分开。
 在仓库根目录运行：
 
 ```bash
+python3 python-learning/with_simple.py
 python3 python-learning/with_statement.py
 ```
 
@@ -16,5 +17,7 @@ OpenObserve 数据。
 
 ## 当前内容
 
+- [`with_simple.py`](with_simple.py)：一个简单的读文件例子，学习
+  `with ... as ...`、缩进范围和文件自动关闭。
 - [`with_statement.py`](with_statement.py)：`with`、`as`、同时读写两个文件、
   异常时的清理，以及 SQLite 连接的事务管理。

@@ -8,7 +8,7 @@
 
 ## 做一张小而固定的评估表
 
-现有 `demos/advanced/advanced_03_evaluation.py` 使用真实 DeepSeek 运行固定计算用例，并上报 OpenObserve，会消耗 token。具体实验见 [高级 A03](../levels/advanced.md)。
+现有 `demos/advanced/advanced_02_evaluation.py` 使用真实 DeepSeek 运行固定计算用例，并上报 OpenObserve，会消耗 token。具体实验见 [高级 A02](../levels/advanced.md)。
 
 | 用例 | 期望行为 | 验证方法 |
 |---|---|---|
@@ -45,7 +45,7 @@ uv run python verify_live.py
 
 ## 毕业项目：只读资料助手
 
-当前 `demos/advanced/advanced_04_knowledge_agent.py` 已实现基于三份虚构资料的只读命令行助手，可先运行再扩展到十篇自建说明文档。要求：有固定资料目录；能检索并给出处；资料无答案时明确说明；所有模型请求和工具步骤可观察；限制轮次和输入长度；不得修改资料或任意执行命令。
+当前 `demos/advanced/advanced_03_knowledge_agent.py` 已实现基于三份虚构资料的只读命令行助手，可先运行再扩展到十篇自建说明文档。要求：有固定资料目录；能检索并给出处；资料无答案时明确说明；所有模型请求和工具步骤可观察；限制轮次和输入长度；不得修改资料或任意执行命令。
 
 建议按顺序交付：先固定检索流程并验证答案；再将检索注册成工具；再增加持久化会话；最后加入结构化结果和一组评估用例。每次扩展都比较同一批问题。不要同时加入搜索、浏览器、数据库写入和多 Agent 协作，出了错会难以定位。
 

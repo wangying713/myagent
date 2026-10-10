@@ -8,10 +8,10 @@ from tempfile import TemporaryDirectory
 
 from agent_loop import run_agent
 from demos.advanced.advanced_01_thinking import solve
-from demos.advanced.advanced_04_knowledge_agent import run_knowledge_agent
+from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
 from demos.intermediate.intermediate_01_json import parse_order
-from demos.intermediate.intermediate_04_rag import answer_question
-from demos.intermediate.intermediate_05_memory import ask
+from demos.intermediate.intermediate_03_rag import answer_question
+from demos.intermediate.intermediate_04_memory import ask
 from llm import DeepSeekClient, final_text, message_of
 from session_store import SessionStore
 from settings import Settings
@@ -285,7 +285,7 @@ def main():
             for scenario in exercises:
                 report.append(exercise(*scenario))
     if args.evaluate:
-        from demos.advanced.advanced_03_evaluation import evaluate
+        from demos.advanced.advanced_02_evaluation import evaluate
 
         for row in evaluate():
             require(row["passed"], "真实评估未通过：" + row["case"])
