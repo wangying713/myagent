@@ -50,9 +50,11 @@ OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放�
 
 正文采集需保持 `TELEMETRY_CAPTURE_CONTENT=true`。为防止凭据泄漏，属性值仍会脱敏，且受 `TELEMETRY_CONTENT_MAX_CHARS` 上限约束；如果 `.truncated` 为 `true`，调高该值后重新运行示例。HTTP Authorization header 不属于请求 body，也不会写入 trace。
 
+工具 `execute_tool` span 的「预览」也显示输入与输出：输入为完整工具调用 JSON（含工具名、参数和调用 ID），输出为实际执行结果 JSON，包含成功结果或工具返回的错误码。预览与 `app.tool.request` / `app.tool.response` 使用相同的脱敏、限长和正文采集开关。旧 trace 不会自动补齐预览，更新后重新运行 demo 才能看到。
+
 | 属性名 | 含义 |
 |---|---|
-| `gen_ai.input.messages` / `gen_ai.output.messages` | OpenObserve「预览」的显示字段，分别以单条文本承载完整请求 JSON 和完整响应 JSON；实际请求/响应正文以 `app.request` / `app.response` 为准 |
+| `gen_ai.input.messages` / `gen_ai.output.messages` | OpenObserve「预览」的显示字段，分别以单条文本承载完整输入和输出 JSON；模型原文见 `app.request` / `app.response`，工具原文见 `app.tool.request` / `app.tool.response` |
 | `app.request` | 实际发送的完整 JSON body 的脱敏、限长副本；原始结构可在「属性」页查看 |
 | `app.response` | 提供方完整响应 JSON 的脱敏、限长副本；流式调用为重组后的响应，不是逐个网络包 |
 | `app.response.sse` | 流式调用收到的完整 SSE 行记录（含 data、保活/注释行与 `[DONE]`；换行统一为 `\n`），不为每个 chunk 单独建 span |

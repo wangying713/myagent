@@ -12,12 +12,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 from opentelemetry.trace import StatusCode
 
-from demos.beginner.beginner_03_agent_loop import BudgetExceeded, run_agent
+from agent_loop import BudgetExceeded, run_agent
 from demos.intermediate.intermediate_01_json import parse_order
 from llm import DeepSeekClient, ModelError
 from settings import Settings
 from telemetry import OpenObserveExporter, Telemetry, parse_headers
-from toolbox import dispatch
+from toolbox import TOOLS, dispatch
 
 
 def reply(content="完成", *, calls=None, reason=None):
@@ -50,6 +50,16 @@ def call(args='{"a":17,"b":23}', name="multiply", ident="call_1"):
 
 
 class LearningTests(unittest.TestCase):
+    def run_agent(self, model, question, **options):
+        return run_agent(
+            model,
+            question,
+            system_prompt="你是计算助手。乘法必须用工具。",
+            tools=TOOLS,
+            dispatch=dispatch,
+            **options,
+        )
+
     def client(self, handler, **kwargs):
         settings = Settings(
             api_key="test-private-key", secrets=("test-private-key",), **kwargs
@@ -179,7 +189,7 @@ class LearningTests(unittest.TestCase):
 
         client, exporter = self.client(handler)
         with client as model:
-            self.assertEqual(run_agent(model, "17*23"), "391")
+            self.assertEqual(self.run_agent(model, "17*23"), "391")
         self.assertEqual(
             client.tool_results,
             [{"request": call(), "response": {"ok": True, "result": 391}}],
@@ -190,6 +200,68 @@ class LearningTests(unittest.TestCase):
         self.assertTrue(
             all(s.parent.span_id == root.context.span_id for s in spans[:-1])
         )
+        tool = next(s for s in spans if s.name == "execute_tool")
+        for field, expected in (
+            ("gen_ai.input.messages", call()),
+            ("gen_ai.output.messages", {"ok": True, "result": 391}),
+        ):
+            message = json.loads(tool.attributes[field])[0]
+            self.assertEqual(message["parts"][0]["type"], "text")
+            self.assertEqual(
+                json.loads(message["parts"][0]["content"]), expected
+            )
+
+    def test_agent_accepts_custom_prompt_tools_and_dispatch(self):
+        prompt = "你是翻译助手，使用 translate 工具把中文翻译成英文。"
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "translate",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                        "required": ["text"],
+                    },
+                },
+            }
+        ]
+        tool_call = call('{"text":"你好"}', name="translate")
+        executions = []
+        requests = []
+
+        def translate(request):
+            executions.append(request)
+            return {"ok": True, "result": "Hello"}
+
+        def handler(request):
+            body = json.loads(request.content)
+            requests.append(body)
+            self.assertEqual(
+                body["messages"][0], {"role": "system", "content": prompt}
+            )
+            self.assertEqual(body["tools"], tools)
+            if len(requests) == 1:
+                self.assertEqual(body["messages"][-1]["content"], "翻译：你好")
+                return httpx.Response(200, json=reply(calls=[tool_call]))
+            self.assertEqual(
+                json.loads(body["messages"][-1]["content"]),
+                {"ok": True, "result": "Hello"},
+            )
+            return httpx.Response(200, json=reply("Hello"))
+
+        client, exporter = self.client(handler)
+        with client:
+            answer = run_agent(
+                client,
+                "翻译：你好",
+                system_prompt=prompt,
+                tools=tools,
+                dispatch=translate,
+            )
+        self.assertEqual(answer, "Hello")
+        self.assertEqual(executions, [tool_call])
+        self.assertEqual(len(exporter.get_finished_spans()), 4)
 
     def test_tool_validation_and_budgets(self):
         for tool in [
@@ -209,7 +281,7 @@ class LearningTests(unittest.TestCase):
         )
         with self.assertRaises(BudgetExceeded):
             with client as model:
-                run_agent(model, "loop", max_rounds=2)
+                self.run_agent(model, "loop", max_rounds=2)
         self.assertEqual(client.calls, 2)
         self.assertEqual(len(exporter.get_finished_spans()), 5)
         client, exporter = self.client(
@@ -217,7 +289,7 @@ class LearningTests(unittest.TestCase):
         )
         with self.assertRaises(BudgetExceeded):
             with client as model:
-                run_agent(model, "loop", max_tool_calls=0)
+                self.run_agent(model, "loop", max_tool_calls=0)
         self.assertEqual(len(exporter.get_finished_spans()), 2)
 
     def test_multiple_tools_and_tool_error(self):
@@ -239,15 +311,68 @@ class LearningTests(unittest.TestCase):
 
         client, exporter = self.client(handler)
         with client as model:
-            run_agent(model, "two calls")
+            self.run_agent(model, "two calls")
         tools = [
             s for s in exporter.get_finished_spans() if s.name == "execute_tool"
         ]
         self.assertEqual(len(tools), 2)
         self.assertEqual(tools[1].status.status_code, StatusCode.ERROR)
+        preview = json.loads(tools[1].attributes["gen_ai.output.messages"])
+        self.assertEqual(
+            json.loads(preview[0]["parts"][0]["content"]),
+            {"ok": False, "error": "invalid_json"},
+        )
         self.assertEqual(
             [r["response"]["ok"] for r in client.tool_results], [True, False]
         )
+
+    def test_tool_preview_respects_content_controls(self):
+        tool_call = call(
+            json.dumps({"api_key": "nested-private", "a": 2, "b": 3})
+        )
+        result = {
+            "ok": True,
+            "password": "hidden-password",
+            "result": "test-private-key",
+        }
+        for enabled in (True, False):
+            with self.subTest(capture_content=enabled):
+                client, exporter = self.client(
+                    lambda req: self.fail("工具预览不应调用模型"),
+                    capture_content=enabled,
+                )
+                with client:
+                    self.assertEqual(
+                        client.execute_tool(tool_call, lambda _: result), result
+                    )
+                attrs = exporter.get_finished_spans()[0].attributes
+                for field in (
+                    "gen_ai.input.messages",
+                    "gen_ai.output.messages",
+                ):
+                    if enabled:
+                        self.assertIn("[REDACTED]", attrs[field])
+                        for secret in (
+                            "nested-private",
+                            "hidden-password",
+                            "test-private-key",
+                        ):
+                            self.assertNotIn(secret, attrs[field])
+                    else:
+                        self.assertNotIn(field, attrs)
+        client, exporter = self.client(
+            lambda req: self.fail("工具预览不应调用模型"),
+            content_max_chars=256,
+        )
+        with client:
+            client.execute_tool(
+                call("x" * 500),
+                lambda _: {"ok": False, "error": "x" * 500},
+            )
+        attrs = exporter.get_finished_spans()[0].attributes
+        for field in ("gen_ai.input.messages", "gen_ai.output.messages"):
+            self.assertTrue(attrs[field + ".truncated"])
+            self.assertTrue(attrs[field].endswith("…[TRUNCATED]"))
 
     def test_stream_aggregates_chunks_and_final_usage(self):
         chunks = [

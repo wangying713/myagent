@@ -16,7 +16,9 @@ uv run python verify_observe.py
 uv run python -m demos.beginner.beginner_01_chat
 ```
 
-使用已有 `.env`；新机器才从 `.env.example` 复制并填写配置。demo 按级别放在 `demos/beginner/`、`demos/intermediate/`、`demos/advanced/`，从本目录使用 `uv run python -m demos.级别.模块名` 运行。例如：`uv run python -m demos.beginner.beginner_01_chat`。共享客户端、工具、观测和配置代码留在本目录，课程仍不依赖 Agent 框架。
+使用已有 `.env`；新机器才从 `.env.example` 复制并填写配置。demo 按级别放在 `demos/beginner/`、`demos/intermediate/`、`demos/advanced/`，从本目录使用 `uv run python -m demos.级别.模块名` 运行。例如：`uv run python -m demos.beginner.beginner_01_chat`。共享客户端、Agent 循环、工具、观测和配置代码留在本目录，课程仍不依赖 Agent 框架。
+
+公用循环位于 `agent_loop.py`。`run_agent(model, question, system_prompt=..., tools=..., dispatch=...)` 由调用方配置角色、工具描述和分发函数；乘法提示词仅保留在使用它的 demo 与验收场景中。复用示例见 [工具与手写 Agent](../doc/lessons/03-agent-loop.md)。
 
 ## 检查与验收
 

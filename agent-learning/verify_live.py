@@ -6,15 +6,16 @@ import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from agent_loop import run_agent
 from demos.advanced.advanced_01_thinking import solve
 from demos.advanced.advanced_04_knowledge_agent import run_knowledge_agent
-from demos.beginner.beginner_03_agent_loop import run_agent
 from demos.intermediate.intermediate_01_json import parse_order
 from demos.intermediate.intermediate_04_rag import answer_question
 from demos.intermediate.intermediate_05_memory import ask
 from llm import DeepSeekClient, final_text, message_of
 from session_store import SessionStore
 from settings import Settings
+from toolbox import TOOLS, dispatch
 from verify_observe import query_trace
 
 
@@ -81,6 +82,20 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
         require(
             span.get("gen_ai_usage_input_tokens") is not None, "缺少输入用量"
         )
+    for span in tools:
+        for preview, payload in (
+            ("gen_ai_input_messages", "app_tool_request"),
+            ("gen_ai_output_messages", "app_tool_response"),
+        ):
+            require(
+                span.get(preview) and span.get(payload), "缺少工具正文或预览"
+            )
+            message = json.loads(span[preview])[0]
+            require(
+                json.loads(message["parts"][0]["content"])
+                == json.loads(span[payload]),
+                "工具预览与实际记录不一致",
+            )
     return hits
 
 
@@ -185,7 +200,12 @@ def main():
             (
                 "agent",
                 lambda m: run_agent(
-                    m, "用工具计算 17 乘以 23。最终只输出数字。"
+                    m,
+                    "用工具计算 17 乘以 23。最终只输出数字。",
+                    system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
+                    "工具出错时不能捏造结果。",
+                    tools=TOOLS,
+                    dispatch=dispatch,
                 ),
                 lambda r: r.strip() == "391",
                 391,

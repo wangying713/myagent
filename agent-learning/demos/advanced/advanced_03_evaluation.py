@@ -6,8 +6,9 @@ import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from demos.beginner.beginner_03_agent_loop import run_agent
+from agent_loop import run_agent
 from llm import DeepSeekClient
+from toolbox import TOOLS, dispatch
 
 
 def grade(case, answer, tool_results):
@@ -60,6 +61,10 @@ def evaluate(*, cases=None):
                 answer = run_agent(
                     model,
                     f"请用工具计算 {case['a']} 乘以 {case['b']}，最终只输出数字。",
+                    system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
+                    "工具出错时不能捏造结果。",
+                    tools=TOOLS,
+                    dispatch=dispatch,
                 )
         except Exception as exc:
             error = type(exc).__name__

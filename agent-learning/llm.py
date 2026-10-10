@@ -540,11 +540,35 @@ class DeepSeekClient:
             },
         ) as span:
             self.telemetry.payload(span, "app.tool.request", call)
+            self.telemetry.raw_payload(
+                span,
+                "gen_ai.input.messages",
+                json_preview_message(
+                    json.dumps(
+                        self.telemetry.clean(call),
+                        ensure_ascii=False,
+                        default=str,
+                    ),
+                    "user",
+                ),
+            )
             result = dispatch(call)
             self.tool_results.append(
                 {"request": deepcopy(call), "response": deepcopy(result)}
             )
             self.telemetry.payload(span, "app.tool.response", result)
+            self.telemetry.raw_payload(
+                span,
+                "gen_ai.output.messages",
+                json_preview_message(
+                    json.dumps(
+                        self.telemetry.clean(result),
+                        ensure_ascii=False,
+                        default=str,
+                    ),
+                    "assistant",
+                ),
+            )
             if not result.get("ok", False):
                 span.set_status(StatusCode.ERROR, "ToolError")
                 span.set_attribute("error.type", "ToolError")

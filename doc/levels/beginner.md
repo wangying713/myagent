@@ -32,7 +32,7 @@
 
 - 文档：[工具与手写 Agent](../lessons/03-agent-loop.md)。
 - 运行：`uv run python -m demos.beginner.beginner_03_agent_loop`。
-- 阅读顺序：`toolbox.py` 的 schema → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的 `run_agent()`。
+- 阅读顺序：`toolbox.py` 的 schema → `dispatch()` → demo 的调用参数 → `agent_loop.py` 的 `run_agent()`。
 - 典型链路：模型 → multiply → 模型，加根节点共 4 条 span。轨迹可以变化。
 
 先运行 17×23，再改成 12×8。检查模型给出的 arguments、程序真正执行的结果、下一轮的 tool 消息。再将最大轮次设为 1，理解工具执行了并不意味着模型已完成任务。

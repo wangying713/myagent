@@ -3,7 +3,7 @@
 import argparse
 import json
 
-from demos.beginner.beginner_03_agent_loop import BudgetExceeded
+from agent_loop import BudgetExceeded
 from llm import DeepSeekClient, ModelError, final_text, message_of
 from retrieval import (
     ANSWER_RULE,

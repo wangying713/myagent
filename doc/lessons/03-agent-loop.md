@@ -16,7 +16,26 @@
 uv run python -m demos.beginner.beginner_03_agent_loop
 ```
 
-阅读顺序：`toolbox.py` 的 `TOOLS` → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
+阅读顺序：`toolbox.py` 的 `TOOLS` → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的调用参数 → `agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
+
+`run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过三个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 描述允许模型请求的工具，`dispatch` 校验并执行实际工具。初级 demo 中的乘法助手只是其中一个使用方式：
+
+```python
+from agent_loop import run_agent
+from llm import DeepSeekClient
+from toolbox import TOOLS, dispatch
+
+with DeepSeekClient("my_agent") as model:
+    answer = run_agent(
+        model,
+        "用工具计算 12 乘以 8。",
+        system_prompt="你是计算助手。涉及乘法必须用工具。",
+        tools=TOOLS,
+        dispatch=dispatch,
+    )
+```
+
+复用到其他业务时，替换这三个参数即可；工具分发函数仍需负责白名单与参数校验。公用循环只负责请求模型、执行工具、回填消息及预算限制。
 
 ## 第一步：描述工具，不是执行工具
 
