@@ -7,6 +7,7 @@
 | 模块 | 用途 |
 |---|---|
 | [agent_loop.py](agent_loop.py) | 有限 Agent 循环、工具结果回填、轮次与预算控制 |
+| [tools.py](tools.py) | 将 LangChain 工具转换为模型描述，校验并分发工具调用 |
 | [llm.py](llm.py) | DeepSeek HTTP 客户端、普通与流式响应解析、工具执行观测 |
 | [settings.py](settings.py) | 配置读取与校验，支持指定 `.env` 路径 |
 | [telemetry.py](telemetry.py) | trace 与 span、正文脱敏、限长、OpenObserve 上报 |
@@ -30,9 +31,12 @@ from agent_toolkit.agent_loop import BudgetExceededError, run_agent
 from agent_toolkit.llm import DeepSeekClient, ModelError, final_text
 from agent_toolkit.session_store import SessionConflictError, SessionStore
 from agent_toolkit.settings import Settings
+from agent_toolkit.tools import ToolSet
 ```
 
 `run_agent()` 接收客户端、问题，以及调用方提供的 `system_prompt`、`tools` 和 `dispatch`，返回最终文本回答。具体用法见 [初级 Agent demo](../agent-learning/demos/beginner/beginner_03_agent_loop.py)。
+
+工具可以通过 `langchain_core.tools.tool` 装饰器声明。`ToolSet([tool_a, tool_b])` 从同一份列表生成 `.schemas` 和 `.dispatch`，分别传给循环的 `tools` 和 `dispatch` 参数。业务函数使用普通类型注解与默认值；`ToolSet` 统一配置严格类型校验、拒绝多余参数及非有限数值。`float` 参数接受整数和浮点数，并按浮点数运算。业务有额外限制时再显式声明参数约束。这里只使用 `langchain-core` 的工具组件，模型客户端与 Agent 循环仍由本项目实现。
 
 ## 配置与生命周期
 

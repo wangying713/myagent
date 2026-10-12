@@ -16,22 +16,22 @@
 uv run python -m demos.beginner.beginner_03_agent_loop
 ```
 
-阅读顺序：`toolbox.py` 的 `TOOLS` → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的调用参数 → `agent_toolkit/agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
+阅读顺序：`toolbox.py` 的 `@tool` 函数与 `tool_set` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()` → demo 的调用参数 → `agent_toolkit/agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
 
 `run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过三个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 描述允许模型请求的工具，`dispatch` 校验并执行实际工具。初级 demo 中的乘法助手只是其中一个使用方式：
 
 ```python
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import TOOLS, dispatch
+from toolbox import tool_set
 
 with DeepSeekClient("my_agent") as llm_client:
     answer = run_agent(
         llm_client,
         "用工具计算 12 乘以 8。",
         system_prompt="你是计算助手。涉及乘法必须用工具。",
-        tools=TOOLS,
-        dispatch=dispatch,
+        tools=tool_set.schemas,
+        dispatch=tool_set.dispatch,
     )
 ```
 
@@ -39,13 +39,20 @@ with DeepSeekClient("my_agent") as llm_client:
 
 ## 第一步：描述工具，不是执行工具
 
-`TOOLS` 告诉模型 `multiply` 的含义、参数名和类型。它只是一份 JSON Schema 描述。实际执行函数在白名单 `AVAILABLE_TOOLS` 中。
+`tool_set.schemas` 告诉模型 `multiply` 的含义、参数名和类型。它是由函数声明自动生成的 JSON Schema 描述。工具使用 `langchain-core` 的 `@tool` 声明，函数名、docstring、普通类型注解共同定义工具：
 
 ```python
-AVAILABLE_TOOLS = {'multiply': multiply}
+@tool
+def multiply(a: float, b: float) -> float:
+    """计算两个数的乘积。涉及乘法时使用。"""
+    return a * b
+
+tool_set = ToolSet([multiply])
 ```
 
-工具描述与执行实现要一致。把描述写成“加法”，实现却做乘法，会误导模型；让 schema 允许字符串，实现只接受数值，会增加错误。即使提供 schema，也必须在程序中校验实际参数。
+`ToolSet` 从同一份工具列表生成描述和执行白名单，统一配置严格参数校验，运行时由工具的参数模型校验。新增工具只需要定义带类型注解和 docstring 的 `@tool` 函数，再加入 `ToolSet([...])`，无需手写 schema 或添加专用分发分支。这个乘法示例没有业务范围限制，因此函数只声明两个普通 `float` 参数。
+
+工具说明仍需符合实际用途；把描述写成“加法”，实现却做乘法，会误导模型。我们只使用工具组件，模型客户端、观测与 Agent 循环仍由课程代码实现。
 
 ## 第二步：模型返回一个调用请求
 
@@ -67,9 +74,11 @@ AVAILABLE_TOOLS = {'multiply': multiply}
 
 ## 第三步：程序决定能不能执行
 
-`dispatch()` 做四件事：检查工具是否在白名单；解析参数；检查字段、类型和范围；调用已注册函数。它不会执行模型生成的 Python，更不会使用 `eval()` 或把字符串送进 shell。
+`ToolSet.dispatch()` 做四件事：检查工具是否在白名单；解析 JSON 参数；交给工具的参数模型检查字段、类型和范围；通过 `.invoke()` 调用已注册工具。它不会执行模型生成的 Python，更不会使用 `eval()` 或把字符串送进 shell。
 
-本例只接受 `a`、`b` 两个有限数值，绝对值不超过一百万。不接受 bool，是因为 Python 的 bool 在某些数值检查里会被当成 int，需要显式排除。参数出错时返回稳定的 `{'ok': False, 'error': ...}`，让模型可以看到实际失败，而不是编一个结果。
+本例只接受 `a`、`b` 两个有限数值。`float` 参数接受整数和浮点数，执行时按浮点数运算。通用适配层拒绝 bool、数值字符串、非有限数值和多余参数；函数无需为这些调用协议规则定义专用类型。参数出错时返回稳定的 `{'ok': False, 'error': ...}`，让模型可以看到实际失败，而不是编一个结果。
+
+非法 JSON 返回 `invalid_json`；字段、类型或范围不符统一返回 `invalid_arguments`；工具执行异常返回 `tool_execution_failed`。返回格式仍为 `ok/result` 或 `ok/error`，参数错误码不再绑定乘法的 `a`、`b`。
 
 业务调用通过 `llm_client.execute_tool(call, dispatch)`，它只负责记录工具的输入、输出和耗时，不替你实现工具。
 
@@ -109,7 +118,7 @@ flowchart TD
 
 1. 把问题改成 12 盒、每盒 8 支。检查实际参数是否改变，工具结果是否 96。
 2. 改为“分别计算 17×23 和 12×8”。观察它是在一轮返回多个 tool call，还是分轮请求，不预设固定轨迹。
-3. 在本地 Python 中调用 `dispatch()`，传入未知工具或错误 JSON，不需要调用模型。检查得到的是错误对象。
+3. 在本地 Python 中调用 `tool_set.dispatch()`，传入未知工具或错误 JSON，不需要调用模型。检查得到的是错误对象。
 4. 将 `max_rounds` 改为 1。若第一轮产生工具调用，工具执行后没有第二次请求的额度，应明确报告未完成，不能伪装成最终成功。
 
 ## 自检

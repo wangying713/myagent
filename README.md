@@ -2,7 +2,7 @@
 
 这个仓库用于学习 Python 和 Agent 开发。当前主线在 `agent-learning/`：用普通 Python 和 HTTP 调用 DeepSeek，手写 Agent 循环，并用 OpenObserve 记录模型请求、工具执行和运行结果。
 
-当前课程不依赖模型 SDK 或 Agent 框架。`httpx` 负责 HTTP，`python-dotenv` 读取配置，OpenTelemetry 负责观测；消息管理、工具分发和循环控制由项目代码实现。
+`httpx` 负责直接调用模型，`python-dotenv` 读取配置，OpenTelemetry 负责观测；`langchain-core` 的工具组件生成乘法工具描述并校验参数。消息管理、工具调用适配和循环控制由项目代码实现。
 
 当前维护的 Python 代码采用 Google Python 的命名规则，具体约定见 [项目 Python 规范](doc/python-style.md)。仓库根目录的 `ruff.toml` 统一配置格式和命名检查，覆盖通用工具包、Agent 课程与 Python 语法练习。
 
@@ -19,7 +19,8 @@ ai/
 │   ├── llm.py                  # 模型客户端与工具执行入口
 │   ├── session_store.py        # SQLite 会话存储
 │   ├── settings.py             # 配置加载与校验
-│   └── telemetry.py            # 观测、脱敏与上报
+│   ├── telemetry.py            # 观测、脱敏与上报
+│   └── tools.py                # 工具描述生成与通用调用适配
 ├── agent-learning/             # 当前 Agent 课程与可运行代码
 │   ├── README.md               # Agent 课程运行说明
 │   ├── demos/
@@ -67,7 +68,8 @@ ai/
 |---|---|
 | [llm.py](agent_toolkit/llm.py) | 发送普通和流式 HTTP 请求、解析响应、统计 token、执行工具并记录观测信息 |
 | [agent_loop.py](agent_toolkit/agent_loop.py) | 反复调用模型、执行工具、回填结果；限制模型轮数、工具次数和累计 token 软预算 |
-| [toolbox.py](agent-learning/toolbox.py) | 定义乘法工具协议、校验工具名称与参数、执行本地函数 |
+| [tools.py](agent_toolkit/tools.py) | 从工具列表生成描述和白名单，通过参数模型校验后执行 |
+| [toolbox.py](agent-learning/toolbox.py) | 声明乘法函数和本例可用工具 |
 | [retrieval.py](agent-learning/retrieval.py) | 按关键词检索本地 JSON 资料，校验回答结构、来源 ID 和依据不足状态 |
 | [session_store.py](agent_toolkit/session_store.py) | 按会话 ID 保存 SQLite 消息历史，用版本号防止并发覆盖 |
 | [settings.py](agent_toolkit/settings.py) | 读取环境变量和 `agent-learning/.env`，校验模型与观测配置 |

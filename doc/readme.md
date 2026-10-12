@@ -1,6 +1,6 @@
 # 从零学习 Agent 开发：DeepSeek + 手写 Python
 
-面向第一次开发 Agent 的读者。先掌握 HTTP、消息、工具和循环，再理解工程设计。学习材料采用 **Markdown 文档 + 可运行的小实验 + OpenObserve 记录**，初期不用幻灯片，也不引入 Agent 框架。
+面向第一次开发 Agent 的读者。先掌握 HTTP、消息、工具和循环，再理解工程设计。学习材料采用 **Markdown 文档 + 可运行的小实验 + OpenObserve 记录**。模型直接通过 HTTP 调用，Agent 循环由课程代码实现；乘法工具使用 `langchain-core` 生成描述和校验参数。
 
 ## 先跑通这三步
 
@@ -85,6 +85,7 @@ uv run python verify_live.py --level advanced
 ```text
 agent_toolkit/                  # 仓库根目录的共享 Python 包
 ├── agent_loop.py               # 通用工具循环与预算控制
+├── tools.py                    # 工具描述生成与通用调用适配
 ├── llm.py                      # 直接 HTTP 请求与客户端生命周期
 ├── telemetry.py                # span、脱敏、限长、批量导出
 ├── settings.py                 # .env 配置，支持指定路径
@@ -95,7 +96,7 @@ agent-learning/
 │   ├── beginner/               # B01–B03：HTTP、消息、手写 Agent 循环
 │   ├── intermediate/           # I01–I04：JSON、流式、RAG、会话
 │   └── advanced/               # A01–A03：思考、评估、综合 Agent
-├── toolbox.py                  # 工具说明、白名单、参数检查、实际函数
+├── toolbox.py                  # 乘法工具函数、类型约束与可用工具列表
 ├── retrieval.py                # 检索与引用校验
 ├── offline_lab.py              # 回归测试用假 HTTP 和内存观测
 ├── data/                       # 虚构资料与评估用例

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import TOOLS, dispatch
+from toolbox import tool_set
 
 
 def grade_case(case, answer, tool_results):
@@ -68,8 +68,8 @@ def evaluate(*, cases=None):
                     f"请用工具计算 {case['a']} 乘以 {case['b']}，最终只输出数字。",
                     system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
                     "工具出错时不能捏造结果。",
-                    tools=TOOLS,
-                    dispatch=dispatch,
+                    tools=tool_set.schemas,
+                    dispatch=tool_set.dispatch,
                 )
         except Exception as exc:
             error_name = type(exc).__name__

@@ -2,7 +2,7 @@
 
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import TOOLS, dispatch
+from toolbox import tool_set
 
 SYSTEM_PROMPT = (
     "你是计算助手。涉及乘法必须用工具；工具出错时不能捏造结果。用中文简短回答。"
@@ -18,8 +18,8 @@ def main():
                 llm_client,
                 "每盒有 17 支笔，买 23 盒，一共多少支？",
                 system_prompt=SYSTEM_PROMPT,
-                tools=TOOLS,
-                dispatch=dispatch,
+                tools=tool_set.schemas,
+                dispatch=tool_set.dispatch,
             )
         )
 

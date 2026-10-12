@@ -21,7 +21,7 @@ from agent_toolkit.telemetry import (
     parse_headers,
 )
 from demos.intermediate.intermediate_01_json import parse_order
-from toolbox import TOOLS, dispatch
+from toolbox import tool_set
 
 
 def reply(content="完成", *, calls=None, reason=None):
@@ -59,8 +59,8 @@ class LearningTests(unittest.TestCase):
             model,
             question,
             system_prompt="你是计算助手。乘法必须用工具。",
-            tools=TOOLS,
-            dispatch=dispatch,
+            tools=tool_set.schemas,
+            dispatch=tool_set.dispatch,
             **options,
         )
 
@@ -279,7 +279,7 @@ class LearningTests(unittest.TestCase):
             {"function": "invalid"},
             {"type": "function", "function": {"name": []}},
         ]:
-            self.assertFalse(dispatch(tool)["ok"])
+            self.assertFalse(tool_set.dispatch(tool)["ok"])
         client, exporter = self.client(
             lambda req: httpx.Response(200, json=reply(calls=[call()]))
         )
@@ -452,7 +452,9 @@ class LearningTests(unittest.TestCase):
         with client as model:
             data = model.chat_stream([], on_text=lambda t: None)
         self.assertEqual(
-            dispatch(data["choices"][0]["message"]["tool_calls"][0])["result"],
+            tool_set.dispatch(data["choices"][0]["message"]["tool_calls"][0])[
+                "result"
+            ],
             6,
         )
         output = json.loads(
