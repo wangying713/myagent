@@ -126,8 +126,7 @@ with llm_client:
         llm_client,
         question,
         system_prompt=system_prompt,
-        tools=tools,
-        dispatch=dispatch,
+        tools=[multiply],
     )
 case_score = grade_case(case, answer, llm_client.tool_results)
 ~~~

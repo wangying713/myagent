@@ -68,14 +68,14 @@ ai/
 |---|---|
 | [llm.py](agent_toolkit/llm.py) | 发送普通和流式 HTTP 请求、解析响应、统计 token、执行工具并记录观测信息 |
 | [agent_loop.py](agent_toolkit/agent_loop.py) | 反复调用模型、执行工具、回填结果；限制模型轮数、工具次数和累计 token 软预算 |
-| [tools.py](agent_toolkit/tools.py) | 从工具列表生成描述和白名单，通过参数模型校验后执行 |
-| [toolbox.py](agent-learning/toolbox.py) | 声明乘法函数和本例可用工具 |
+| [tools.py](agent_toolkit/tools.py) | 从调用方的工具列表生成描述和注册表，校验并执行调用 |
+| [toolbox.py](agent-learning/toolbox.py) | 定义乘法工具函数；可用工具由调用方选择 |
 | [retrieval.py](agent-learning/retrieval.py) | 按关键词检索本地 JSON 资料，校验回答结构、来源 ID 和依据不足状态 |
 | [session_store.py](agent_toolkit/session_store.py) | 按会话 ID 保存 SQLite 消息历史，用版本号防止并发覆盖 |
 | [settings.py](agent_toolkit/settings.py) | 读取环境变量和 `agent-learning/.env`，校验模型与观测配置 |
 | [telemetry.py](agent_toolkit/telemetry.py) | 创建 span、脱敏、限制正文长度，通过 OTLP 上报 OpenObserve |
 
-Demo 与底层实现分开：10 个 demo 通过本地可编辑依赖复用根目录的 [agent_toolkit](agent_toolkit/README.md)。公用循环由调用方传入提示词、工具描述和分发函数，业务规则保留在具体示例中。
+Demo 与底层实现分开：10 个 demo 通过本地可编辑依赖复用根目录的 [agent_toolkit](agent_toolkit/README.md)。公用循环由调用方传入提示词和工具列表，业务规则保留在具体示例中。
 
 ## Agent 运行关系
 

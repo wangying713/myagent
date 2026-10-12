@@ -31,12 +31,11 @@ from agent_toolkit.agent_loop import BudgetExceededError, run_agent
 from agent_toolkit.llm import DeepSeekClient, ModelError, final_text
 from agent_toolkit.session_store import SessionConflictError, SessionStore
 from agent_toolkit.settings import Settings
-from agent_toolkit.tools import ToolSet
 ```
 
-`run_agent()` 接收客户端、问题，以及调用方提供的 `system_prompt`、`tools` 和 `dispatch`，返回最终文本回答。具体用法见 [初级 Agent demo](../agent-learning/demos/beginner/beginner_03_agent_loop.py)。
+`run_agent()` 接收客户端、问题，以及调用方提供的 `system_prompt` 和工具列表 `tools`，返回最终文本回答。具体用法见 [初级 Agent demo](../agent-learning/demos/beginner/beginner_03_agent_loop.py)。
 
-工具可以通过 `langchain_core.tools.tool` 装饰器声明。`ToolSet([tool_a, tool_b])` 从同一份列表生成 `.schemas` 和 `.dispatch`，分别传给循环的 `tools` 和 `dispatch` 参数。业务函数使用普通类型注解与默认值；`ToolSet` 统一配置严格类型校验、拒绝多余参数及非有限数值。`float` 参数接受整数和浮点数，并按浮点数运算。业务有额外限制时再显式声明参数约束。这里只使用 `langchain-core` 的工具组件，模型客户端与 Agent 循环仍由本项目实现。
+工具可以通过 `langchain_core.tools.tool` 装饰器声明。调用方直接传入 `tools=[tool_a, tool_b]`；`run_agent()` 在进入模型循环前创建内部 `ToolSet`，准备工具描述和执行映射。业务函数使用普通类型注解与默认值；内部适配器统一配置严格类型校验、拒绝多余参数及非有限数值。`float` 参数接受整数和浮点数，并按浮点数运算。业务有额外限制时再显式声明参数约束。这里只使用 `langchain-core` 的工具组件，模型客户端与 Agent 循环仍由本项目实现。
 
 ## 配置与生命周期
 

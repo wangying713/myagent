@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 
 class ToolSet:
-    """从一份工具列表生成模型描述和执行白名单。
+    """从调用方提供的工具列表生成模型描述和工具注册表。
 
     Attributes:
         schemas: 发给模型的 OpenAI 兼容工具描述。

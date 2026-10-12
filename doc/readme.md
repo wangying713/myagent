@@ -96,7 +96,7 @@ agent-learning/
 │   ├── beginner/               # B01–B03：HTTP、消息、手写 Agent 循环
 │   ├── intermediate/           # I01–I04：JSON、流式、RAG、会话
 │   └── advanced/               # A01–A03：思考、评估、综合 Agent
-├── toolbox.py                  # 乘法工具函数、类型约束与可用工具列表
+├── toolbox.py                  # 乘法工具函数；可用工具由调用方选择
 ├── retrieval.py                # 检索与引用校验
 ├── offline_lab.py              # 回归测试用假 HTTP 和内存观测
 ├── data/                       # 虚构资料与评估用例

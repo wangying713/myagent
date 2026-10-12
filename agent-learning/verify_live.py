@@ -15,7 +15,7 @@ from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
 from demos.intermediate.intermediate_01_json import parse_order
 from demos.intermediate.intermediate_03_rag import answer_question
 from demos.intermediate.intermediate_04_memory import ask
-from toolbox import tool_set
+from toolbox import multiply
 from verify_observe import query_trace
 
 
@@ -221,8 +221,7 @@ def main():
                     "用工具计算 17 乘以 23。最终只输出数字。",
                     system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
                     "工具出错时不能捏造结果。",
-                    tools=tool_set.schemas,
-                    dispatch=tool_set.dispatch,
+                    tools=[multiply],
                 ),
                 lambda result: result.strip() == "391",
                 391,

@@ -6,7 +6,7 @@ import unittest
 from langchain_core.tools import tool
 
 from agent_toolkit.tools import ToolSet
-from toolbox import tool_set
+from toolbox import multiply
 
 
 def tool_call(name, arguments):
@@ -21,6 +21,9 @@ def tool_call(name, arguments):
 
 
 class ToolTests(unittest.TestCase):
+    def setUp(self):
+        self.tool_set = ToolSet([multiply])
+
     def test_new_tool_uses_its_own_parameters_and_defaults(self):
         @tool(parse_docstring=True)
         def greet(text: str, suffix: str = "!") -> str:
@@ -96,14 +99,18 @@ class ToolTests(unittest.TestCase):
         )
 
     def test_multiply_accepts_integer_and_float_inputs(self):
-        self.assertEqual(tool_set.schemas[0]["function"]["name"], "multiply")
+        self.assertEqual(
+            self.tool_set.schemas[0]["function"]["name"], "multiply"
+        )
         for arguments, expected in [
             ({"a": 17, "b": 23}, 391),
             ({"a": -1_000_001, "b": 2}, -2_000_002),
             ({"a": 1.5, "b": 2}, 3.0),
         ]:
             with self.subTest(arguments=arguments):
-                response = tool_set.dispatch(tool_call("multiply", arguments))
+                response = self.tool_set.dispatch(
+                    tool_call("multiply", arguments)
+                )
                 self.assertEqual(response, {"ok": True, "result": expected})
 
     def test_multiply_rejects_invalid_numbers_and_fields(self):
@@ -121,7 +128,7 @@ class ToolTests(unittest.TestCase):
         ]:
             with self.subTest(arguments=arguments):
                 self.assertEqual(
-                    tool_set.dispatch(tool_call("multiply", arguments)),
+                    self.tool_set.dispatch(tool_call("multiply", arguments)),
                     {"ok": False, "error": "invalid_arguments"},
                 )
 

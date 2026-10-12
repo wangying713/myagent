@@ -16,41 +16,38 @@
 uv run python -m demos.beginner.beginner_03_agent_loop
 ```
 
-阅读顺序：`toolbox.py` 的 `@tool` 函数与 `tool_set` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()` → demo 的调用参数 → `agent_toolkit/agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
+阅读顺序：`toolbox.py` 的 `@tool` 函数 → demo 中的 `tools=[multiply]` → `agent_toolkit/agent_loop.py` 的 `run_agent()` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()`。暂时不需要钻进观测实现。
 
-`run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过三个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 描述允许模型请求的工具，`dispatch` 校验并执行实际工具。初级 demo 中的乘法助手只是其中一个使用方式：
+`run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过两个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 提供本次运行可用的工具列表。初级 demo 中的乘法助手只是其中一个使用方式：
 
 ```python
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import tool_set
+from toolbox import multiply
 
 with DeepSeekClient("my_agent") as llm_client:
     answer = run_agent(
         llm_client,
         "用工具计算 12 乘以 8。",
         system_prompt="你是计算助手。涉及乘法必须用工具。",
-        tools=tool_set.schemas,
-        dispatch=tool_set.dispatch,
+        tools=[multiply],
     )
 ```
 
-复用到其他业务时，替换这三个参数即可；工具分发函数仍需负责白名单与参数校验。公用循环只负责请求模型、执行工具、回填消息及预算限制。
+复用到其他业务时，由调用方选择工具并替换这两个参数；`run_agent()` 在进入循环前准备工具描述与执行方法，保持两者一致。公用循环负责请求模型、执行工具、回填消息及预算限制。
 
 ## 第一步：描述工具，不是执行工具
 
-`tool_set.schemas` 告诉模型 `multiply` 的含义、参数名和类型。它是由函数声明自动生成的 JSON Schema 描述。工具使用 `langchain-core` 的 `@tool` 声明，函数名、docstring、普通类型注解共同定义工具：
+内部生成的工具 schema 告诉模型 `multiply` 的含义、参数名和类型。它由函数声明自动生成。工具使用 `langchain-core` 的 `@tool` 声明，函数名、docstring、普通类型注解共同定义工具：
 
 ```python
 @tool
 def multiply(a: float, b: float) -> float:
     """计算两个数的乘积。涉及乘法时使用。"""
     return a * b
-
-tool_set = ToolSet([multiply])
 ```
 
-`ToolSet` 从同一份工具列表生成描述和执行白名单，统一配置严格参数校验，运行时由工具的参数模型校验。新增工具只需要定义带类型注解和 docstring 的 `@tool` 函数，再加入 `ToolSet([...])`，无需手写 schema 或添加专用分发分支。这个乘法示例没有业务范围限制，因此函数只声明两个普通 `float` 参数。
+`toolbox.py` 只定义工具函数。调用方直接传入 `tools=[multiply]`，选择本次运行可用的工具。`run_agent()` 内部创建 `ToolSet`，从这份列表生成描述和工具注册表，统一配置严格参数校验；每次运行准备一次，而非每轮模型调用都重新准备。新增工具只需要定义带类型注解和 docstring 的 `@tool` 函数，在需要使用它的调用处加入工具列表，无需手写 schema 或添加专用分发分支。这个乘法示例没有业务范围限制，因此函数只声明两个普通 `float` 参数。
 
 工具说明仍需符合实际用途；把描述写成“加法”，实现却做乘法，会误导模型。我们只使用工具组件，模型客户端、观测与 Agent 循环仍由课程代码实现。
 
@@ -74,7 +71,7 @@ tool_set = ToolSet([multiply])
 
 ## 第三步：程序决定能不能执行
 
-`ToolSet.dispatch()` 做四件事：检查工具是否在白名单；解析 JSON 参数；交给工具的参数模型检查字段、类型和范围；通过 `.invoke()` 调用已注册工具。它不会执行模型生成的 Python，更不会使用 `eval()` 或把字符串送进 shell。
+`ToolSet.dispatch()` 做四件事：查找已注册工具；解析 JSON 参数；交给工具的参数模型校验字段和类型；通过 `.invoke()` 调用工具。它不会执行模型生成的 Python，更不会使用 `eval()` 或把字符串送进 shell。
 
 本例只接受 `a`、`b` 两个有限数值。`float` 参数接受整数和浮点数，执行时按浮点数运算。通用适配层拒绝 bool、数值字符串、非有限数值和多余参数；函数无需为这些调用协议规则定义专用类型。参数出错时返回稳定的 `{'ok': False, 'error': ...}`，让模型可以看到实际失败，而不是编一个结果。
 
@@ -102,7 +99,7 @@ flowchart TD
     A[用户任务与历史] --> B[调用模型]
     B --> C{提出工具调用?}
     C -->|没有| D[检查正常结束，返回文本]
-    C -->|有| E[校验白名单与参数]
+    C -->|有| E[查找工具并校验参数]
     E --> F[执行工具或生成明确错误]
     F --> G[追加 assistant 和 tool 消息]
     G --> H{还有轮次和预算?}
@@ -118,7 +115,7 @@ flowchart TD
 
 1. 把问题改成 12 盒、每盒 8 支。检查实际参数是否改变，工具结果是否 96。
 2. 改为“分别计算 17×23 和 12×8”。观察它是在一轮返回多个 tool call，还是分轮请求，不预设固定轨迹。
-3. 在本地 Python 中调用 `tool_set.dispatch()`，传入未知工具或错误 JSON，不需要调用模型。检查得到的是错误对象。
+3. 阅读 `ToolSet.dispatch()`，检查未知工具或错误 JSON 会返回什么错误对象。需要本地实验时可直接构造 `ToolSet([multiply])` 并调用 `.dispatch()`，不需要调用模型。
 4. 将 `max_rounds` 改为 1。若第一轮产生工具调用，工具执行后没有第二次请求的额度，应明确报告未完成，不能伪装成最终成功。
 
 ## 自检

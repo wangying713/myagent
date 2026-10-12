@@ -18,7 +18,7 @@ uv run python -m demos.beginner.beginner_01_chat
 
 使用已有 `.env`；新机器才从 `.env.example` 复制并填写配置。demo 按级别放在 `demos/beginner/`、`demos/intermediate/`、`demos/advanced/`，从本目录使用 `uv run python -m demos.级别.模块名` 运行。例如：`uv run python -m demos.beginner.beginner_01_chat`。共享客户端、Agent 循环、工具调用适配器、会话存储、观测和配置移到根目录的 [agent_toolkit](../agent_toolkit/README.md)，本项目通过本地可编辑依赖使用它；具体工具和业务检索仍留在课程目录。`langchain-core` 负责乘法工具的 schema 与参数校验，Agent 的控制循环仍由课程代码实现。
 
-公用循环位于 [`agent_toolkit/agent_loop.py`](../agent_toolkit/agent_loop.py)，使用 `from agent_toolkit.agent_loop import run_agent` 导入。`run_agent(llm_client, question, system_prompt=..., tools=..., dispatch=...)` 由调用方配置角色、工具描述和分发函数；乘法提示词仅保留在使用它的 demo 与验收场景中。复用示例见 [工具与手写 Agent](../doc/lessons/03-agent-loop.md)。
+公用循环位于 [`agent_toolkit/agent_loop.py`](../agent_toolkit/agent_loop.py)，使用 `from agent_toolkit.agent_loop import run_agent` 导入。`run_agent(llm_client, question, system_prompt=..., tools=[multiply])` 由调用方配置角色和可用工具列表；乘法提示词仅保留在使用它的 demo 与验收场景中。复用示例见 [工具与手写 Agent](../doc/lessons/03-agent-loop.md)。
 
 ## 检查与验收
 

@@ -6,6 +6,7 @@ import unittest
 from contextlib import redirect_stderr
 
 import httpx
+from langchain_core.tools import tool
 from opentelemetry.sdk.trace.export import SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
@@ -20,8 +21,9 @@ from agent_toolkit.telemetry import (
     Telemetry,
     parse_headers,
 )
+from agent_toolkit.tools import ToolSet
 from demos.intermediate.intermediate_01_json import parse_order
-from toolbox import tool_set
+from toolbox import multiply
 
 
 def reply(content="完成", *, calls=None, reason=None):
@@ -54,13 +56,15 @@ def call(args='{"a":17,"b":23}', name="multiply", ident="call_1"):
 
 
 class LearningTests(unittest.TestCase):
+    def setUp(self):
+        self.tool_set = ToolSet([multiply])
+
     def run_agent(self, model, question, **options):
         return run_agent(
             model,
             question,
             system_prompt="你是计算助手。乘法必须用工具。",
-            tools=tool_set.schemas,
-            dispatch=tool_set.dispatch,
+            tools=[multiply],
             **options,
         )
 
@@ -215,28 +219,17 @@ class LearningTests(unittest.TestCase):
                 json.loads(message["parts"][0]["content"]), expected
             )
 
-    def test_agent_accepts_custom_prompt_tools_and_dispatch(self):
+    def test_agent_accepts_custom_prompt_and_tools(self):
         prompt = "你是翻译助手，使用 translate 工具把中文翻译成英文。"
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "translate",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"text": {"type": "string"}},
-                        "required": ["text"],
-                    },
-                },
-            }
-        ]
         tool_call = call('{"text":"你好"}', name="translate")
         executions = []
         requests = []
 
-        def translate(request):
-            executions.append(request)
-            return {"ok": True, "result": "Hello"}
+        @tool
+        def translate(text: str) -> str:
+            """把中文翻译成英文。"""
+            executions.append(text)
+            return "Hello"
 
         def handler(request):
             body = json.loads(request.content)
@@ -244,7 +237,10 @@ class LearningTests(unittest.TestCase):
             self.assertEqual(
                 body["messages"][0], {"role": "system", "content": prompt}
             )
-            self.assertEqual(body["tools"], tools)
+            self.assertEqual(
+                [item["function"]["name"] for item in body["tools"]],
+                ["translate"],
+            )
             if len(requests) == 1:
                 self.assertEqual(body["messages"][-1]["content"], "翻译：你好")
                 return httpx.Response(200, json=reply(calls=[tool_call]))
@@ -260,11 +256,10 @@ class LearningTests(unittest.TestCase):
                 client,
                 "翻译：你好",
                 system_prompt=prompt,
-                tools=tools,
-                dispatch=translate,
+                tools=[translate],
             )
         self.assertEqual(answer, "Hello")
-        self.assertEqual(executions, [tool_call])
+        self.assertEqual(executions, ["你好"])
         self.assertEqual(len(exporter.get_finished_spans()), 4)
 
     def test_tool_validation_and_budgets(self):
@@ -279,7 +274,7 @@ class LearningTests(unittest.TestCase):
             {"function": "invalid"},
             {"type": "function", "function": {"name": []}},
         ]:
-            self.assertFalse(tool_set.dispatch(tool)["ok"])
+            self.assertFalse(self.tool_set.dispatch(tool)["ok"])
         client, exporter = self.client(
             lambda req: httpx.Response(200, json=reply(calls=[call()]))
         )
@@ -452,9 +447,9 @@ class LearningTests(unittest.TestCase):
         with client as model:
             data = model.chat_stream([], on_text=lambda t: None)
         self.assertEqual(
-            tool_set.dispatch(data["choices"][0]["message"]["tool_calls"][0])[
-                "result"
-            ],
+            self.tool_set.dispatch(
+                data["choices"][0]["message"]["tool_calls"][0]
+            )["result"],
             6,
         )
         output = json.loads(
