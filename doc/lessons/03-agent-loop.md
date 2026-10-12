@@ -16,18 +16,18 @@
 uv run python -m demos.beginner.beginner_03_agent_loop
 ```
 
-阅读顺序：`toolbox.py` 的 `TOOLS` → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的调用参数 → `agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
+阅读顺序：`toolbox.py` 的 `TOOLS` → `dispatch()` → `demos/beginner/beginner_03_agent_loop.py` 的调用参数 → `agent_toolkit/agent_loop.py` 的 `run_agent()`。暂时不需要钻进观测实现。
 
 `run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过三个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 描述允许模型请求的工具，`dispatch` 校验并执行实际工具。初级 demo 中的乘法助手只是其中一个使用方式：
 
 ```python
-from agent_loop import run_agent
-from llm import DeepSeekClient
+from agent_toolkit.agent_loop import run_agent
+from agent_toolkit.llm import DeepSeekClient
 from toolbox import TOOLS, dispatch
 
-with DeepSeekClient("my_agent") as model:
+with DeepSeekClient("my_agent") as llm_client:
     answer = run_agent(
-        model,
+        llm_client,
         "用工具计算 12 乘以 8。",
         system_prompt="你是计算助手。涉及乘法必须用工具。",
         tools=TOOLS,
@@ -71,7 +71,7 @@ AVAILABLE_TOOLS = {'multiply': multiply}
 
 本例只接受 `a`、`b` 两个有限数值，绝对值不超过一百万。不接受 bool，是因为 Python 的 bool 在某些数值检查里会被当成 int，需要显式排除。参数出错时返回稳定的 `{'ok': False, 'error': ...}`，让模型可以看到实际失败，而不是编一个结果。
 
-业务调用通过 `model.execute_tool(call, dispatch)`，它只负责记录工具的输入、输出和耗时，不替你实现工具。
+业务调用通过 `llm_client.execute_tool(call, dispatch)`，它只负责记录工具的输入、输出和耗时，不替你实现工具。
 
 ## 第四步：保存调用消息，再回填执行结果
 

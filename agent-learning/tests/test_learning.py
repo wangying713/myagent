@@ -12,11 +12,15 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 from opentelemetry.trace import StatusCode
 
-from agent_loop import BudgetExceeded, run_agent
+from agent_toolkit.agent_loop import BudgetExceededError, run_agent
+from agent_toolkit.llm import DeepSeekClient, ModelError
+from agent_toolkit.settings import Settings
+from agent_toolkit.telemetry import (
+    OpenObserveExporter,
+    Telemetry,
+    parse_headers,
+)
 from demos.intermediate.intermediate_01_json import parse_order
-from llm import DeepSeekClient, ModelError
-from settings import Settings
-from telemetry import OpenObserveExporter, Telemetry, parse_headers
 from toolbox import TOOLS, dispatch
 
 
@@ -279,7 +283,7 @@ class LearningTests(unittest.TestCase):
         client, exporter = self.client(
             lambda req: httpx.Response(200, json=reply(calls=[call()]))
         )
-        with self.assertRaises(BudgetExceeded):
+        with self.assertRaises(BudgetExceededError):
             with client as model:
                 self.run_agent(model, "loop", max_rounds=2)
         self.assertEqual(client.calls, 2)
@@ -287,7 +291,7 @@ class LearningTests(unittest.TestCase):
         client, exporter = self.client(
             lambda req: httpx.Response(200, json=reply(calls=[call()]))
         )
-        with self.assertRaises(BudgetExceeded):
+        with self.assertRaises(BudgetExceededError):
             with client as model:
                 self.run_agent(model, "loop", max_tool_calls=0)
         self.assertEqual(len(exporter.get_finished_spans()), 2)

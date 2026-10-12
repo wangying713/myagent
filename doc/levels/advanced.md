@@ -18,7 +18,7 @@
 
 - 文档：[评估与交付](../lessons/08-evaluation.md)。
 - 运行：`uv run python -m demos.advanced.advanced_02_evaluation`。
-- 阅读：`data/eval_cases.json` → `evaluate()` → `grade()`。
+- 阅读：`data/eval_cases.json` → `evaluate()` → `grade_case()`。
 
 使用真实 DeepSeek，四个固定用例覆盖正数、零和负数。评估同时检查最终数字、实际工具参数和结果、预算。只有答案碰巧正确但没有工具证据，不能通过。
 

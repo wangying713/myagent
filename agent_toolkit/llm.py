@@ -7,8 +7,8 @@ from typing import Callable
 import httpx
 from opentelemetry.trace import SpanKind, StatusCode
 
-from settings import Settings
-from telemetry import Telemetry
+from agent_toolkit.settings import Settings
+from agent_toolkit.telemetry import Telemetry
 
 
 class ModelError(RuntimeError):
@@ -20,10 +20,10 @@ class ModelError(RuntimeError):
         self.status_code = status_code
 
 
-def message_of(data: dict) -> dict:
+def message_of(response_data: dict) -> dict:
     """从 Chat Completions 响应中取出 assistant 消息；结构无效时抛出 ModelError。"""
     try:
-        message = data["choices"][0]["message"]
+        message = response_data["choices"][0]["message"]
         if not isinstance(message, dict) or message.get("role") != "assistant":
             raise ValueError
         return message
@@ -31,11 +31,11 @@ def message_of(data: dict) -> dict:
         raise ModelError("响应缺少有效的 assistant 消息") from None
 
 
-def final_text(data: dict) -> str:
+def final_text(response_data: dict) -> str:
     """只返回正常结束的纯文本回答；工具调用或不完整回答不算最终答案。"""
-    message = message_of(data)
+    message = message_of(response_data)
     if (
-        data["choices"][0].get("finish_reason") != "stop"
+        response_data["choices"][0].get("finish_reason") != "stop"
         or not isinstance(message.get("content"), str)
         or not message["content"].strip()
         or message.get("tool_calls")
@@ -99,7 +99,7 @@ class DeepSeekClient:
         missing_api_key = not self.settings.api_key
         placeholder_api_key = self.settings.api_key == "put-your-key-here"
         if missing_api_key or placeholder_api_key:
-            raise ValueError("请先在 agent-learning/.env 设置 DEEPSEEK_API_KEY")
+            raise ValueError("请先通过环境变量或 .env 设置 DEEPSEEK_API_KEY")
         self.telemetry = telemetry or Telemetry(self.settings)
         self.http = httpx.Client(
             timeout=httpx.Timeout(self.settings.timeout, connect=10),
@@ -140,10 +140,12 @@ class DeepSeekClient:
             self.http.close()
             self.telemetry.close()
 
-    def _body(self, messages, options):
+    def _build_request_body(self, messages, options):
         """组装请求 JSON；options 中同名参数会覆盖这里的默认值。"""
         if not self._active:
-            raise RuntimeError("请在 with DeepSeekClient(...) as model: 中调用")
+            raise RuntimeError(
+                "请在 with DeepSeekClient(...) as llm_client: 中调用"
+            )
         return {
             "model": self.settings.model,
             "messages": messages,
@@ -152,11 +154,11 @@ class DeepSeekClient:
             **options,
         }
 
-    def _summary(self, span, data):
+    def _record_response_summary(self, span, response_data):
         """检查模型响应的用量和结束状态，并把可查询的摘要写入模型 span。"""
-        if not isinstance(data, dict):
+        if not isinstance(response_data, dict):
             raise ModelError("模型响应不是 JSON object")
-        usage = data.get("usage") or {}
+        usage = response_data.get("usage") or {}
         invalid_usage = not isinstance(usage, dict) or any(
             type(v) is not int or v < 0
             for k, v in usage.items()
@@ -185,20 +187,22 @@ class DeepSeekClient:
             if isinstance(usage.get(key), int):
                 span.set_attribute("app.usage." + key, usage[key])
         self.total_tokens += usage.get("total_tokens", 0) or 0
-        if data.get("id"):
-            response_id = str(self.telemetry.clean(data["id"]))[:256]
+        if response_data.get("id"):
+            response_id = str(self.telemetry.clean(response_data["id"]))[:256]
             span.set_attribute(
                 "gen_ai.response.id",
                 response_id,
             )
-        if data.get("model"):
-            response_model = str(self.telemetry.clean(data["model"]))[:128]
+        if response_data.get("model"):
+            response_model = str(self.telemetry.clean(response_data["model"]))[
+                :128
+            ]
             span.set_attribute(
                 "gen_ai.response.model",
                 response_model,
             )
-        message = message_of(data)
-        reason = data["choices"][0].get("finish_reason")
+        message = message_of(response_data)
+        reason = response_data["choices"][0].get("finish_reason")
         span.set_attribute(
             "gen_ai.response.finish_reasons",
             [str(self.telemetry.clean(reason or "unknown"))[:128]],
@@ -216,7 +220,7 @@ class DeepSeekClient:
             ):
                 raise ModelError("tool_calls 必须是非空对象列表")
         if reason == "stop":
-            final_text(data)
+            final_text(response_data)
 
     def _request_span(self, body):
         """为一次模型 HTTP 调用建立子 span，并记录模型、课程和调用序号。"""
@@ -297,7 +301,7 @@ class DeepSeekClient:
         """
         if options.get("stream"):
             raise ValueError("流式调用请使用 chat_stream()")
-        body = self._body(messages, {**options, "stream": False})
+        body = self._build_request_body(messages, {**options, "stream": False})
         raw_request = serialize_json(body)
         with self._request_span(body) as span:
             self._request_metadata(span, raw_request)
@@ -320,7 +324,7 @@ class DeepSeekClient:
                 self._response_metadata(span, response, len(response.content))
                 raw_response = response.text
                 try:
-                    data = json.loads(raw_response)
+                    response_data = json.loads(raw_response)
                 except ValueError:
                     self.telemetry.raw_payload(
                         span,
@@ -331,14 +335,14 @@ class DeepSeekClient:
                     raise ModelError("模型返回的不是 JSON") from None
                 self.telemetry.raw_payload(span, "app.response", raw_response)
                 response.raise_for_status()
-                self._summary(span, data)
+                self._record_response_summary(span, response_data)
                 safe_response = self.telemetry.clean_json_text(raw_response)
                 self.telemetry.raw_payload(
                     span,
                     "gen_ai.output.messages",
                     json_preview_message(safe_response, "assistant"),
                 )
-                return data
+                return response_data
             except httpx.HTTPStatusError as exc:
                 raise ModelError(
                     f"DeepSeek HTTP {exc.response.status_code}；详情见 trace",
@@ -372,9 +376,9 @@ class DeepSeekClient:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        body = self._body(messages, stream_options)
+        body = self._build_request_body(messages, stream_options)
         raw_request = serialize_json(body)
-        data = {
+        response_data = {
             "choices": [
                 {
                     "message": {"role": "assistant", "content": ""},
@@ -382,7 +386,7 @@ class DeepSeekClient:
                 }
             ]
         }
-        message = data["choices"][0]["message"]
+        message = response_data["choices"][0]["message"]
         tool_parts = {}
         done = False
         stream_lines = []
@@ -430,7 +434,7 @@ class DeepSeekClient:
                         chunk = json.loads(raw)
                         for key in ("id", "model", "usage"):
                             if chunk.get(key) is not None:
-                                data[key] = chunk[key]
+                                response_data[key] = chunk[key]
                         for choice in chunk.get("choices", []):
                             delta = choice.get("delta") or {}
                             for key in ("content", "reasoning_content"):
@@ -458,9 +462,9 @@ class DeepSeekClient:
                                         call.get("function") or {}
                                     ).get(key) or ""
                             if choice.get("finish_reason"):
-                                data["choices"][0]["finish_reason"] = choice[
-                                    "finish_reason"
-                                ]
+                                response_data["choices"][0]["finish_reason"] = (
+                                    choice["finish_reason"]
+                                )
                     self._response_metadata(
                         span, response, response.num_bytes_downloaded
                     )
@@ -470,15 +474,15 @@ class DeepSeekClient:
                     message["tool_calls"] = [
                         tool_parts[index] for index in sorted(tool_parts)
                     ]
-                self._summary(span, data)
-                raw_response = serialize_json(data)
+                self._record_response_summary(span, response_data)
+                raw_response = serialize_json(response_data)
                 safe_response = self.telemetry.clean_json_text(raw_response)
                 self.telemetry.raw_payload(
                     span,
                     "gen_ai.output.messages",
                     json_preview_message(safe_response, "assistant"),
                 )
-                return data
+                return response_data
             except httpx.HTTPStatusError as exc:
                 raise ModelError(
                     f"DeepSeek HTTP {exc.response.status_code}；详情见 trace",
@@ -497,7 +501,7 @@ class DeepSeekClient:
                 self.telemetry.raw_payload(
                     span,
                     "app.response",
-                    serialize_json(data),
+                    serialize_json(response_data),
                 )
                 self.telemetry.raw_payload(
                     span, "app.response.sse", "\n".join(stream_lines)

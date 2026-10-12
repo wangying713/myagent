@@ -22,7 +22,7 @@ uv run python verify_observe.py --trace-id 替换成实际32位trace_id --expect
 
 本机已完成三级真实模型实验、计算评估和入库核对，trace ID 与验证范围见 [验收记录](verification.md)。
 
-没有 `uv` 时，可以使用 Python 3.11+：`python3 -m venv .venv`，然后 `.venv/bin/python -m pip install httpx python-dotenv opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http`；之后用 `.venv/bin/python` 替代 `uv run python`。项目原有虚拟环境可直接使用。
+没有 `uv` 时，可以使用 Python 3.11+：`python3 -m venv .venv`，然后 `.venv/bin/python -m pip install -e ..`；之后用 `.venv/bin/python` 替代 `uv run python`。以上命令在 agent-learning/ 目录执行；已有虚拟环境迁移后也需安装一次根目录的工具包。
 
 ## 按初级、中级、高级学习
 
@@ -83,6 +83,13 @@ uv run python verify_live.py --level advanced
 ## 文件怎么分工
 
 ```text
+agent_toolkit/                  # 仓库根目录的共享 Python 包
+├── agent_loop.py               # 通用工具循环与预算控制
+├── llm.py                      # 直接 HTTP 请求与客户端生命周期
+├── telemetry.py                # span、脱敏、限长、批量导出
+├── settings.py                 # .env 配置，支持指定路径
+└── session_store.py            # 会话隔离与版本控制
+
 agent-learning/
 ├── demos/
 │   ├── beginner/               # B01–B03：HTTP、消息、手写 Agent 循环
@@ -90,18 +97,14 @@ agent-learning/
 │   └── advanced/               # A01–A03：思考、评估、综合 Agent
 ├── toolbox.py                  # 工具说明、白名单、参数检查、实际函数
 ├── retrieval.py                # 检索与引用校验
-├── session_store.py            # 会话隔离与版本控制
 ├── offline_lab.py              # 回归测试用假 HTTP 和内存观测
 ├── data/                       # 虚构资料与评估用例
-├── llm.py                      # 直接 HTTP 请求；所有模型/工具交互的统一入口
-├── telemetry.py                # span、脱敏、限长、批量导出
-├── settings.py                 # .env 配置
 ├── verify_observe.py           # 仅检验观测，不消耗模型 token
 ├── verify_live.py              # 真实模型 + 入库验收，会消耗 token
 └── tests/                      # 假 HTTP + 内存 exporter，完全离线
 ```
 
-从 `agent-learning/` 目录运行 Agent demo，使用模块形式，例如 `uv run python -m demos.beginner.beginner_01_chat`。这样课程示例集中在 `demos/`，同时仍能直接导入同目录的底层客户端和工具实现。
+从 `agent-learning/` 目录运行 Agent demo，使用模块形式，例如 `uv run python -m demos.beginner.beginner_01_chat`。`uv sync --locked` 会安装根目录的本地可编辑工具包，课程通过 `from agent_toolkit.llm import DeepSeekClient` 等包路径导入公共组件；乘法与资料检索等业务工具仍在课程目录。
 
 Python 语法练习单独放在仓库根目录的 [`python-learning/`](../python-learning/)；它不计入 Agent 课程级别和 demo 数量。
 

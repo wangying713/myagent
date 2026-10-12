@@ -10,7 +10,7 @@
 
 - 文档：[一次模型调用](../lessons/01-http.md)。
 - 运行：`uv run python -m demos.beginner.beginner_01_chat`。
-- 阅读顺序：`demos/beginner/beginner_01_chat.py` → `llm.py` 的 `chat()` 和 `_body()`。
+- 阅读顺序：`demos/beginner/beginner_01_chat.py` → `agent_toolkit/llm.py` 的 `chat()` 和 `_build_request_body()`。
 - 本节只有一次真实模型请求，正常 trace 为根节点 + 模型节点，共 2 条。
 
 先找出 URL、Authorization header、请求 body 和响应 body。再把问题从“递归”换成“函数”，只改一个变量，比较 `app.request` 与 `app.response`。接着把 `max_tokens` 临时设为 1，观察为什么 HTTP 成功仍可能没有完整答案，实验结束后恢复。
@@ -32,7 +32,7 @@
 
 - 文档：[工具与手写 Agent](../lessons/03-agent-loop.md)。
 - 运行：`uv run python -m demos.beginner.beginner_03_agent_loop`。
-- 阅读顺序：`toolbox.py` 的 schema → `dispatch()` → demo 的调用参数 → `agent_loop.py` 的 `run_agent()`。
+- 阅读顺序：`toolbox.py` 的 schema → `dispatch()` → demo 的调用参数 → `agent_toolkit/agent_loop.py` 的 `run_agent()`。
 - 典型链路：模型 → multiply → 模型，加根节点共 4 条 span。轨迹可以变化。
 
 先运行 17×23，再改成 12×8。检查模型给出的 arguments、程序真正执行的结果、下一轮的 tool 消息。再将最大轮次设为 1，理解工具执行了并不意味着模型已完成任务。
@@ -47,6 +47,6 @@ uv run python verify_live.py --level beginner
 
 通常共 5 次真实请求。验收会检查问答、多轮暗号、乘法最终答案和实际工具结果，并确认所有节点入库与父子关系。不能仅凭终端“没有报错”判断通过。
 
-完成后，尝试不看原文件重写一个小循环，但模型调用仍用 `DeepSeekClient`，以保留观测。不要先阅读整个 `telemetry.py`；它是基础设施，不是本级学习重点。
+完成后，尝试不看原文件重写一个小循环，但模型调用仍用 `DeepSeekClient`，以保留观测。不要先阅读整个 `agent_toolkit/telemetry.py`；它是基础设施，不是本级学习重点。
 
 下一阶段：[中级](intermediate.md)。

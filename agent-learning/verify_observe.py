@@ -7,8 +7,8 @@ import time
 
 import httpx
 
-from settings import Settings
-from telemetry import Telemetry
+from agent_toolkit.settings import Settings
+from agent_toolkit.telemetry import Telemetry
 
 
 def query_trace(settings, trace_id):

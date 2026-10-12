@@ -5,9 +5,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from llm import DeepSeekClient
-from settings import Settings
-from telemetry import Telemetry
+from agent_toolkit.llm import DeepSeekClient
+from agent_toolkit.settings import Settings
+from agent_toolkit.telemetry import Telemetry
 
 
 def completion(content=None, calls=None):

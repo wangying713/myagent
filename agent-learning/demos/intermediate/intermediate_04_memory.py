@@ -4,15 +4,15 @@ import argparse
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from llm import DeepSeekClient, final_text, message_of
-from session_store import SessionStore
+from agent_toolkit.llm import DeepSeekClient, final_text, message_of
+from agent_toolkit.session_store import SessionStore
 
 
-def ask(model, db_path, session_id, question):
+def ask(llm_client, db_path, session_id, question):
     """加载会话历史、请求模型回答，并以 revision 检查后保存新历史。
 
     Args:
-        model: 已进入 with 块的 DeepSeekClient。
+        llm_client: 已进入 with 块的 DeepSeekClient。
         db_path: SQLite 数据库文件路径。
         session_id: 用于隔离不同对话的会话 ID。
         question: 本轮用户问题。
@@ -22,10 +22,10 @@ def ask(model, db_path, session_id, question):
 
     Raises:
         ModelError: 模型未生成完整文本时。
-        SessionConflict: 保存时发现会话已被其他操作更新时。
+        SessionConflictError: 保存时发现会话已被其他操作更新时。
     """
-    store = SessionStore(db_path)
-    messages, revision = store.load(session_id)
+    session_store = SessionStore(db_path)
+    messages, revision = session_store.load(session_id)
     if not messages:
         messages = [
             {
@@ -34,10 +34,10 @@ def ask(model, db_path, session_id, question):
             }
         ]
     messages.append({"role": "user", "content": question})
-    data = model.chat(messages)
-    answer = final_text(data)
-    messages.append(message_of(data))
-    store.save(session_id, messages, revision)
+    response_data = llm_client.chat(messages)
+    answer = final_text(response_data)
+    messages.append(message_of(response_data))
+    session_store.save(session_id, messages, revision)
     return answer
 
 
@@ -51,19 +51,28 @@ def main():
     parser.add_argument("--ask")
     args = parser.parse_args()
     with (
-        TemporaryDirectory() as folder,
-        DeepSeekClient("intermediate_memory") as model,
+        TemporaryDirectory() as temp_dir,
+        DeepSeekClient("intermediate_memory") as llm_client,
     ):
-        path = args.db or Path(folder) / "sessions.sqlite3"
-        print("trace_id:", model.trace_id)
+        db_path = args.db or Path(temp_dir) / "sessions.sqlite3"
+        print("trace_id:", llm_client.trace_id)
         if args.ask:
-            print(ask(model, path, args.session, args.ask))
+            print(ask(llm_client, db_path, args.session, args.ask))
         else:
-            print(ask(model, path, args.session, "请记住我的项目代号是海盐。"))
-            print(ask(model, path, args.session, "我的项目代号是什么？"))
+            print(
+                ask(
+                    llm_client,
+                    db_path,
+                    args.session,
+                    "请记住我的项目代号是海盐。",
+                )
+            )
+            print(
+                ask(llm_client, db_path, args.session, "我的项目代号是什么？")
+            )
             print(
                 "另一个会话 bob 的历史条数:",
-                len(SessionStore(path).load("bob")[0]),
+                len(SessionStore(db_path).load("bob")[0]),
             )
 
 

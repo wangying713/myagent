@@ -9,15 +9,15 @@ from unittest.mock import patch
 
 import httpx
 
-from demos.advanced.advanced_02_evaluation import evaluate, grade
+from agent_toolkit.llm import ModelError
+from agent_toolkit.session_store import SessionConflictError, SessionStore
+from agent_toolkit.settings import Settings, env_bool
+from demos.advanced.advanced_02_evaluation import evaluate, grade_case
 from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
 from demos.intermediate.intermediate_03_rag import answer_question
 from demos.intermediate.intermediate_04_memory import ask
-from llm import ModelError
 from offline_lab import completion, offline_client
 from retrieval import search_documents, validate_answer
-from session_store import SessionConflict, SessionStore
-from settings import Settings, env_bool
 
 
 def search_call(query="导出格式"):
@@ -32,6 +32,33 @@ def search_call(query="导出格式"):
 
 
 class LevelTests(unittest.TestCase):
+    def test_default_env_path_is_still_the_course_config(self):
+        with (
+            patch.dict(os.environ, {"TELEMETRY_ENABLED": "false"}, clear=True),
+            patch("agent_toolkit.settings.load_dotenv") as load_env,
+        ):
+            Settings.from_env()
+        course_env = Path(__file__).resolve().parents[1] / ".env"
+        load_env.assert_called_once_with(course_env, override=False)
+
+    def test_custom_env_file_preserves_environment_priority(self):
+        with TemporaryDirectory() as folder:
+            env_path = Path(folder) / ".env"
+            env_path.write_text(
+                "DEEPSEEK_API_KEY=file-placeholder\n"
+                "TELEMETRY_ENABLED=false\n"
+                "OTEL_SERVICE_NAME=toolkit-test\n"
+            )
+            with patch.dict(
+                os.environ,
+                {"DEEPSEEK_API_KEY": "environment-placeholder"},
+                clear=True,
+            ):
+                settings = Settings.from_env(env_path=env_path)
+                self.assertEqual(settings.api_key, "environment-placeholder")
+                self.assertEqual(settings.service_name, "toolkit-test")
+                self.assertFalse(settings.telemetry_enabled)
+
     def test_invalid_boolean_cannot_silently_disable_telemetry(self):
         with patch.dict(os.environ, {"TELEMETRY_ENABLED": "tru"}):
             with self.assertRaises(ValueError):
@@ -132,7 +159,7 @@ class LevelTests(unittest.TestCase):
             reopened = SessionStore(path)
             self.assertEqual(reopened.load("alice")[0][0]["content"], "海盐")
             self.assertEqual(reopened.load("bob"), ([], 0))
-            with self.assertRaises(SessionConflict):
+            with self.assertRaises(SessionConflictError):
                 reopened.save("alice", [], revision)
             self.assertEqual(reopened.load("alice")[1], 1)
 
@@ -180,7 +207,7 @@ class LevelTests(unittest.TestCase):
         self.assertEqual(len(memory.get_finished_spans()), 4)
 
     def test_evaluation_does_not_accept_correct_text_without_tool(self):
-        score = grade({"a": 17, "b": 23, "expected": 391}, "391", [])
+        score = grade_case({"a": 17, "b": 23, "expected": 391}, "391", [])
         self.assertTrue(score["answer_correct"])
         self.assertFalse(score["tool_correct"])
         failed_tool = {
@@ -190,9 +217,9 @@ class LevelTests(unittest.TestCase):
             "response": {"ok": False, "error": "invalid_json"},
         }
         self.assertFalse(
-            grade({"a": 17, "b": 23, "expected": 391}, "391", [failed_tool])[
-                "tool_correct"
-            ]
+            grade_case(
+                {"a": 17, "b": 23, "expected": 391}, "391", [failed_tool]
+            )["tool_correct"]
         )
 
         def handler(request):

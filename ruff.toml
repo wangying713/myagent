@@ -1,0 +1,9 @@
+# 当前维护的 Python 代码统一使用本配置；历史存档保留原样。
+line-length = 80
+include = ["*.py", "*.pyi"]
+src = [".", "agent-learning", "python-learning"]
+extend-exclude = ["old-workspace"]
+
+[lint]
+# 导入排序和 Python 命名检查，包括异常类的 Error 后缀。
+select = ["I", "N"]

@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import closing
 
 
-class SessionConflict(RuntimeError):
+class SessionConflictError(RuntimeError):
     """表示会话版本已变化，当前写入不能安全覆盖新历史。"""
 
     pass
@@ -59,7 +59,7 @@ class SessionStore:
 
         Raises:
             ValueError: 会话 ID 不符合长度要求时。
-            SessionConflict: 会话已由另一请求更新时。
+            SessionConflictError: 会话已由另一请求更新时。
         """
         self.load(session_id)  # 检查 ID；真正的版本比较在同一个事务里完成。
         with closing(sqlite3.connect(self.path)) as db, db:
@@ -68,7 +68,7 @@ class SessionStore:
                 "SELECT revision FROM sessions WHERE id=?", (session_id,)
             ).fetchone()
             if (row[0] if row else 0) != expected_revision:
-                raise SessionConflict(
+                raise SessionConflictError(
                     "会话已被另一请求更新；请重新加载，不自动重复模型调用"
                 )
             db.execute(

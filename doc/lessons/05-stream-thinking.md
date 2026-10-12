@@ -8,7 +8,7 @@
 uv run python -m demos.intermediate.intermediate_02_stream
 ```
 
-`llm.py` 的 `chat_stream()` 直接读取 Server-Sent Events（SSE）。这些行里，`data:` 后面的 JSON 提供增量字段 `delta`。空行和保活注释不是内容。客户端累积内容，直到收到 `[DONE]`。具体格式参见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
+`agent_toolkit/llm.py` 的 `chat_stream()` 直接读取 Server-Sent Events（SSE）。这些行里，`data:` 后面的 JSON 提供增量字段 `delta`。空行和保活注释不是内容。客户端累积内容，直到收到 `[DONE]`。具体格式参见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
 
 ## 不要把碎片当完整消息
 
@@ -25,16 +25,16 @@ uv run python -m demos.intermediate.intermediate_02_stream
 已提供 `uv run python -m demos.advanced.advanced_01_thinking`，真实验收检查答案为 74。下面是同类调用的写法，仍使用统一底层客户端：
 
 ```python
-from llm import DeepSeekClient, final_text
+from agent_toolkit.llm import DeepSeekClient, final_text
 
-with DeepSeekClient('thinking_experiment') as model:
-    print('trace_id:', model.trace_id)
-    data = model.chat(
+with DeepSeekClient('thinking_experiment') as llm_client:
+    print('trace_id:', llm_client.trace_id)
+    response_data = llm_client.chat(
         [{'role': 'user', 'content': '一个两位数，十位数比个位数大3，数位和为11，求这个数。简短回答。'}],
         thinking={'type': 'enabled'},
         max_tokens=4096,
     )
-    print(final_text(data))
+    print(final_text(response_data))
 ```
 
 开启后延迟和 token 使用可能增加；预算太小也可能在生成最终答案前结束。响应中的 `reasoning_content` 是服务端选择提供的字段，不应把它当作模型内部计算的完整、可靠证明，事实仍需要外部验证。

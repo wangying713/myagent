@@ -1,7 +1,7 @@
 """第三课：配置乘法助手，使用公用 Agent 循环，没有 Agent 框架。"""
 
-from agent_loop import run_agent
-from llm import DeepSeekClient
+from agent_toolkit.agent_loop import run_agent
+from agent_toolkit.llm import DeepSeekClient
 from toolbox import TOOLS, dispatch
 
 SYSTEM_PROMPT = (
@@ -11,11 +11,11 @@ SYSTEM_PROMPT = (
 
 def main():
     """运行一次乘法工具调用示例，并打印 trace ID 和最终答案。"""
-    with DeepSeekClient("03_agent_loop") as model:
-        print("trace_id:", model.trace_id)
+    with DeepSeekClient("03_agent_loop") as llm_client:
+        print("trace_id:", llm_client.trace_id)
         print(
             run_agent(
-                model,
+                llm_client,
                 "每盒有 17 支笔，买 23 盒，一共多少支？",
                 system_prompt=SYSTEM_PROMPT,
                 tools=TOOLS,

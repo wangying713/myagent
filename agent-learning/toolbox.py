@@ -59,12 +59,12 @@ def dispatch(call: dict) -> dict:
     ):
         return {"ok": False, "error": "unknown_tool"}
     try:
-        args = json.loads(function.get("arguments", ""))
+        arguments = json.loads(function.get("arguments", ""))
     except (ValueError, TypeError):
         return {"ok": False, "error": "invalid_json"}
-    if not isinstance(args, dict) or set(args) != {"a", "b"}:
+    if not isinstance(arguments, dict) or set(arguments) != {"a", "b"}:
         return {"ok": False, "error": "expected_exactly_a_and_b"}
-    for value in args.values():
+    for value in arguments.values():
         if (
             type(value) not in (int, float)
             or abs(value) > 1_000_000
@@ -74,4 +74,4 @@ def dispatch(call: dict) -> dict:
                 "ok": False,
                 "error": "expected_finite_numbers_within_one_million",
             }
-    return {"ok": True, "result": AVAILABLE_TOOLS[name](**args)}
+    return {"ok": True, "result": AVAILABLE_TOOLS[name](**arguments)}

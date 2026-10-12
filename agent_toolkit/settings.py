@@ -1,4 +1,4 @@
-"""仅从环境/.env 读取配置；从任何目录启动都读取同一份 .env。"""
+"""读取环境变量与指定 .env；默认沿用仓库内的课程配置文件。"""
 
 import math
 import os
@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
-from telemetry import parse_headers
+from agent_toolkit.telemetry import parse_headers
 
 
 def env_bool(name, default="true"):
@@ -47,8 +47,12 @@ class Settings:
     secrets: tuple = field(default_factory=tuple, repr=False)
 
     @classmethod
-    def from_env(cls):
-        """从环境变量和本目录的 .env 文件构造配置对象。
+    def from_env(cls, *, env_path: str | Path | None = None):
+        """从环境变量和 .env 文件构造配置对象，环境变量优先。
+
+        Args:
+            env_path: 可选的 .env 路径。省略时读取仓库中的
+                agent-learning/.env，与启动时的工作目录无关。
 
         Returns:
             经过基础校验的 Settings 实例。
@@ -56,7 +60,11 @@ class Settings:
         Raises:
             ValueError: 布尔开关、观测鉴权或 URL 配置无效时。
         """
-        load_dotenv(Path(__file__).with_name(".env"), override=False)
+        if env_path is None:
+            env_path = (
+                Path(__file__).resolve().parents[1] / "agent-learning" / ".env"
+            )
+        load_dotenv(env_path, override=False)
         key = os.getenv("DEEPSEEK_API_KEY", "")
         headers = parse_headers(
             os.getenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS")

@@ -2,7 +2,7 @@
 
 ## 本节目标
 
-能自己构造一份请求，并从返回的 JSON 找到回答。先不用理解所有底层文件，先阅读 `demos/beginner/beginner_01_chat.py`，再找到 `llm.py` 中的 `chat()`。
+能自己构造一份请求，并从返回的 JSON 找到回答。先不用理解所有底层文件，先阅读 `demos/beginner/beginner_01_chat.py`，再找到 `agent_toolkit/llm.py` 中的 `chat()`。
 
 先会这几个 Python 概念就够了：字典 `{'role': 'user'}` 存键值；列表 `[]` 保存有顺序的消息；函数接收参数并返回结果；`with` 在结束时释放资源；`try/except` 处理错误。JSON 是跨语言交换数据的文本格式，Python 字典不是 JSON 文本，HTTP 客户端负责序列化。
 
@@ -29,7 +29,7 @@ URL 指向服务和接口；`POST` 表示发送请求体；header 携带鉴权�
 
 `messages` 是模型本次能看到的对话。`model` 选择模型，`max_tokens` 限制本次生成的 token 数，`stream=false` 表示等整个结果回来。请求格式以 [DeepSeek Chat Completions 协议](https://api-docs.deepseek.com/api/create-chat-completion/) 为准。
 
-直接 HTTP 的关键动作就在 `llm.py`：
+直接 HTTP 的关键动作就在 `agent_toolkit/llm.py`：
 
 ```python
 response = self.http.post(
@@ -74,7 +74,7 @@ uv run python -m demos.beginner.beginner_01_chat
 
 1. 把“递归”改成“函数”。预测只会改变哪一项，再看实际请求。
 2. 把 system 消息改为“用适合十岁孩子的比喻解释”。比较回答方式，不要只看字数。
-3. 把 `model.chat(messages)` 改为 `model.chat(messages, max_tokens=1)`。观察报错和 `finish_reason`，再恢复。通常会截断；不同模型可能返回不同边界行为，以实际记录为准。
+3. 把 `llm_client.chat(messages)` 改为 `llm_client.chat(messages, max_tokens=1)`。观察报错和 `finish_reason`，再恢复。通常会截断；不同模型可能返回不同边界行为，以实际记录为准。
 
 一次请求只改一个变量，才能知道差异来自哪里。不要把临时实验失败理解成“程序完全坏了”；正是这些记录帮你区分接口成功和任务完成。
 

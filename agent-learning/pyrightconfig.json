@@ -4,6 +4,7 @@
   "reportAny": false,
   "venvPath": ".",
   "venv": ".venv",
+  "extraPaths": [".."],
   "exclude": [
     "**/.venv",
     "**/__pycache__"

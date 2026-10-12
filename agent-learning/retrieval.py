@@ -38,20 +38,24 @@ def search_documents(query):
     """
     if not isinstance(query, str) or not query.strip() or len(query) > 200:
         raise ValueError("query 必须是 1–200 字符的非空字符串")
-    docs = json.loads(DATA_PATH.read_text())
-    ranked = [
+    documents = json.loads(DATA_PATH.read_text())
+    ranked_documents = [
         (
             sum(
-                word.casefold() in query.casefold() for word in doc["keywords"]
+                word.casefold() in query.casefold()
+                for word in document["keywords"]
             ),
-            doc,
+            document,
         )
-        for doc in docs
+        for document in documents
     ]
-    ranked.sort(key=lambda pair: (-pair[0], pair[1]["id"]))
+    ranked_documents.sort(key=lambda pair: (-pair[0], pair[1]["id"]))
     return [
-        {k: doc[k] for k in ("id", "title", "text")}
-        for score, doc in ranked
+        {
+            field_name: document[field_name]
+            for field_name in ("id", "title", "text")
+        }
+        for score, document in ranked_documents
         if score > 0
     ][:2]
 
@@ -66,10 +70,10 @@ def dispatch_search(call):
     ):
         return {"ok": False, "error": "unknown_tool"}
     try:
-        args = json.loads(function.get("arguments", ""))
-        if not isinstance(args, dict) or set(args) != {"query"}:
+        arguments = json.loads(function.get("arguments", ""))
+        if not isinstance(arguments, dict) or set(arguments) != {"query"}:
             raise ValueError
-        return {"ok": True, "passages": search_documents(args["query"])}
+        return {"ok": True, "passages": search_documents(arguments["query"])}
     except (TypeError, ValueError):
         return {"ok": False, "error": "invalid_search_query"}
 
@@ -87,33 +91,33 @@ def validate_answer(text, passages):
     Raises:
         ValueError: JSON、字段、类型、引用或证据状态不符合约定时。
     """
-    value = json.loads(text)
-    if not isinstance(value, dict) or set(value) != {
+    answer = json.loads(text)
+    if not isinstance(answer, dict) or set(answer) != {
         "answer",
         "source_ids",
         "insufficient_evidence",
     }:
         raise ValueError("回答字段不符合约定")
     if (
-        not isinstance(value["answer"], str)
-        or not value["answer"].strip()
-        or type(value["insufficient_evidence"]) is not bool
+        not isinstance(answer["answer"], str)
+        or not answer["answer"].strip()
+        or type(answer["insufficient_evidence"]) is not bool
     ):
         raise ValueError("回答类型不符合约定")
-    ids = value["source_ids"]
+    source_ids = answer["source_ids"]
     if (
-        not isinstance(ids, list)
-        or not all(isinstance(i, str) for i in ids)
-        or len(set(ids)) != len(ids)
+        not isinstance(source_ids, list)
+        or not all(isinstance(source_id, str) for source_id in source_ids)
+        or len(set(source_ids)) != len(source_ids)
     ):
         raise ValueError("引用必须是无重复的 ID 列表")
-    if not set(ids) <= {p["id"] for p in passages}:
+    if not set(source_ids) <= {passage["id"] for passage in passages}:
         raise ValueError("引用了未提供给模型的资料")
     if (
-        value["insufficient_evidence"]
-        and ids
-        or not value["insufficient_evidence"]
-        and not ids
+        answer["insufficient_evidence"]
+        and source_ids
+        or not answer["insufficient_evidence"]
+        and not source_ids
     ):
         raise ValueError("依据不足状态与引用不一致")
-    return value
+    return answer

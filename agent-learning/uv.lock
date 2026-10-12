@@ -7,6 +7,17 @@ name = "agent-learning"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "agent-toolkit" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "agent-toolkit", editable = "../" }]
+
+[[package]]
+name = "agent-toolkit"
+version = "0.1.0"
+source = { editable = "../" }
+dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },

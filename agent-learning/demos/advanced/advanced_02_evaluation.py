@@ -6,18 +6,20 @@ import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from agent_loop import run_agent
-from llm import DeepSeekClient
+from agent_toolkit.agent_loop import run_agent
+from agent_toolkit.llm import DeepSeekClient
 from toolbox import TOOLS, dispatch
 
 
-def grade(case, answer, tool_results):
+def grade_case(case, answer, tool_results):
     """分别验证最终答案和实际工具调用证据是否符合评估用例。"""
     try:
-        answer_ok = Decimal(answer.strip()) == Decimal(str(case["expected"]))
+        is_answer_correct = Decimal(answer.strip()) == Decimal(
+            str(case["expected"])
+        )
     except (InvalidOperation, AttributeError):
-        answer_ok = False
-    tool_ok = False
+        is_answer_correct = False
+    is_tool_correct = False
     for execution in tool_results:
         request = execution["request"]
         result = execution["response"]
@@ -28,7 +30,7 @@ def grade(case, answer, tool_results):
             arguments = json.loads(function.get("arguments", "{}"))
         except (ValueError, TypeError):
             continue
-        tool_ok |= (
+        is_tool_correct |= (
             arguments
             in (
                 {"a": case["a"], "b": case["b"]},
@@ -37,7 +39,10 @@ def grade(case, answer, tool_results):
             and result.get("ok") is True
             and result.get("result") == case["expected"]
         )
-    return {"answer_correct": answer_ok, "tool_correct": tool_ok}
+    return {
+        "answer_correct": is_answer_correct,
+        "tool_correct": is_tool_correct,
+    }
 
 
 def evaluate(*, cases=None):
@@ -51,15 +56,15 @@ def evaluate(*, cases=None):
     """
     data_dir = Path(__file__).resolve().parents[2] / "data"
     cases = cases or json.loads((data_dir / "eval_cases.json").read_text())
-    rows = []
+    evaluation_results = []
     for case in cases:
-        model = DeepSeekClient("advanced_eval_" + case["id"])
-        started = time.perf_counter()
-        answer, error = "", None
+        llm_client = DeepSeekClient("advanced_eval_" + case["id"])
+        start_time = time.perf_counter()
+        answer, error_name = "", None
         try:
-            with model:
+            with llm_client:
                 answer = run_agent(
-                    model,
+                    llm_client,
                     f"请用工具计算 {case['a']} 乘以 {case['b']}，最终只输出数字。",
                     system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
                     "工具出错时不能捏造结果。",
@@ -67,37 +72,41 @@ def evaluate(*, cases=None):
                     dispatch=dispatch,
                 )
         except Exception as exc:
-            error = type(exc).__name__
-        score = grade(case, answer, model.tool_results)
-        budget_ok = model.calls <= 5 and model.tool_calls <= 8
-        rows.append(
+            error_name = type(exc).__name__
+        case_score = grade_case(case, answer, llm_client.tool_results)
+        within_budget = llm_client.calls <= 5 and llm_client.tool_calls <= 8
+        evaluation_results.append(
             {
                 "case": case["id"],
                 "mode": "live",
-                **score,
-                "budget_ok": budget_ok,
-                "passed": all(score.values()) and budget_ok and error is None,
-                "error": error,
-                "llm_calls": model.calls,
-                "tool_calls": model.tool_calls,
-                "tokens": model.total_tokens,
-                "elapsed_ms": round((time.perf_counter() - started) * 1000),
-                "trace_id": model.trace_id,
+                **case_score,
+                "budget_ok": within_budget,
+                "passed": all(case_score.values())
+                and within_budget
+                and error_name is None,
+                "error": error_name,
+                "llm_calls": llm_client.calls,
+                "tool_calls": llm_client.tool_calls,
+                "tokens": llm_client.total_tokens,
+                "elapsed_ms": round((time.perf_counter() - start_time) * 1000),
+                "trace_id": llm_client.trace_id,
             }
         )
-    return rows
+    return evaluation_results
 
 
 def main():
     """运行真实模型评估，打印结果并以退出码报告是否全部通过。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
-    rows = evaluate()
-    for row in rows:
-        print(json.dumps(row, ensure_ascii=False))
-    passed = sum(r["passed"] for r in rows)
-    print(f"通过 {passed}/{len(rows)}；真实模型评估。")
-    if passed != len(rows):
+    evaluation_results = evaluate()
+    for evaluation_result in evaluation_results:
+        print(json.dumps(evaluation_result, ensure_ascii=False))
+    passed_count = sum(
+        evaluation_result["passed"] for evaluation_result in evaluation_results
+    )
+    print(f"通过 {passed_count}/{len(evaluation_results)}；真实模型评估。")
+    if passed_count != len(evaluation_results):
         raise SystemExit(1)
 
 

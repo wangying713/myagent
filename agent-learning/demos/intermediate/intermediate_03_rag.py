@@ -3,15 +3,15 @@
 import argparse
 import json
 
-from llm import DeepSeekClient, final_text
+from agent_toolkit.llm import DeepSeekClient, final_text
 from retrieval import ANSWER_RULE, dispatch_search, validate_answer
 
 
-def answer_question(model, question):
+def answer_question(llm_client, question):
     """先检索本地资料，再让模型回答并验证引用来源。
 
     Args:
-        model: 已进入 with 块的 DeepSeekClient。
+        llm_client: 已进入 with 块的 DeepSeekClient。
         question: 用户提出的问题。
 
     Returns:
@@ -21,7 +21,7 @@ def answer_question(model, question):
         ValueError: 本地检索工具执行失败时。
         ModelError: 模型响应不完整或引用校验失败时。
     """
-    result = model.execute_tool(
+    result = llm_client.execute_tool(
         {
             "id": "local-retrieval",
             "type": "function",
@@ -43,7 +43,7 @@ def answer_question(model, question):
             "source_ids": [],
             "insufficient_evidence": True,
         }
-    data = model.chat(
+    response_data = llm_client.chat(
         [
             {"role": "system", "content": ANSWER_RULE},
             {
@@ -56,7 +56,7 @@ def answer_question(model, question):
         ],
         response_format={"type": "json_object"},
     )
-    return validate_answer(final_text(data), passages)
+    return validate_answer(final_text(response_data), passages)
 
 
 def main():
@@ -66,11 +66,11 @@ def main():
         "question", nargs="?", default="星河笔记支持导出哪些格式？"
     )
     args = parser.parse_args()
-    with DeepSeekClient("intermediate_rag") as model:
-        print("trace_id:", model.trace_id)
+    with DeepSeekClient("intermediate_rag") as llm_client:
+        print("trace_id:", llm_client.trace_id)
         print(
             json.dumps(
-                answer_question(model, args.question),
+                answer_question(llm_client, args.question),
                 ensure_ascii=False,
                 indent=2,
             )

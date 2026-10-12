@@ -16,7 +16,7 @@
 
 - 文档：[流式与思考模式](../lessons/05-stream-thinking.md) 的流式部分。
 - 运行：`uv run python -m demos.intermediate.intermediate_02_stream`。
-- 阅读：`llm.py` 的 `chat_stream()`，正常一条模型 span，不逐片段上报。
+- 阅读：`agent_toolkit/llm.py` 的 `chat_stream()`，正常一条模型 span，不逐片段上报。
 
 比较终端逐段显示与 trace 中聚合正文。检查 `app.stream.complete`。测试中的中断流会保存部分正文但报告失败；流中的工具参数也必须拼完整后才能执行。
 
@@ -44,7 +44,7 @@ uv run python -m demos.intermediate.intermediate_03_rag '是否支持脑机接�
 ## I04：SQLite 会话持久化
 
 - 运行：`uv run python -m demos.intermediate.intermediate_04_memory`。
-- 阅读：`demos/intermediate/intermediate_04_memory.py` → `session_store.py`。
+- 阅读：`demos/intermediate/intermediate_04_memory.py` → `agent_toolkit/session_store.py`。
 
 默认演示使用临时数据库：写入 Alice 的项目代号，重新创建存储对象后读取，再询问代号；检查 Bob 的历史为空。正常 2 次模型请求、3 条 span。默认退出会删除临时库，避免积累练习数据。
 

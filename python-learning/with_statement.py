@@ -113,7 +113,9 @@ def show_database_connection():
         # 重新连接并读取，确认 commit 已经保存了数据。
         connection = sqlite3.connect(database_path)
         with closing(connection) as db:
-            saved_message = db.execute("SELECT message FROM notes").fetchone()[0]
+            saved_message = db.execute("SELECT message FROM notes").fetchone()[
+                0
+            ]
         print("用 db 管理事务后，重新读取到：", saved_message)
 
 

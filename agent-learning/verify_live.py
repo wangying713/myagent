@@ -6,15 +6,15 @@ import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from agent_loop import run_agent
+from agent_toolkit.agent_loop import run_agent
+from agent_toolkit.llm import DeepSeekClient, final_text, message_of
+from agent_toolkit.session_store import SessionStore
+from agent_toolkit.settings import Settings
 from demos.advanced.advanced_01_thinking import solve
 from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
 from demos.intermediate.intermediate_01_json import parse_order
 from demos.intermediate.intermediate_03_rag import answer_question
 from demos.intermediate.intermediate_04_memory import ask
-from llm import DeepSeekClient, final_text, message_of
-from session_store import SessionStore
-from settings import Settings
 from toolbox import TOOLS, dispatch
 from verify_observe import query_trace
 
@@ -51,30 +51,39 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
                 f"trace 未完整入库：{trace_id}；实际={len(hits)}，预期={expected}"
             )
         time.sleep(1)
-    roots = [h for h in hits if h.get("operation_name") == "agent.run"]
-    models = [
-        h for h in hits if h.get("operation_name", "").startswith("chat ")
+    root_spans = [
+        span for span in hits if span.get("operation_name") == "agent.run"
     ]
-    tools = [h for h in hits if h.get("operation_name") == "execute_tool"]
+    model_spans = [
+        span
+        for span in hits
+        if span.get("operation_name", "").startswith("chat ")
+    ]
+    tool_spans = [
+        span for span in hits if span.get("operation_name") == "execute_tool"
+    ]
     require(
-        len(roots) == 1
-        and len(models) == llm_calls
-        and len(tools) == tool_calls,
+        len(root_spans) == 1
+        and len(model_spans) == llm_calls
+        and len(tool_spans) == tool_calls,
         "span 类型或数量不完整",
     )
-    root = roots[0]
+    root = root_spans[0]
     require(
         all(
-            (h.get("reference_parent_span_id") or h.get("parent_span_id"))
+            (span.get("reference_parent_span_id") or span.get("parent_span_id"))
             == root["span_id"]
-            for h in hits
-            if h != root
+            for span in hits
+            if span != root
         ),
         "父子关系错误",
     )
-    require(all(h.get("span_status") != "ERROR" for h in hits), "出现错误 span")
+    require(
+        all(span.get("span_status") != "ERROR" for span in hits),
+        "出现错误 span",
+    )
     require(settings.api_key not in json.dumps(hits), "凭据进入观测数据")
-    for span in models:
+    for span in model_spans:
         require(
             span.get("app_request") and span.get("app_response"),
             "缺少请求或响应正文",
@@ -82,7 +91,7 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
         require(
             span.get("gen_ai_usage_input_tokens") is not None, "缺少输入用量"
         )
-    for span in tools:
+    for span in tool_spans:
         for preview, payload in (
             ("gen_ai_input_messages", "app_tool_request"),
             ("gen_ai_output_messages", "app_tool_response"),
@@ -111,55 +120,61 @@ def exercise(name, action, check, expected_tool_result=None):
     Returns:
         含 trace、调用次数、用量和通过状态的摘要字典。
     """
-    with DeepSeekClient("verify_" + name) as model:
-        print(f"{name}: trace_id={model.trace_id}", flush=True)
-        result = action(model)
+    with DeepSeekClient("verify_" + name) as llm_client:
+        print(f"{name}: trace_id={llm_client.trace_id}", flush=True)
+        result = action(llm_client)
         require(check(result), name + ": 业务结果不正确")
     hits = check_trace(
-        model.settings, model.trace_id, model.calls, model.tool_calls
+        llm_client.settings,
+        llm_client.trace_id,
+        llm_client.calls,
+        llm_client.tool_calls,
     )
     if expected_tool_result is not None:
         results = [
-            json.loads(h["app_tool_response"])
-            for h in hits
-            if h.get("operation_name") == "execute_tool"
+            json.loads(span["app_tool_response"])
+            for span in hits
+            if span.get("operation_name") == "execute_tool"
         ]
         require(
             any(
-                r.get("ok") is True and r.get("result") == expected_tool_result
-                for r in results
+                result.get("ok") is True
+                and result.get("result") == expected_tool_result
+                for result in results
             ),
             "未找到正确的实际工具结果",
         )
     record = {
         "lesson": name,
-        "trace_id": model.trace_id,
+        "trace_id": llm_client.trace_id,
         "spans": len(hits),
-        "llm_calls": model.calls,
-        "tool_calls": model.tool_calls,
-        "tokens": model.total_tokens,
+        "llm_calls": llm_client.calls,
+        "tool_calls": llm_client.tool_calls,
+        "tokens": llm_client.total_tokens,
         "passed": True,
     }
     print(json.dumps(record, ensure_ascii=False), flush=True)
     return record
 
 
-def multi_turn(model):
+def multi_turn(llm_client):
     """执行两轮对话，验证第二次请求确实携带第一轮历史。"""
     messages = [
         {"role": "user", "content": "请记住暗号是蓝色铅笔，回复收到即可。"}
     ]
-    messages.append(message_of(model.chat(messages)))
+    messages.append(message_of(llm_client.chat(messages)))
     messages.append({"role": "user", "content": "暗号是什么？只回复暗号。"})
-    return final_text(model.chat(messages))
+    return final_text(llm_client.chat(messages))
 
 
-def memory_roundtrip(model):
+def memory_roundtrip(llm_client):
     """跨存储对象重新读取会话，并检查另一个 session 没有串线。"""
     with TemporaryDirectory() as folder:
         path = Path(folder) / "sessions.sqlite3"
-        ask(model, path, "alice", "请记住我的项目代号是海盐。")
-        result = ask(model, path, "alice", "我的项目代号是什么？只回复代号。")
+        ask(llm_client, path, "alice", "请记住我的项目代号是海盐。")
+        result = ask(
+            llm_client, path, "alice", "我的项目代号是什么？只回复代号。"
+        )
         require(SessionStore(path).load("bob") == ([], 0), "会话发生串线")
         return result
 
@@ -190,33 +205,35 @@ def main():
         "beginner": [
             (
                 "chat",
-                lambda m: final_text(
-                    m.chat([{"role": "user", "content": "只回复：你好"}])
+                lambda llm_client: final_text(
+                    llm_client.chat(
+                        [{"role": "user", "content": "只回复：你好"}]
+                    )
                 ),
-                lambda r: "你好" in r,
+                lambda result: "你好" in result,
                 None,
             ),
-            ("messages", multi_turn, lambda r: "蓝色铅笔" in r, None),
+            ("messages", multi_turn, lambda result: "蓝色铅笔" in result, None),
             (
                 "agent",
-                lambda m: run_agent(
-                    m,
+                lambda llm_client: run_agent(
+                    llm_client,
                     "用工具计算 17 乘以 23。最终只输出数字。",
                     system_prompt="你是计算助手。乘法必须调用工具，最终只输出数字；"
                     "工具出错时不能捏造结果。",
                     tools=TOOLS,
                     dispatch=dispatch,
                 ),
-                lambda r: r.strip() == "391",
+                lambda result: result.strip() == "391",
                 391,
             ),
         ],
         "intermediate": [
             (
                 "json",
-                lambda m: parse_order(
+                lambda llm_client: parse_order(
                     final_text(
-                        m.chat(
+                        llm_client.chat(
                             [
                                 {
                                     "role": "system",
@@ -231,49 +248,55 @@ def main():
                         )
                     )
                 ),
-                lambda r: r == {"item": "笔记本", "quantity": 3},
+                lambda result: result == {"item": "笔记本", "quantity": 3},
                 None,
             ),
             (
                 "stream",
-                lambda m: final_text(
-                    m.chat_stream(
+                lambda llm_client: final_text(
+                    llm_client.chat_stream(
                         [{"role": "user", "content": "只回复：流式调用成功"}],
-                        on_text=lambda t: None,
+                        on_text=lambda text: None,
                     )
                 ),
-                lambda r: "流式调用成功" in r,
+                lambda result: "流式调用成功" in result,
                 None,
             ),
             (
                 "rag",
-                lambda m: answer_question(m, "星河笔记支持导出哪些格式？"),
-                lambda r: (
-                    r["source_ids"] == ["export"]
-                    and "PDF" in r["answer"]
-                    and "Markdown" in r["answer"]
+                lambda llm_client: answer_question(
+                    llm_client, "星河笔记支持导出哪些格式？"
+                ),
+                lambda result: (
+                    result["source_ids"] == ["export"]
+                    and "PDF" in result["answer"]
+                    and "Markdown" in result["answer"]
                 ),
                 None,
             ),
             (
                 "rag_unknown",
-                lambda m: answer_question(m, "是否支持脑机接口？"),
-                lambda r: r["insufficient_evidence"] and not r["source_ids"],
+                lambda llm_client: answer_question(
+                    llm_client, "是否支持脑机接口？"
+                ),
+                lambda result: (
+                    result["insufficient_evidence"] and not result["source_ids"]
+                ),
                 None,
             ),
-            ("memory", memory_roundtrip, lambda r: "海盐" in r, None),
+            ("memory", memory_roundtrip, lambda result: "海盐" in result, None),
         ],
         "advanced": [
-            ("thinking", solve, lambda r: r.strip() == "74", None),
+            ("thinking", solve, lambda result: result.strip() == "74", None),
             (
                 "knowledge",
-                lambda m: run_knowledge_agent(
-                    m, "星河笔记误删的笔记能恢复多久？请给出资料依据。"
+                lambda llm_client: run_knowledge_agent(
+                    llm_client, "星河笔记误删的笔记能恢复多久？请给出资料依据。"
                 ),
-                lambda r: (
-                    r["source_ids"] == ["recovery"]
-                    and "30" in r["answer"]
-                    and not r["insufficient_evidence"]
+                lambda result: (
+                    result["source_ids"] == ["recovery"]
+                    and "30" in result["answer"]
+                    and not result["insufficient_evidence"]
                 ),
                 None,
             ),
@@ -287,13 +310,19 @@ def main():
     if args.evaluate:
         from demos.advanced.advanced_02_evaluation import evaluate
 
-        for row in evaluate():
-            require(row["passed"], "真实评估未通过：" + row["case"])
-            check_trace(
-                settings, row["trace_id"], row["llm_calls"], row["tool_calls"]
+        for evaluation_result in evaluate():
+            require(
+                evaluation_result["passed"],
+                "真实评估未通过：" + evaluation_result["case"],
             )
-            report.append(row)
-            print(json.dumps(row, ensure_ascii=False), flush=True)
+            check_trace(
+                settings,
+                evaluation_result["trace_id"],
+                evaluation_result["llm_calls"],
+                evaluation_result["tool_calls"],
+            )
+            report.append(evaluation_result)
+            print(json.dumps(evaluation_result, ensure_ascii=False), flush=True)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
