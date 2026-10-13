@@ -270,7 +270,7 @@ class LearningTests(unittest.TestCase):
         self.assertTrue(
             all(s.parent.span_id == root.context.span_id for s in spans[:-1])
         )
-        tool = next(s for s in spans if s.name == "Function: multiply")
+        tool = next(s for s in spans if s.name == "Tool call")
         self.assertEqual(
             tool.attributes["gen_ai.operation.name"], "execute_tool"
         )
@@ -278,8 +278,16 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(tool.attributes["app.tool.call.id"], "call_1")
         self.assertNotIn("gen_ai.tool.name", tool.attributes)
         self.assertNotIn("gen_ai.tool.call.id", tool.attributes)
+        self.assertNotIn("gen_ai.tool.call.arguments", tool.attributes)
         for field, expected in (
-            ("gen_ai.tool.call.arguments", {"a": 17, "b": 23}),
+            (
+                "gen_ai.input.messages",
+                {
+                    "function": "multiply",
+                    "call_id": "call_1",
+                    "arguments": {"a": 17, "b": 23},
+                },
+            ),
             ("gen_ai.tool.call.result", {"ok": True, "result": 391}),
         ):
             self.assertEqual(json.loads(tool.attributes[field]), expected)
@@ -392,8 +400,8 @@ class LearningTests(unittest.TestCase):
             {"ok": False, "error": "invalid_json"},
         )
         self.assertEqual(
-            json.loads(tools[1].attributes["gen_ai.tool.call.arguments"]),
-            "bad",
+            json.loads(tools[1].attributes["gen_ai.input.messages"]),
+            {"function": "multiply", "call_id": "call_2", "arguments": "bad"},
         )
         self.assertEqual(
             [r["response"]["ok"] for r in client.tool_results], [True, False]
@@ -420,7 +428,7 @@ class LearningTests(unittest.TestCase):
                     )
                 attrs = exporter.get_finished_spans()[0].attributes
                 for field in (
-                    "gen_ai.tool.call.arguments",
+                    "gen_ai.input.messages",
                     "gen_ai.tool.call.result",
                 ):
                     if enabled:
@@ -443,7 +451,7 @@ class LearningTests(unittest.TestCase):
                 lambda _: {"ok": False, "error": "x" * 500},
             )
         attrs = exporter.get_finished_spans()[0].attributes
-        for field in ("gen_ai.tool.call.arguments", "gen_ai.tool.call.result"):
+        for field in ("gen_ai.input.messages", "gen_ai.tool.call.result"):
             self.assertTrue(attrs[field + ".truncated"])
             self.assertTrue(attrs[field].endswith("…[TRUNCATED]"))
 

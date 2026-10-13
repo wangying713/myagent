@@ -20,7 +20,7 @@ Trace 表示一次完整运行；span 表示其中一个步骤。每个 span 有
 ```text
 agent.run
 ├── chat deepseek-flash  # 第一次请求：模型提出 multiply
-├── Function: multiply   # Python 校验参数并得到 391
+├── Tool call            # Python 校验参数并得到 391
 └── chat deepseek-flash  # 第二次请求：带上工具结果，得到最终回答
 ```
 
@@ -50,15 +50,15 @@ OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放�
 
 正文采集需保持 `TELEMETRY_CAPTURE_CONTENT=true`。为防止凭据泄漏，属性值仍会脱敏，且受 `TELEMETRY_CONTENT_MAX_CHARS` 上限约束；如果 `.truncated` 为 `true`，调高该值后重新运行示例。HTTP Authorization header 不属于请求 body，也不会写入 trace。
 
-工具 span 标题显示 `Function: multiply`，「预览」直接显示参数和结果。工具名、调用 ID 存在 `app.tool.name` / `app.tool.call.id` 属性里，避免原生标签在输入、输出两栏重复显示。这是上报层的小改动，界面的输入、输出标题仍由 OpenObserve 控制。比如 `multiply` 的输入显示 `{"a": 12, "b": 8}`，输出显示 `{"ok": true, "result": 96.0}`；无效参数 JSON 保留原文，失败结果显示实际错误码。
+工具 span 标题显示 `Tool call`，函数名、调用 ID 和参数放在输入 JSON 内：`{"function": "multiply", "call_id": "call_1", "arguments": {"a": 12, "b": 8}}`。输出显示 `{"ok": true, "result": 96.0}`；无效参数 JSON 保留原文，失败结果显示实际错误码。工具名、调用 ID 仍存在 `app.tool.name` / `app.tool.call.id` 属性里，避免原生标签在输入、输出两栏重复显示。这只调整 Python 上报，界面的输入、输出标题及顶部 `execute_tool` 类型标签仍由 OpenObserve 控制。
 
-工具预览使用 OpenObserve 原生支持的 `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` 字段。完整调用请求和结果仍保存在 `app.tool.request` / `app.tool.response`，可在「属性」页排查。所有正文使用相同的脱敏、限长和采集开关。旧 trace 保留原来的数据格式，需要重新运行 demo，再打开新结果的 `trace_id` 查看。
+工具输入通过 `gen_ai.input.messages` 提供直接的 JSON 对象，不包裹聊天消息结构；省略优先级更高的 `gen_ai.tool.call.arguments`，让 OpenObserve 使用完整输入预览。输出通过 `gen_ai.tool.call.result` 展示实际结果。完整调用请求和结果仍保存在 `app.tool.request` / `app.tool.response`，可在「属性」页排查。所有正文使用相同的脱敏、限长和采集开关。旧 trace 保留原来的数据格式，需要重新运行 demo，再打开新结果的 `trace_id` 查看。
 
 | 属性名 | 含义 |
 |---|---|
-| `gen_ai.input.messages` / `gen_ai.output.messages` | 模型 span 的「预览」字段，以单条文本承载完整请求和响应 JSON；原文见 `app.request` / `app.response` |
-| `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` | 工具 span 的「预览」字段：解码后的参数和实际执行结果，直接以 JSON 展示 |
-| `gen_ai.operation.name` | 工具步骤仍为 `execute_tool`；span 标题独立显示函数名 |
+| `gen_ai.input.messages` / `gen_ai.output.messages` | 模型 span 的预览以单条文本承载完整请求和响应 JSON；工具 span 的输入预览为包含 `function`、`call_id`、`arguments` 的直接 JSON 对象 |
+| `gen_ai.tool.call.result` | 工具 span 的输出预览，直接显示实际执行结果 |
+| `gen_ai.operation.name` | 工具步骤仍为 `execute_tool`；span 标题为 `Tool call` |
 | `app.tool.name` / `app.tool.call.id` | 函数名和调用 ID；存于属性页，不触发重复的原生工具标签 |
 | `app.request` | 实际发送的完整 JSON body 的脱敏、限长副本；原始结构可在「属性」页查看 |
 | `app.response` | 提供方完整响应 JSON 的脱敏、限长副本；流式调用为重组后的响应，不是逐个网络包 |
@@ -78,7 +78,7 @@ OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放�
 | `app.stream.complete` | 是否读到流式结束标志 |
 | `app.tool.request` / `app.tool.response` | 工具调用请求及实际结果 |
 
-模型预览用 `gen_ai.input.messages` / `gen_ai.output.messages` 把完整 JSON 文本包装成单条消息；工具预览用专用的参数与结果字段直接展示 JSON。`app.request` / `app.response` 与 `app.tool.request` / `app.tool.response` 保留可复制、可查询的完整正文。内容仍受同一采集开关、递归脱敏和长度上限控制，不另发 events。OpenObserve 通常把属性名中的点转为下划线用于 SQL，例如 `gen_ai.tool.call.arguments` 显示为 `gen_ai_tool_call_arguments`。
+模型预览用 `gen_ai.input.messages` / `gen_ai.output.messages` 把完整 JSON 文本包装成单条消息；工具预览直接展示输入 JSON 与实际结果。`app.request` / `app.response` 与 `app.tool.request` / `app.tool.response` 保留可复制、可查询的完整正文。内容仍受同一采集开关、递归脱敏和长度上限控制，不另发 events。OpenObserve 通常把属性名中的点转为下划线用于 SQL，例如 `gen_ai.input.messages` 显示为 `gen_ai_input_messages`。
 
 可直接验证具体运行（查询最近 24 小时，最多返回 100 个 span）：
 

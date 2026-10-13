@@ -547,7 +547,7 @@ class DeepSeekClient:
                 pass  # 无效 JSON 保留原文，仍由分发器返回业务错误。
         function_name = str(self.telemetry.clean(name))[:128]
         with self.telemetry.span(
-            "Function: " + function_name,
+            "Tool call",
             attributes={
                 "gen_ai.operation.name": "execute_tool",
                 # 原生工具标签在两栏重复显示，元数据改放属性页。
@@ -560,7 +560,13 @@ class DeepSeekClient:
         ) as span:
             self.telemetry.payload(span, "app.tool.request", call)
             self.telemetry.payload(
-                span, "gen_ai.tool.call.arguments", arguments
+                span,
+                "gen_ai.input.messages",
+                {
+                    "function": function_name,
+                    "call_id": call.get("id", "unknown"),
+                    "arguments": arguments,
+                },
             )
             result = dispatch(call)
             self.tool_results.append(

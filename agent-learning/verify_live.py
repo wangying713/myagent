@@ -100,15 +100,18 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
                 for field in (
                     "app_tool_request",
                     "app_tool_response",
-                    "gen_ai_tool_call_arguments",
+                    "gen_ai_input_messages",
                     "gen_ai_tool_call_result",
                 )
             ),
             "缺少工具正文或预览",
         )
         request = json.loads(span["app_tool_request"])
+        preview = json.loads(span["gen_ai_input_messages"])
         require(
-            json.loads(span["gen_ai_tool_call_arguments"])
+            preview["function"] == request["function"]["name"]
+            and preview["call_id"] == request["id"]
+            and preview["arguments"]
             == json.loads(request["function"]["arguments"])
             and json.loads(span["gen_ai_tool_call_result"])
             == json.loads(span["app_tool_response"]),
