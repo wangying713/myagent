@@ -10,6 +10,15 @@
 
 现有 `demos/advanced/advanced_02_evaluation.py` 使用真实 DeepSeek 运行固定计算用例，并上报 OpenObserve，会消耗 token。具体实验见 [高级 A02](../levels/advanced.md)。
 
+在 VS Code 的终端运行：
+
+```bash
+cd /Users/wangying/apps/sakelei/ai/agent-learning
+uv run python -m demos.advanced.advanced_02_evaluation
+```
+
+程序读取课程目录的 `.env`，逐条输出四个用例的 JSON 评估结果，最后汇总通过数量。全部通过时显示 `通过 4/4；真实模型评估。`；任一用例失败时退出码为 1。结果字段说明见 [高级 A02](../levels/advanced.md)。
+
 | 用例 | 期望行为 | 验证方法 |
 |---|---|---|
 | 17×23 | 工具结果 391，答案一致 | 校验工具输出和答案 |

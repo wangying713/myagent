@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr
+from unittest.mock import patch
 
 import httpx
 from langchain_core.tools import tool
@@ -22,6 +23,7 @@ from agent_toolkit.telemetry import (
     parse_headers,
 )
 from agent_toolkit.tools import ToolSet
+from demos.advanced.advanced_02_evaluation import evaluate
 from demos.intermediate.intermediate_01_json import parse_order
 from toolbox import multiply
 
@@ -160,23 +162,83 @@ class LearningTests(unittest.TestCase):
                 )
                 self.assertIn("app.request", spans[0].attributes)
                 self.assertNotIn("hidden-key", str(spans[0].attributes))
+                self.assertIn("app.error.message", spans[0].attributes)
+                self.assertEqual(
+                    spans[0].attributes["app.error.message"],
+                    spans[0].status.description,
+                )
 
     def test_timeout_is_traced(self):
-        def timeout(request):
-            raise httpx.ReadTimeout("secret should not leak", request=request)
+        for error_type in (httpx.ConnectTimeout, httpx.ReadTimeout):
+            for stream in (False, True):
+                with self.subTest(error=error_type.__name__, stream=stream):
 
-        client, exporter = self.client(timeout)
-        with self.assertRaises(ModelError):
-            with client as model:
-                model.chat([])
+                    def timeout(request):
+                        raise error_type(
+                            "secret should not leak", request=request
+                        )
+
+                    client, exporter = self.client(
+                        timeout, capture_content=False
+                    )
+                    with self.assertRaises(ModelError):
+                        with client as model:
+                            if stream:
+                                model.chat_stream([], on_text=lambda text: None)
+                            else:
+                                model.chat([])
+                    for span in exporter.get_finished_spans():
+                        self.assertEqual(
+                            span.status.status_code, StatusCode.ERROR
+                        )
+                        self.assertEqual(
+                            span.attributes["error.type"], "ModelError"
+                        )
+                        self.assertIn(
+                            error_type.__name__, span.status.description
+                        )
+                        self.assertEqual(
+                            span.attributes["app.error.message"],
+                            span.status.description,
+                        )
+                        self.assertNotIn(
+                            "secret should not leak", str(span.attributes)
+                        )
+                        self.assertNotIn("app.request", span.attributes)
+
+    def test_evaluation_reports_model_failure_reason(self):
+        def timeout(request):
+            raise httpx.ConnectTimeout(
+                "private network detail", request=request
+            )
+
+        client, _ = self.client(timeout)
+        with patch(
+            "demos.advanced.advanced_02_evaluation.DeepSeekClient",
+            return_value=client,
+        ):
+            result = evaluate(
+                cases=[{"id": "small", "a": 12, "b": 8, "expected": 96}]
+            )[0]
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["error"], "ModelError")
         self.assertEqual(
-            exporter.get_finished_spans()[0].status.status_code,
-            StatusCode.ERROR,
+            result["error_message"], "DeepSeek 网络请求失败：ConnectTimeout"
         )
-        self.assertNotIn(
-            "secret should not leak",
-            str(exporter.get_finished_spans()[0].attributes),
+        self.assertEqual(result["llm_calls"], 1)
+        self.assertEqual(result["tool_calls"], 0)
+
+    def test_untrusted_exception_message_is_not_traced(self):
+        client, exporter = self.client(
+            lambda request: httpx.Response(200, json=reply())
         )
+        with self.assertRaises(RuntimeError):
+            with client:
+                raise RuntimeError("private tool detail")
+        span = exporter.get_finished_spans()[0]
+        self.assertEqual(span.status.description, "RuntimeError")
+        self.assertNotIn("app.error.message", span.attributes)
+        self.assertFalse(span.events)
 
     def test_tool_loop_links_messages_and_spans(self):
         requests = []
@@ -208,16 +270,22 @@ class LearningTests(unittest.TestCase):
         self.assertTrue(
             all(s.parent.span_id == root.context.span_id for s in spans[:-1])
         )
-        tool = next(s for s in spans if s.name == "execute_tool")
+        tool = next(s for s in spans if s.name == "Function: multiply")
+        self.assertEqual(
+            tool.attributes["gen_ai.operation.name"], "execute_tool"
+        )
+        self.assertEqual(tool.attributes["app.tool.name"], "multiply")
+        self.assertEqual(tool.attributes["app.tool.call.id"], "call_1")
+        self.assertNotIn("gen_ai.tool.name", tool.attributes)
+        self.assertNotIn("gen_ai.tool.call.id", tool.attributes)
         for field, expected in (
-            ("gen_ai.input.messages", call()),
-            ("gen_ai.output.messages", {"ok": True, "result": 391}),
+            ("gen_ai.tool.call.arguments", {"a": 17, "b": 23}),
+            ("gen_ai.tool.call.result", {"ok": True, "result": 391}),
         ):
-            message = json.loads(tool.attributes[field])[0]
-            self.assertEqual(message["parts"][0]["type"], "text")
-            self.assertEqual(
-                json.loads(message["parts"][0]["content"]), expected
-            )
+            self.assertEqual(json.loads(tool.attributes[field]), expected)
+        self.assertEqual(
+            json.loads(tool.attributes["app.tool.request"]), call()
+        )
 
     def test_agent_accepts_custom_prompt_and_tools(self):
         prompt = "你是翻译助手，使用 translate 工具把中文翻译成英文。"
@@ -312,14 +380,20 @@ class LearningTests(unittest.TestCase):
         with client as model:
             self.run_agent(model, "two calls")
         tools = [
-            s for s in exporter.get_finished_spans() if s.name == "execute_tool"
+            s
+            for s in exporter.get_finished_spans()
+            if s.attributes.get("gen_ai.operation.name") == "execute_tool"
         ]
         self.assertEqual(len(tools), 2)
         self.assertEqual(tools[1].status.status_code, StatusCode.ERROR)
-        preview = json.loads(tools[1].attributes["gen_ai.output.messages"])
+        preview = json.loads(tools[1].attributes["gen_ai.tool.call.result"])
         self.assertEqual(
-            json.loads(preview[0]["parts"][0]["content"]),
+            preview,
             {"ok": False, "error": "invalid_json"},
+        )
+        self.assertEqual(
+            json.loads(tools[1].attributes["gen_ai.tool.call.arguments"]),
+            "bad",
         )
         self.assertEqual(
             [r["response"]["ok"] for r in client.tool_results], [True, False]
@@ -346,8 +420,8 @@ class LearningTests(unittest.TestCase):
                     )
                 attrs = exporter.get_finished_spans()[0].attributes
                 for field in (
-                    "gen_ai.input.messages",
-                    "gen_ai.output.messages",
+                    "gen_ai.tool.call.arguments",
+                    "gen_ai.tool.call.result",
                 ):
                     if enabled:
                         self.assertIn("[REDACTED]", attrs[field])
@@ -369,7 +443,7 @@ class LearningTests(unittest.TestCase):
                 lambda _: {"ok": False, "error": "x" * 500},
             )
         attrs = exporter.get_finished_spans()[0].attributes
-        for field in ("gen_ai.input.messages", "gen_ai.output.messages"):
+        for field in ("gen_ai.tool.call.arguments", "gen_ai.tool.call.result"):
             self.assertTrue(attrs[field + ".truncated"])
             self.assertTrue(attrs[field].endswith("…[TRUNCATED]"))
 

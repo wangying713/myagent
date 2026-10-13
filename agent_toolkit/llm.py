@@ -121,7 +121,9 @@ class DeepSeekClient:
             raise RuntimeError("每次运行请创建一个新的 DeepSeekClient")
         self._used = True
         self._run = self.telemetry.span(
-            "agent.run", attributes={"app.lesson": self.lesson}
+            "agent.run",
+            attributes={"app.lesson": self.lesson},
+            error_message_types=(ModelError,),
         )
         self._root = self._run.__enter__()
         self.trace_id = format(self._root.get_span_context().trace_id, "032x")
@@ -228,6 +230,7 @@ class DeepSeekClient:
         return self.telemetry.span(
             "chat " + body["model"],
             kind=SpanKind.CLIENT,
+            error_message_types=(ModelError,),
             attributes={
                 "gen_ai.operation.name": "chat",
                 "gen_ai.provider.name": "deepseek",
@@ -532,47 +535,39 @@ class DeepSeekClient:
             name = function.get("name", "unknown")
         else:
             name = "unknown"
+        arguments = (
+            function.get("arguments", "")
+            if isinstance(function, dict)
+            else None
+        )
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (ValueError, RecursionError):
+                pass  # 无效 JSON 保留原文，仍由分发器返回业务错误。
+        function_name = str(self.telemetry.clean(name))[:128]
         with self.telemetry.span(
-            "execute_tool",
+            "Function: " + function_name,
             attributes={
                 "gen_ai.operation.name": "execute_tool",
-                "gen_ai.tool.name": str(self.telemetry.clean(name))[:128],
-                "gen_ai.tool.call.id": str(
+                # 原生工具标签在两栏重复显示，元数据改放属性页。
+                "app.tool.name": function_name,
+                "app.tool.call.id": str(
                     self.telemetry.clean(call.get("id", "unknown"))
                 )[:256],
                 "app.llm_call": self.calls,
             },
         ) as span:
             self.telemetry.payload(span, "app.tool.request", call)
-            self.telemetry.raw_payload(
-                span,
-                "gen_ai.input.messages",
-                json_preview_message(
-                    json.dumps(
-                        self.telemetry.clean(call),
-                        ensure_ascii=False,
-                        default=str,
-                    ),
-                    "user",
-                ),
+            self.telemetry.payload(
+                span, "gen_ai.tool.call.arguments", arguments
             )
             result = dispatch(call)
             self.tool_results.append(
                 {"request": deepcopy(call), "response": deepcopy(result)}
             )
             self.telemetry.payload(span, "app.tool.response", result)
-            self.telemetry.raw_payload(
-                span,
-                "gen_ai.output.messages",
-                json_preview_message(
-                    json.dumps(
-                        self.telemetry.clean(result),
-                        ensure_ascii=False,
-                        default=str,
-                    ),
-                    "assistant",
-                ),
-            )
+            self.telemetry.payload(span, "gen_ai.tool.call.result", result)
             if not result.get("ok", False):
                 span.set_status(StatusCode.ERROR, "ToolError")
                 span.set_attribute("error.type", "ToolError")

@@ -228,7 +228,7 @@ class Telemetry:
         try:
             decoded = json.loads(value)
         except (ValueError, RecursionError):
-            return self.clean(value)
+            return str(self.clean(value))
         return json.dumps(
             self.clean(decoded),
             ensure_ascii=False,
@@ -237,8 +237,15 @@ class Telemetry:
         )
 
     @contextmanager
-    def span(self, name: str, *, kind=SpanKind.INTERNAL, attributes=None):
-        """创建一个自动计时的 span，并将抛出的异常标记为错误后继续抛出。"""
+    def span(
+        self,
+        name: str,
+        *,
+        kind=SpanKind.INTERNAL,
+        attributes=None,
+        error_message_types=(),
+    ):
+        """标记异常并继续抛出；仅记录指定异常类型的脱敏错误说明。"""
         # 不自动记录异常正文/堆栈，避免 header 或工具秘密进入 trace。
         with self.tracer.start_as_current_span(
             name,
@@ -252,7 +259,11 @@ class Telemetry:
                 yield span
             except BaseException as exc:
                 span.set_attribute("error.type", type(exc).__name__)
-                span.set_status(StatusCode.ERROR, type(exc).__name__)
+                description = type(exc).__name__
+                if isinstance(exc, error_message_types):
+                    description = str(self.clean(str(exc)))[:1024]
+                    span.set_attribute("app.error.message", description)
+                span.set_status(StatusCode.ERROR, description)
                 raise
             finally:
                 span.set_attribute(

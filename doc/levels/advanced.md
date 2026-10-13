@@ -17,14 +17,28 @@
 ## A02：固定用例评估
 
 - 文档：[评估与交付](../lessons/08-evaluation.md)。
-- 运行：`uv run python -m demos.advanced.advanced_02_evaluation`。
 - 阅读：`data/eval_cases.json` → `evaluate()` → `grade_case()`。
+
+在 VS Code 的终端执行：
+
+```bash
+cd /Users/wangying/apps/sakelei/ai/agent-learning
+uv run python -m demos.advanced.advanced_02_evaluation
+```
+
+程序读取课程目录的 `.env`，依次运行 `17×23`、`0×25`、`-3×8`、`12×8` 四个用例。每个用例输出一行 JSON，包含是否通过、错误类型、模型错误说明（`error_message`）、调用次数、token 用量、耗时（`elapsed_ms`，单位毫秒）和 `trace_id`。全部通过时，最后显示：
+
+```text
+通过 4/4；真实模型评估。
+```
 
 使用真实 DeepSeek，四个固定用例覆盖正数、零和负数。评估同时检查最终数字、实际工具参数和结果、预算。只有答案碰巧正确但没有工具证据，不能通过。
 
 评估直接读取客户端的 `tool_results` 校验实际执行结果；OpenObserve 上报由共享客户端自动处理，示例无需创建 exporter 或读取 span。
 
 通常需要 8 次真实模型请求，会消耗 token，并自动上报 OpenObserve。任一用例失败返回非零退出码。模型输出具有变化性；失败要查 trace，不能直接改成宽松断言来让报告变绿。
+
+模型请求失败时，`error_message` 区分连接超时（`ConnectTimeout`）、读取响应超时（`ReadTimeout`）和 HTTP 状态码。连接阶段超时为 10 秒；`DEEPSEEK_TIMEOUT` 默认 60 秒，用于读取、写入和连接池等待。网络失败也计入失败用例，不能仅凭 `answer_correct=false` 判断模型算错。
 
 **通过标准：**能故意改错一条参考答案并看到评估失败；能拒绝“正确答案但没用工具”；保持用例不变比较两种 prompt 的通过率、用量和调用次数。
 

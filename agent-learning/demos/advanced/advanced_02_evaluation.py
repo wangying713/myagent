@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from agent_toolkit.agent_loop import run_agent
-from agent_toolkit.llm import DeepSeekClient
+from agent_toolkit.llm import DeepSeekClient, ModelError
 from toolbox import multiply
 
 
@@ -60,7 +60,7 @@ def evaluate(*, cases=None):
     for case in cases:
         llm_client = DeepSeekClient("advanced_eval_" + case["id"])
         start_time = time.perf_counter()
-        answer, error_name = "", None
+        answer, error_name, error_message = "", None, None
         try:
             with llm_client:
                 answer = run_agent(
@@ -72,6 +72,8 @@ def evaluate(*, cases=None):
                 )
         except Exception as exc:
             error_name = type(exc).__name__
+            if isinstance(exc, ModelError):
+                error_message = str(llm_client.telemetry.clean(str(exc)))[:1024]
         case_score = grade_case(case, answer, llm_client.tool_results)
         within_budget = llm_client.calls <= 5 and llm_client.tool_calls <= 8
         evaluation_results.append(
@@ -84,6 +86,7 @@ def evaluate(*, cases=None):
                 and within_budget
                 and error_name is None,
                 "error": error_name,
+                "error_message": error_message,
                 "llm_calls": llm_client.calls,
                 "tool_calls": llm_client.tool_calls,
                 "tokens": llm_client.total_tokens,

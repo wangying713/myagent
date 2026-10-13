@@ -60,7 +60,9 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
         if span.get("operation_name", "").startswith("chat ")
     ]
     tool_spans = [
-        span for span in hits if span.get("operation_name") == "execute_tool"
+        span
+        for span in hits
+        if span.get("gen_ai_operation_name") == "execute_tool"
     ]
     require(
         len(root_spans) == 1
@@ -92,19 +94,31 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
             span.get("gen_ai_usage_input_tokens") is not None, "缺少输入用量"
         )
     for span in tool_spans:
-        for preview, payload in (
-            ("gen_ai_input_messages", "app_tool_request"),
-            ("gen_ai_output_messages", "app_tool_response"),
-        ):
-            require(
-                span.get(preview) and span.get(payload), "缺少工具正文或预览"
-            )
-            message = json.loads(span[preview])[0]
-            require(
-                json.loads(message["parts"][0]["content"])
-                == json.loads(span[payload]),
-                "工具预览与实际记录不一致",
-            )
+        require(
+            all(
+                span.get(field)
+                for field in (
+                    "app_tool_request",
+                    "app_tool_response",
+                    "gen_ai_tool_call_arguments",
+                    "gen_ai_tool_call_result",
+                )
+            ),
+            "缺少工具正文或预览",
+        )
+        request = json.loads(span["app_tool_request"])
+        require(
+            json.loads(span["gen_ai_tool_call_arguments"])
+            == json.loads(request["function"]["arguments"])
+            and json.loads(span["gen_ai_tool_call_result"])
+            == json.loads(span["app_tool_response"]),
+            "工具预览与实际记录不一致",
+        )
+        require(
+            span.get("app_tool_call_id") == request["id"]
+            and span.get("app_tool_name") == request["function"]["name"],
+            "工具调用元数据不一致",
+        )
     return hits
 
 
@@ -134,7 +148,7 @@ def exercise(name, action, check, expected_tool_result=None):
         results = [
             json.loads(span["app_tool_response"])
             for span in hits
-            if span.get("operation_name") == "execute_tool"
+            if span.get("gen_ai_operation_name") == "execute_tool"
         ]
         require(
             any(
