@@ -8,7 +8,7 @@ from pathlib import Path
 
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient, ModelError
-from toolbox import multiply
+from demos.tools.calculator import multiply
 
 
 def grade_case(case, answer, tool_results):
@@ -54,7 +54,7 @@ def evaluate(*, cases=None):
     Returns:
         每个用例的答案、工具、预算和运行状态结果。
     """
-    data_dir = Path(__file__).resolve().parents[2] / "data"
+    data_dir = Path(__file__).resolve().parents[1] / "data"
     cases = cases or json.loads((data_dir / "eval_cases.json").read_text())
     evaluation_results = []
     for case in cases:

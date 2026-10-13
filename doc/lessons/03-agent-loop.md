@@ -13,17 +13,17 @@
 即使模型自己也会算，这个实验仍有价值：目标是看见完整协议。提示词要求涉及乘法使用工具，但是否遵守仍应通过 trace 验证。
 
 ```bash
-uv run python -m demos.beginner.beginner_03_agent_loop
+uv run python -m demos.demo_03_agent_loop
 ```
 
-阅读顺序：`toolbox.py` 的 `@tool` 函数 → demo 中的 `tools=[multiply]` → `agent_toolkit/agent_loop.py` 的 `run_agent()` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()`。暂时不需要钻进观测实现。
+阅读顺序：`demos/tools/calculator.py` 的 `@tool` 函数 → demo 中的 `tools=[multiply]` → `agent_toolkit/agent_loop.py` 的 `run_agent()` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()`。暂时不需要钻进观测实现。
 
 `run_agent()` 是公用函数，不内置计算助手的提示词或乘法工具。调用方通过两个必填关键字参数配置业务：`system_prompt` 定义角色与规则，`tools` 提供本次运行可用的工具列表。初级 demo 中的乘法助手只是其中一个使用方式：
 
 ```python
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import multiply
+from demos.tools.calculator import multiply
 
 with DeepSeekClient("my_agent") as llm_client:
     answer = run_agent(
@@ -47,7 +47,7 @@ def multiply(a: float, b: float) -> float:
     return a * b
 ```
 
-`toolbox.py` 只定义工具函数。调用方直接传入 `tools=[multiply]`，选择本次运行可用的工具。`run_agent()` 内部创建 `ToolSet`，从这份列表生成描述和工具注册表，统一配置严格参数校验；每次运行准备一次，而非每轮模型调用都重新准备。新增工具只需要定义带类型注解和 docstring 的 `@tool` 函数，在需要使用它的调用处加入工具列表，无需手写 schema 或添加专用分发分支。这个乘法示例没有业务范围限制，因此函数只声明两个普通 `float` 参数。
+`demos/tools/calculator.py` 只定义工具函数。调用方直接传入 `tools=[multiply]`，选择本次运行可用的工具。`run_agent()` 内部创建 `ToolSet`，从这份列表生成描述和工具注册表，统一配置严格参数校验；每次运行准备一次，而非每轮模型调用都重新准备。新增工具只需要定义带类型注解和 docstring 的 `@tool` 函数，在需要使用它的调用处加入工具列表，无需手写 schema 或添加专用分发分支。这个乘法示例没有业务范围限制，因此函数只声明两个普通 `float` 参数。
 
 工具说明仍需符合实际用途；把描述写成“加法”，实现却做乘法，会误导模型。我们只使用工具组件，模型客户端、观测与 Agent 循环仍由课程代码实现。
 

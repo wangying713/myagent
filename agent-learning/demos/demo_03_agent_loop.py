@@ -2,7 +2,7 @@
 
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import multiply
+from demos.tools.calculator import multiply
 
 SYSTEM_PROMPT = (
     "你是计算助手。涉及乘法必须用工具；工具出错时不能捏造结果。用中文简短回答。"

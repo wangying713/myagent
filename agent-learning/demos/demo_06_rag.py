@@ -4,7 +4,7 @@ import argparse
 import json
 
 from agent_toolkit.llm import DeepSeekClient, final_text
-from retrieval import ANSWER_RULE, dispatch_search, validate_answer
+from demos.tools.retrieval import ANSWER_RULE, dispatch_search, validate_answer
 
 
 def answer_question(llm_client, question):

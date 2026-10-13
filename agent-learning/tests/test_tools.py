@@ -6,7 +6,7 @@ import unittest
 from langchain_core.tools import tool
 
 from agent_toolkit.tools import ToolSet
-from toolbox import multiply
+from demos.tools.calculator import multiply
 
 
 def tool_call(name, arguments):

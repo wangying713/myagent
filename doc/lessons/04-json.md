@@ -5,7 +5,7 @@
 “帮我买三本笔记本”如果要进入订单流程，程序希望得到固定字段，而不是从一大段回答中猜出数量。这里先做**信息提取**，不真正下单。
 
 ```bash
-uv run python -m demos.intermediate.intermediate_01_json
+uv run python -m demos.demo_04_structured_output
 ```
 
 脚本要求模型输出 JSON，并设置 `response_format={'type': 'json_object'}`。提示中明确提到 JSON 和示例结构，参见 [DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode/)。返回的 `message.content` 仍是字符串，需要 `json.loads()`。

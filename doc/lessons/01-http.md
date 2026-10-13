@@ -2,7 +2,7 @@
 
 ## 本节目标
 
-能自己构造一份请求，并从返回的 JSON 找到回答。先不用理解所有底层文件，先阅读 `demos/beginner/beginner_01_chat.py`，再找到 `agent_toolkit/llm.py` 中的 `chat()`。
+能自己构造一份请求，并从返回的 JSON 找到回答。先不用理解所有底层文件，先阅读 `demos/demo_01_chat.py`，再找到 `agent_toolkit/llm.py` 中的 `chat()`。
 
 先会这几个 Python 概念就够了：字典 `{'role': 'user'}` 存键值；列表 `[]` 保存有顺序的消息；函数接收参数并返回结果；`with` 在结束时释放资源；`try/except` 处理错误。JSON 是跨语言交换数据的文本格式，Python 字典不是 JSON 文本，HTTP 客户端负责序列化。
 
@@ -65,7 +65,7 @@ HTTP 200 只说明接口返回了结果。`stop` 表示这轮正常结束；`len
 
 ```bash
 cd /Users/wangying/apps/sakelei/ai/agent-learning
-uv run python -m demos.beginner.beginner_01_chat
+uv run python -m demos.demo_01_chat
 ```
 
 终端会显示 messages、响应 JSON 和回答。按 `trace_id` 找到模型 span，对照 `app.request` 与 `app.response`。注意 body 有 `thinking`、`max_tokens`、`stream`，这些是底层默认补上的参数，不是模型自行决定的。

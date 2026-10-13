@@ -16,7 +16,7 @@ uv sync --locked
 uv run python verify_observe.py
 
 # 运行第一个真实模型示例
-uv run python -m demos.beginner.beginner_01_chat
+uv run python -m demos.demo_01_chat
 ```
 
 配置文件为 [agent-learning/.env.example](agent-learning/.env.example)。初次使用时复制为同目录的 `.env`，填写模型密钥和观测鉴权；已有 `.env` 时保留原文件。环境变量优先于 `.env`，配置路径不随启动目录变化。
@@ -33,28 +33,28 @@ uv run python verify_observe.py --trace-id 实际32位trace_id --expect 2
 
 ## 课程与运行命令
 
-以下命令均在 `agent-learning/` 目录执行。按初级 → 中级 → 高级、每级文件编号的顺序学习；各级文档提供阅读顺序、练习和通过标准。
+以下命令均在 `agent-learning/` 目录执行。10 个 demo 集中在 `demos/`，按 `demo_01` 到 `demo_10` 的编号顺序学习；各级文档提供阅读顺序、练习和通过标准。
 
-| 级别 | 学习说明 | 内容 |
-|---|---|---|
-| 初级 | [初级课程](doc/levels/beginner.md) | HTTP、消息历史、工具协议、手写循环 |
-| 中级 | [中级课程](doc/levels/intermediate.md) | JSON、流式输出、关键词 RAG、SQLite 会话 |
-| 高级 | [高级课程](doc/levels/advanced.md) | 思考模式、固定用例评估、只读资料 Agent |
+| 级别 | Demo 编号 | 学习说明 | 内容 |
+|---|---|---|---|
+| 初级 | 01–03 | [初级课程](doc/levels/beginner.md) | HTTP、消息历史、工具协议、手写循环 |
+| 中级 | 04–07 | [中级课程](doc/levels/intermediate.md) | JSON、流式输出、关键词 RAG、SQLite 会话 |
+| 高级 | 08–10 | [高级课程](doc/levels/advanced.md) | 思考模式、固定用例评估、只读资料 Agent |
 
 | 编号 | 运行命令 | 重点 |
 |---|---|---|
-| B01 | `uv run python -m demos.beginner.beginner_01_chat` | 请求、回答、用量和结束原因 |
-| B02 | `uv run python -m demos.beginner.beginner_02_messages` | 第二轮请求携带第一轮消息历史 |
-| B03 | `uv run python -m demos.beginner.beginner_03_agent_loop` | 工具执行、结果回填、有限循环 |
-| I01 | `uv run python -m demos.intermediate.intermediate_01_json` | JSON 解析和业务校验 |
-| I02 | `uv run python -m demos.intermediate.intermediate_02_stream` | 流式消息重组和观测 |
-| I03 | `uv run python -m demos.intermediate.intermediate_03_rag` | 本地关键词检索、生成和引用校验 |
-| I04 | `uv run python -m demos.intermediate.intermediate_04_memory` | SQLite 历史、会话隔离、版本冲突 |
-| A01 | `uv run python -m demos.advanced.advanced_01_thinking` | 思考模式、答案验算、资源消耗 |
-| A02 | `uv run python -m demos.advanced.advanced_02_evaluation` | 答案、实际工具证据和预算评估 |
-| A03 | `uv run python -m demos.advanced.advanced_03_knowledge_agent` | 模型选择搜索词、工具回填、引用校验 |
+| 01 | `uv run python -m demos.demo_01_chat` | 请求、回答、用量和结束原因 |
+| 02 | `uv run python -m demos.demo_02_messages` | 第二轮请求携带第一轮消息历史 |
+| 03 | `uv run python -m demos.demo_03_agent_loop` | 工具执行、结果回填、有限循环 |
+| 04 | `uv run python -m demos.demo_04_structured_output` | JSON 解析和业务校验 |
+| 05 | `uv run python -m demos.demo_05_streaming` | 流式消息重组和观测 |
+| 06 | `uv run python -m demos.demo_06_rag` | 本地关键词检索、生成和引用校验 |
+| 07 | `uv run python -m demos.demo_07_memory` | SQLite 历史、会话隔离、版本冲突 |
+| 08 | `uv run python -m demos.demo_08_thinking` | 思考模式、答案验算、资源消耗 |
+| 09 | `uv run python -m demos.demo_09_evaluation` | 答案、实际工具证据和预算评估 |
+| 10 | `uv run python -m demos.demo_10_knowledge_agent` | 模型选择搜索词、工具回填、引用校验 |
 
-A02 依次评估 `17×23`、`0×25`、`-3×8`、`12×8`，逐条输出 JSON 和 trace ID。全部通过时显示 `通过 4/4；真实模型评估。`，任一用例失败时退出码为 1；模型请求错误的具体说明见 `error_message`。
+`demo_09_evaluation` 依次评估 `17×23`、`0×25`、`-3×8`、`12×8`，逐条输出 JSON 和 trace ID。全部通过时显示 `通过 4/4；真实模型评估。`，任一用例失败时退出码为 1；模型请求错误的具体说明见 `error_message`。
 
 I04 默认使用临时 SQLite；跨进程保存历史的运行方式见中级课程。`.local/` 保存本地会话和验收报告，按需创建，不提交 Git。
 
@@ -103,9 +103,10 @@ uv run python verify_live.py --level all --evaluate --report .local/verification
 ai/
 ├── README.md            # 安装、运行、配置与学习导航
 ├── agent-learning/      # 10 个 demo、业务工具、资料、测试与验收脚本
-│   ├── demos/           # beginner / intermediate / advanced
-│   ├── toolbox.py       # 乘法工具
-│   ├── retrieval.py     # 本地资料检索与引用校验
+│   ├── demos/           # demo_01 到 demo_10，按学习顺序排列
+│   │   └── tools/      # 示例业务工具
+│   │       ├── calculator.py  # 乘法工具
+│   │       └── retrieval.py   # 本地资料检索与引用校验
 │   ├── data/            # 虚构知识库与评估用例
 │   ├── tests/           # 离线回归测试
 │   ├── offline_lab.py   # 测试用假 HTTP 与内存观测
@@ -134,7 +135,7 @@ ai/
 
 `httpx` 发送模型请求，`python-dotenv` 读取配置，OpenTelemetry 负责观测；`langchain-core` 仅用于工具声明、schema 生成和参数校验。消息管理和 Agent 循环由本项目实现。
 
-课程通过本地可编辑依赖导入 `agent_toolkit`，`uv sync --locked` 会完成安装；修改共享源码后无需反复安装。具体提示词、乘法工具和资料检索保留在课程代码中。
+课程通过本地可编辑依赖导入 `agent_toolkit`，`uv sync --locked` 会完成安装；修改共享源码后无需反复安装。示例业务工具集中在 `agent-learning/demos/tools/`：[calculator.py](agent-learning/demos/tools/calculator.py) 定义乘法工具，[retrieval.py](agent-learning/demos/tools/retrieval.py) 提供资料搜索与引用校验；提示词由具体 demo 配置。
 
 ### 复用 Agent 循环
 
@@ -143,7 +144,7 @@ ai/
 ```python
 from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient
-from toolbox import multiply
+from demos.tools.calculator import multiply
 
 with DeepSeekClient("my_experiment") as llm_client:
     answer = run_agent(

@@ -44,7 +44,7 @@ OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放�
 
 ## 在 UI 里看什么
 
-在 `agent-learning/` 目录运行 `uv run python -m demos.beginner.beginner_01_chat`，复制终端的 `trace_id`。在 Traces 里选择 stream 和时间范围，按该 ID 搜索并点选 `chat deepseek-flash` span。
+在 `agent-learning/` 目录运行 `uv run python -m demos.demo_01_chat`，复制终端的 `trace_id`。在 Traces 里选择 stream 和时间范围，按该 ID 搜索并点选 `chat deepseek-flash` span。
 
 「预览」现在把完整请求/响应 JSON 放在单条文本消息里，不再拆成 system/user 角色气泡。要复制、查询权威请求体，仍可切到模型 span 的「属性」页，展开或搜索 `app.request`；这里保存发送给 DeepSeek 的完整 JSON body，包括 `model`、完整 `messages`、`thinking`、`max_tokens`、`stream` 及本次调用使用的 `tools`、响应格式等参数。`app.response` 保存提供方返回的完整响应 JSON。两者都作为单个 JSON 字符串存储，不会在采集前抽取或压缩消息字段。
 

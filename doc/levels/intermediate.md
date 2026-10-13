@@ -5,7 +5,7 @@
 ## I01：结构化输出与业务校验
 
 - 文档：[结构化输出](../lessons/04-json.md)。
-- 运行：`uv run python -m demos.intermediate.intermediate_01_json`。
+- 运行：`uv run python -m demos.demo_04_structured_output`。
 - 阅读：`parse_order()`，正常一次模型请求、2 条 span。
 
 将“三本笔记本”改为“一百零一本笔记本”，观察模型虽然可以输出合法 JSON，业务仍应拒绝越界数量。再离线传入 bool 类型的 quantity，理解类型检查。
@@ -15,7 +15,7 @@
 ## I02：流式输出
 
 - 文档：[流式与思考模式](../lessons/05-stream-thinking.md) 的流式部分。
-- 运行：`uv run python -m demos.intermediate.intermediate_02_stream`。
+- 运行：`uv run python -m demos.demo_05_streaming`。
 - 阅读：`agent_toolkit/llm.py` 的 `chat_stream()`，正常一条模型 span，不逐片段上报。
 
 比较终端逐段显示与 trace 中聚合正文。检查 `app.stream.complete`。测试中的中断流会保存部分正文但报告失败；流中的工具参数也必须拼完整后才能执行。
@@ -25,14 +25,14 @@
 ## I03：最小 RAG 与引用检查
 
 - 文档：[检索、记忆与状态](../lessons/07-retrieval-memory.md)。
-- 运行：`uv run python -m demos.intermediate.intermediate_03_rag`。
+- 运行：`uv run python -m demos.demo_06_rag`。
 - 阅读：`data/knowledge.json` → `search_documents()` → `answer_question()` → `validate_answer()`。
 
 知识库是三条虚构产品资料；检索使用关键词计分，没有向量数据库。程序固定执行一次搜索，再把命中片段放进 user 消息，最后让模型输出带来源 ID 的 JSON。常规运行共 3 个 span：根、检索、模型。
 
 ```bash
-uv run python -m demos.intermediate.intermediate_03_rag '星河笔记支持导出哪些格式？'
-uv run python -m demos.intermediate.intermediate_03_rag '是否支持脑机接口？'
+uv run python -m demos.demo_06_rag '星河笔记支持导出哪些格式？'
+uv run python -m demos.demo_06_rag '是否支持脑机接口？'
 ```
 
 后一题没有关键词命中，程序直接返回依据不足：0 次模型请求，仍有根与检索两条 span。`local-retrieval` 是本地步骤标识，不是伪造模型 tool call 插入 API 历史；这里是固定检索流程。
@@ -43,8 +43,8 @@ uv run python -m demos.intermediate.intermediate_03_rag '是否支持脑机接�
 
 ## I04：SQLite 会话持久化
 
-- 运行：`uv run python -m demos.intermediate.intermediate_04_memory`。
-- 阅读：`demos/intermediate/intermediate_04_memory.py` → `agent_toolkit/session_store.py`。
+- 运行：`uv run python -m demos.demo_07_memory`。
+- 阅读：`demos/demo_07_memory.py` → `agent_toolkit/session_store.py`。
 
 默认演示使用临时数据库：写入 Alice 的项目代号，重新创建存储对象后读取，再询问代号；检查 Bob 的历史为空。正常 2 次模型请求、3 条 span。默认退出会删除临时库，避免积累练习数据。
 
@@ -52,9 +52,9 @@ uv run python -m demos.intermediate.intermediate_03_rag '是否支持脑机接�
 
 ```bash
 mkdir -p .local
-uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session alice --ask '请记住我的项目代号是海盐。'
-uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session alice --ask '我的项目代号是什么？'
-uv run python -m demos.intermediate.intermediate_04_memory --db .local/sessions.sqlite3 --session bob --ask '我的项目代号是什么？'
+uv run python -m demos.demo_07_memory --db .local/sessions.sqlite3 --session alice --ask '请记住我的项目代号是海盐。'
+uv run python -m demos.demo_07_memory --db .local/sessions.sqlite3 --session alice --ask '我的项目代号是什么？'
+uv run python -m demos.demo_07_memory --db .local/sessions.sqlite3 --session bob --ask '我的项目代号是什么？'
 ```
 
 `.local/` 已被 Git 忽略。会话内容作为业务数据保存在本机，不等于观测副本的脱敏内容。使用虚构资料即可。

@@ -5,7 +5,7 @@
 ## A01：思考模式与资源消耗
 
 - 文档：[流式与思考模式](../lessons/05-stream-thinking.md) 的思考部分。
-- 运行：`uv run python -m demos.advanced.advanced_01_thinking`。
+- 运行：`uv run python -m demos.demo_08_thinking`。
 - 阅读：`solve()`，通常 1 次真实请求、2 个 span。
 
 题目是“十位比个位大 3，数位和 11”，正确结果为 74。先检查最终答案，再看 token 与耗时。终端只显示最终答案；服务端提供的 `reasoning_content` 仍保存在脱敏、限长的响应中。
@@ -23,7 +23,7 @@
 
 ```bash
 cd /Users/wangying/apps/sakelei/ai/agent-learning
-uv run python -m demos.advanced.advanced_02_evaluation
+uv run python -m demos.demo_09_evaluation
 ```
 
 程序读取课程目录的 `.env`，依次运行 `17×23`、`0×25`、`-3×8`、`12×8` 四个用例。每个用例输出一行 JSON，包含是否通过、错误类型、模型错误说明（`error_message`）、调用次数、token 用量、耗时（`elapsed_ms`，单位毫秒）和 `trace_id`。全部通过时，最后显示：
@@ -44,15 +44,15 @@ uv run python -m demos.advanced.advanced_02_evaluation
 
 ## A03：综合项目——只读资料 Agent
 
-- 运行：`uv run python -m demos.advanced.advanced_03_knowledge_agent`。
+- 运行：`uv run python -m demos.demo_10_knowledge_agent`。
 - 阅读：`run_knowledge_agent()` → `SEARCH_TOOLS` / `dispatch_search()` → `validate_answer()`。
 - 典型为 2 次模型调用 + 1 次搜索 + 根，共 4 个 span；允许在预算内调整关键词再次搜索。
 
 本项目复用中级资料，但控制流程变了：中级由程序固定先检索；这里模型生成搜索参数，程序只允许 `search_documents`，执行结果回填给模型，最终答案必须通过来源 ID 校验。第一轮强制请求工具，后续自动决定是否继续搜索。
 
 ```bash
-uv run python -m demos.advanced.advanced_03_knowledge_agent '星河笔记误删的笔记能恢复多久？请给出资料依据。'
-uv run python -m demos.advanced.advanced_03_knowledge_agent '星河笔记支持导出哪些格式？'
+uv run python -m demos.demo_10_knowledge_agent '星河笔记误删的笔记能恢复多久？请给出资料依据。'
+uv run python -m demos.demo_10_knowledge_agent '星河笔记支持导出哪些格式？'
 ```
 
 限制包括：最多 4 轮模型调用、4 次工具执行、累计 token 软预算 8000、查询最长 200 字符、每次返回至多两个片段、无任意路径读写或 shell。答案校验能发现引用不存在，不能自动判定每句话都被资料支持。
@@ -62,7 +62,7 @@ uv run python -m demos.advanced.advanced_03_knowledge_agent '星河笔记支持�
 ## 高级验收与毕业要求
 
 ```bash
-uv run python -m demos.advanced.advanced_02_evaluation
+uv run python -m demos.demo_09_evaluation
 uv run python verify_live.py --level advanced
 ```
 

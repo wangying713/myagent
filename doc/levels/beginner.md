@@ -9,8 +9,8 @@
 ## B01：第一次 HTTP 调用
 
 - 文档：[一次模型调用](../lessons/01-http.md)。
-- 运行：`uv run python -m demos.beginner.beginner_01_chat`。
-- 阅读顺序：`demos/beginner/beginner_01_chat.py` → `agent_toolkit/llm.py` 的 `chat()` 和 `_build_request_body()`。
+- 运行：`uv run python -m demos.demo_01_chat`。
+- 阅读顺序：`demos/demo_01_chat.py` → `agent_toolkit/llm.py` 的 `chat()` 和 `_build_request_body()`。
 - 本节只有一次真实模型请求，正常 trace 为根节点 + 模型节点，共 2 条。
 
 先找出 URL、Authorization header、请求 body 和响应 body。再把问题从“递归”换成“函数”，只改一个变量，比较 `app.request` 与 `app.response`。接着把 `max_tokens` 临时设为 1，观察为什么 HTTP 成功仍可能没有完整答案，实验结束后恢复。
@@ -20,7 +20,7 @@
 ## B02：多轮对话与上下文
 
 - 文档：[消息、上下文与 token](../lessons/02-messages.md)。
-- 运行：`uv run python -m demos.beginner.beginner_02_messages`。
+- 运行：`uv run python -m demos.demo_02_messages`。
 - 阅读：`messages.append()` 在请求前后各保存了什么。
 - 默认 2 次模型请求，正常共 3 个 span。
 
@@ -31,8 +31,8 @@
 ## B03：工具与循环
 
 - 文档：[工具与手写 Agent](../lessons/03-agent-loop.md)。
-- 运行：`uv run python -m demos.beginner.beginner_03_agent_loop`。
-- 阅读顺序：`toolbox.py` 的 `@tool` 函数 → demo 的 `tools=[multiply]` → `agent_toolkit/agent_loop.py` 的 `run_agent()` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()`。
+- 运行：`uv run python -m demos.demo_03_agent_loop`。
+- 阅读顺序：`demos/tools/calculator.py` 的 `@tool` 函数 → demo 的 `tools=[multiply]` → `agent_toolkit/agent_loop.py` 的 `run_agent()` → `agent_toolkit/tools.py` 的 `ToolSet.dispatch()`。
 - 典型链路：模型 → multiply → 模型，加根节点共 4 条 span。轨迹可以变化。
 
 先运行 17×23，再改成 12×8。检查模型给出的 arguments、程序真正执行的结果、下一轮的 tool 消息。再将最大轮次设为 1，理解工具执行了并不意味着模型已完成任务。

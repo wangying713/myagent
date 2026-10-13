@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-DATA_PATH = Path(__file__).with_name("data") / "knowledge.json"
+DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "knowledge.json"
 SEARCH_TOOLS = [
     {
         "type": "function",

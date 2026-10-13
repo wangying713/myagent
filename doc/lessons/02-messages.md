@@ -10,7 +10,7 @@ response_data = llm_client.chat(messages)
 messages.append(message_of(response_data))
 ```
 
-顺序很重要：先加入当前问题，再调用模型，再保存模型回复。下一轮发送增长后的列表。运行 `uv run python -m demos.beginner.beginner_02_messages`，在同一个 trace 中比较两个模型 span 的 `app.request`。
+顺序很重要：先加入当前问题，再调用模型，再保存模型回复。下一轮发送增长后的列表。运行 `uv run python -m demos.demo_02_messages`，在同一个 trace 中比较两个模型 span 的 `app.request`。
 
 ## 四类角色
 

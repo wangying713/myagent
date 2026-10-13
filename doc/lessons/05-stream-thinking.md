@@ -5,7 +5,7 @@
 非流式等结果完整后返回；流式在生成过程中逐段传来。你更早看到首段文字，但不一定减少总生成时间，也不减少需要执行的工具步骤。
 
 ```bash
-uv run python -m demos.intermediate.intermediate_02_stream
+uv run python -m demos.demo_05_streaming
 ```
 
 `agent_toolkit/llm.py` 的 `chat_stream()` 直接读取 Server-Sent Events（SSE）。这些行里，`data:` 后面的 JSON 提供增量字段 `delta`。空行和保活注释不是内容。客户端累积内容，直到收到 `[DONE]`。具体格式参见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
@@ -22,7 +22,7 @@ uv run python -m demos.intermediate.intermediate_02_stream
 
 流式 / 非流式决定返回方式；思考 / 非思考决定模型的生成模式。两组可以组合。入门示例默认显式传 `thinking={'type': 'disabled'}`，让工具协议和成本更容易观察。
 
-已提供 `uv run python -m demos.advanced.advanced_01_thinking`，真实验收检查答案为 74。下面是同类调用的写法，仍使用统一底层客户端：
+已提供 `uv run python -m demos.demo_08_thinking`，真实验收检查答案为 74。下面是同类调用的写法，仍使用统一底层客户端：
 
 ```python
 from agent_toolkit.llm import DeepSeekClient, final_text

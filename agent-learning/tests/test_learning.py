@@ -23,9 +23,9 @@ from agent_toolkit.telemetry import (
     parse_headers,
 )
 from agent_toolkit.tools import ToolSet
-from demos.advanced.advanced_02_evaluation import evaluate
-from demos.intermediate.intermediate_01_json import parse_order
-from toolbox import multiply
+from demos.demo_04_structured_output import parse_order
+from demos.demo_09_evaluation import evaluate
+from demos.tools.calculator import multiply
 from verify_live import check_trace
 
 
@@ -227,7 +227,7 @@ class LearningTests(unittest.TestCase):
 
         client, _ = self.client(timeout)
         with patch(
-            "demos.advanced.advanced_02_evaluation.DeepSeekClient",
+            "demos.demo_09_evaluation.DeepSeekClient",
             return_value=client,
         ):
             result = evaluate(

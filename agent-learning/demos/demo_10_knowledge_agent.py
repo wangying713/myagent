@@ -5,7 +5,7 @@ import json
 
 from agent_toolkit.agent_loop import BudgetExceededError
 from agent_toolkit.llm import DeepSeekClient, ModelError, final_text, message_of
-from retrieval import (
+from demos.tools.retrieval import (
     ANSWER_RULE,
     SEARCH_TOOLS,
     dispatch_search,

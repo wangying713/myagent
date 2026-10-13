@@ -1,4 +1,4 @@
-"""初级课程的本地乘法工具定义。"""
+"""课程示例使用的本地计算工具。"""
 
 from langchain_core.tools import tool
 

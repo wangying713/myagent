@@ -1,6 +1,6 @@
 # 07：检索、记忆与状态管理
 
-本节对应中级 I03、I04。`demos/intermediate/intermediate_03_rag.py` 已实现最小关键词检索，`demos/intermediate/intermediate_04_memory.py` 已实现 SQLite 会话保存。先按 [中级课程](../levels/intermediate.md) 跑通，再用本文理解数据如何进入模型。向量库与自动长期记忆仍是后续扩展。
+本节对应中级 I03、I04。`demos/demo_06_rag.py` 已实现最小关键词检索，`demos/demo_07_memory.py` 已实现 SQLite 会话保存。先按 [中级课程](../levels/intermediate.md) 跑通，再用本文理解数据如何进入模型。向量库与自动长期记忆仍是后续扩展。
 
 ## 模型不知道你的资料，就把相关资料找给它
 
@@ -27,7 +27,7 @@ messages = [
 4. 把选中的片段加入请求，要求无依据时说明不知道；观测 `app.request` 可确认模型实际看到什么。
 5. 写十个问题，其中三题没有答案。分别检查“检索是否找对”和“回答是否忠于资料”。
 
-高级 `demos/advanced/advanced_03_knowledge_agent.py` 让模型通过 `search_documents` 自主提出搜索请求，程序经 `execute_tool()` 校验和记录。若搜索流程固定，普通函数就足够，不必为了使用 Agent 而增加循环。
+高级 `demos/demo_10_knowledge_agent.py` 让模型通过 `search_documents` 自主提出搜索请求，程序经 `execute_tool()` 校验和记录。若搜索流程固定，普通函数就足够，不必为了使用 Agent 而增加循环。
 
 ## 再理解向量检索
 

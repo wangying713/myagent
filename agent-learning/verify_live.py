@@ -10,12 +10,12 @@ from agent_toolkit.agent_loop import run_agent
 from agent_toolkit.llm import DeepSeekClient, final_text, message_of
 from agent_toolkit.session_store import SessionStore
 from agent_toolkit.settings import Settings
-from demos.advanced.advanced_01_thinking import solve
-from demos.advanced.advanced_03_knowledge_agent import run_knowledge_agent
-from demos.intermediate.intermediate_01_json import parse_order
-from demos.intermediate.intermediate_03_rag import answer_question
-from demos.intermediate.intermediate_04_memory import ask
-from toolbox import multiply
+from demos.demo_04_structured_output import parse_order
+from demos.demo_06_rag import answer_question
+from demos.demo_07_memory import ask
+from demos.demo_08_thinking import solve
+from demos.demo_10_knowledge_agent import run_knowledge_agent
+from demos.tools.calculator import multiply
 from verify_observe import query_trace
 
 
@@ -334,7 +334,7 @@ def main():
             for scenario in exercises:
                 report.append(exercise(*scenario))
     if args.evaluate:
-        from demos.advanced.advanced_02_evaluation import evaluate
+        from demos.demo_09_evaluation import evaluate
 
         for evaluation_result in evaluate():
             require(
