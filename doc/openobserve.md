@@ -50,14 +50,15 @@ OpenObserve 的 exporter、鉴权发送、批量导出和失败提示统一放�
 
 正文采集需保持 `TELEMETRY_CAPTURE_CONTENT=true`。为防止凭据泄漏，属性值仍会脱敏，且受 `TELEMETRY_CONTENT_MAX_CHARS` 上限约束；如果 `.truncated` 为 `true`，调高该值后重新运行示例。HTTP Authorization header 不属于请求 body，也不会写入 trace。
 
+收到响应后即记录模型输出预览，再检查 HTTP 状态、响应格式和结束原因。因此 HTTP 错误、无效响应和不完整回答也保留实际响应；流式中断保留已收到的部分内容及 SSE 原文，`app.stream.complete=false` 和 ERROR 状态说明它不是完整答案。连接失败、未收到任何 HTTP 响应时不生成响应正文，原因见错误说明。以上仍遵守正文采集开关、脱敏和长度限制。
+
 工具 span 标题显示 `Tool call`，函数名、调用 ID 和参数放在输入 JSON 内：`{"function": "multiply", "call_id": "call_1", "arguments": {"a": 12, "b": 8}}`。输出显示 `{"ok": true, "result": 96.0}`；无效参数 JSON 保留原文，失败结果显示实际错误码。工具名、调用 ID 仍存在 `app.tool.name` / `app.tool.call.id` 属性里，避免原生标签在输入、输出两栏重复显示。这只调整 Python 上报，界面的输入、输出标题及顶部 `execute_tool` 类型标签仍由 OpenObserve 控制。
 
-工具输入通过 `gen_ai.input.messages` 提供直接的 JSON 对象，不包裹聊天消息结构；省略优先级更高的 `gen_ai.tool.call.arguments`，让 OpenObserve 使用完整输入预览。输出通过 `gen_ai.tool.call.result` 展示实际结果。完整调用请求和结果仍保存在 `app.tool.request` / `app.tool.response`，可在「属性」页排查。所有正文使用相同的脱敏、限长和采集开关。旧 trace 保留原来的数据格式，需要重新运行 demo，再打开新结果的 `trace_id` 查看。
+工具输入、输出分别通过 `gen_ai.input.messages` / `gen_ai.output.messages` 提供直接的 JSON 对象，不包裹聊天消息结构。OpenObserve 外层页面用这两个字段判断是否有内容，工具渲染器直接展示其中的 JSON；不再上报会优先覆盖输入预览的 `gen_ai.tool.call.arguments`。完整调用请求和结果仍保存在 `app.tool.request` / `app.tool.response`，可在「属性」页排查。所有正文使用相同的脱敏、限长和采集开关。旧 trace 保留原来的数据格式，需要重新运行 demo，再打开新结果的 `trace_id` 查看。
 
 | 属性名 | 含义 |
 |---|---|
-| `gen_ai.input.messages` / `gen_ai.output.messages` | 模型 span 的预览以单条文本承载完整请求和响应 JSON；工具 span 的输入预览为包含 `function`、`call_id`、`arguments` 的直接 JSON 对象 |
-| `gen_ai.tool.call.result` | 工具 span 的输出预览，直接显示实际执行结果 |
+| `gen_ai.input.messages` / `gen_ai.output.messages` | 模型 span 的预览以单条文本承载完整请求和响应 JSON；工具 span 的输入是包含 `function`、`call_id`、`arguments` 的直接 JSON 对象，输出是实际执行结果 |
 | `gen_ai.operation.name` | 工具步骤仍为 `execute_tool`；span 标题为 `Tool call` |
 | `app.tool.name` / `app.tool.call.id` | 函数名和调用 ID；存于属性页，不触发重复的原生工具标签 |
 | `app.request` | 实际发送的完整 JSON body 的脱敏、限长副本；原始结构可在「属性」页查看 |
@@ -87,6 +88,8 @@ uv run python verify_observe.py --trace-id 实际trace_id --expect 4
 ```
 
 默认 `--expect 1` 只证明至少有记录；普通问答传 2，典型单工具 Agent 传 4。该查询不会生成新的模型请求或 trace。
+
+`verify_live.py` 同时检查模型与工具的输入、输出预览是否存在，以及预览是否与实际正文一致；工具分类读取 `gen_ai.operation.name`，不依赖显示标题。正文或预览发生截断时，验收会明确提示调高 `TELEMETRY_CONTENT_MAX_CHARS` 后重跑。
 
 ## 接入如何封装
 

@@ -55,9 +55,7 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
         span for span in hits if span.get("operation_name") == "agent.run"
     ]
     model_spans = [
-        span
-        for span in hits
-        if span.get("operation_name", "").startswith("chat ")
+        span for span in hits if span.get("gen_ai_operation_name") == "chat"
     ]
     tool_spans = [
         span
@@ -85,27 +83,39 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
         "出现错误 span",
     )
     require(settings.api_key not in json.dumps(hits), "凭据进入观测数据")
-    for span in model_spans:
-        require(
-            span.get("app_request") and span.get("app_response"),
-            "缺少请求或响应正文",
+    for span in model_spans + tool_spans:
+        fields = ["gen_ai_input_messages", "gen_ai_output_messages"]
+        fields += (
+            ["app_tool_request", "app_tool_response"]
+            if span in tool_spans
+            else ["app_request", "app_response"]
         )
+        require(
+            all(span.get(field) for field in fields),
+            "缺少请求、响应正文或页面预览",
+        )
+        require(
+            not any(
+                span.get(field + "_truncated") in (True, "true")
+                for field in fields
+            ),
+            "正文或预览已截断，请调高 TELEMETRY_CONTENT_MAX_CHARS 后重跑",
+        )
+    for span in model_spans:
         require(
             span.get("gen_ai_usage_input_tokens") is not None, "缺少输入用量"
         )
+        for preview, payload in (
+            ("gen_ai_input_messages", "app_request"),
+            ("gen_ai_output_messages", "app_response"),
+        ):
+            message = json.loads(span[preview])[0]
+            require(
+                json.loads(message["parts"][0]["content"])
+                == json.loads(span[payload]),
+                "模型预览与实际记录不一致",
+            )
     for span in tool_spans:
-        require(
-            all(
-                span.get(field)
-                for field in (
-                    "app_tool_request",
-                    "app_tool_response",
-                    "gen_ai_input_messages",
-                    "gen_ai_tool_call_result",
-                )
-            ),
-            "缺少工具正文或预览",
-        )
         request = json.loads(span["app_tool_request"])
         preview = json.loads(span["gen_ai_input_messages"])
         require(
@@ -113,7 +123,7 @@ def check_trace(settings, trace_id, llm_calls, tool_calls):
             and preview["call_id"] == request["id"]
             and preview["arguments"]
             == json.loads(request["function"]["arguments"])
-            and json.loads(span["gen_ai_tool_call_result"])
+            and json.loads(span["gen_ai_output_messages"])
             == json.loads(span["app_tool_response"]),
             "工具预览与实际记录不一致",
         )

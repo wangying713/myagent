@@ -26,6 +26,7 @@ from agent_toolkit.tools import ToolSet
 from demos.advanced.advanced_02_evaluation import evaluate
 from demos.intermediate.intermediate_01_json import parse_order
 from toolbox import multiply
+from verify_live import check_trace
 
 
 def reply(content="完成", *, calls=None, reason=None):
@@ -161,6 +162,14 @@ class LearningTests(unittest.TestCase):
                     all(s.status.status_code == StatusCode.ERROR for s in spans)
                 )
                 self.assertIn("app.request", spans[0].attributes)
+                self.assertIn("gen_ai.input.messages", spans[0].attributes)
+                output = json.loads(
+                    spans[0].attributes["gen_ai.output.messages"]
+                )
+                self.assertEqual(
+                    output[0]["parts"][0]["content"],
+                    spans[0].attributes["app.response"],
+                )
                 self.assertNotIn("hidden-key", str(spans[0].attributes))
                 self.assertIn("app.error.message", spans[0].attributes)
                 self.assertEqual(
@@ -205,6 +214,10 @@ class LearningTests(unittest.TestCase):
                             "secret should not leak", str(span.attributes)
                         )
                         self.assertNotIn("app.request", span.attributes)
+                        self.assertNotIn("app.response", span.attributes)
+                        self.assertNotIn(
+                            "gen_ai.output.messages", span.attributes
+                        )
 
     def test_evaluation_reports_model_failure_reason(self):
         def timeout(request):
@@ -227,6 +240,26 @@ class LearningTests(unittest.TestCase):
         )
         self.assertEqual(result["llm_calls"], 1)
         self.assertEqual(result["tool_calls"], 0)
+
+    def test_connection_failure_does_not_invent_response(self):
+        def timeout(request):
+            raise httpx.ConnectTimeout("private detail", request=request)
+
+        for stream in (False, True):
+            with self.subTest(stream=stream):
+                client, exporter = self.client(timeout)
+                with self.assertRaises(ModelError):
+                    with client as model:
+                        if stream:
+                            model.chat_stream(
+                                [], on_text=lambda text: self.fail("未收到回答")
+                            )
+                        else:
+                            model.chat([])
+                span = exporter.get_finished_spans()[0]
+                self.assertIn("gen_ai.input.messages", span.attributes)
+                self.assertNotIn("app.response", span.attributes)
+                self.assertNotIn("gen_ai.output.messages", span.attributes)
 
     def test_untrusted_exception_message_is_not_traced(self):
         client, exporter = self.client(
@@ -288,7 +321,7 @@ class LearningTests(unittest.TestCase):
                     "arguments": {"a": 17, "b": 23},
                 },
             ),
-            ("gen_ai.tool.call.result", {"ok": True, "result": 391}),
+            ("gen_ai.output.messages", {"ok": True, "result": 391}),
         ):
             self.assertEqual(json.loads(tool.attributes[field]), expected)
         self.assertEqual(
@@ -394,7 +427,7 @@ class LearningTests(unittest.TestCase):
         ]
         self.assertEqual(len(tools), 2)
         self.assertEqual(tools[1].status.status_code, StatusCode.ERROR)
-        preview = json.loads(tools[1].attributes["gen_ai.tool.call.result"])
+        preview = json.loads(tools[1].attributes["gen_ai.output.messages"])
         self.assertEqual(
             preview,
             {"ok": False, "error": "invalid_json"},
@@ -429,7 +462,7 @@ class LearningTests(unittest.TestCase):
                 attrs = exporter.get_finished_spans()[0].attributes
                 for field in (
                     "gen_ai.input.messages",
-                    "gen_ai.tool.call.result",
+                    "gen_ai.output.messages",
                 ):
                     if enabled:
                         self.assertIn("[REDACTED]", attrs[field])
@@ -451,7 +484,7 @@ class LearningTests(unittest.TestCase):
                 lambda _: {"ok": False, "error": "x" * 500},
             )
         attrs = exporter.get_finished_spans()[0].attributes
-        for field in ("gen_ai.input.messages", "gen_ai.tool.call.result"):
+        for field in ("gen_ai.input.messages", "gen_ai.output.messages"):
             self.assertTrue(attrs[field + ".truncated"])
             self.assertTrue(attrs[field].endswith("…[TRUNCATED]"))
 
@@ -561,7 +594,158 @@ class LearningTests(unittest.TestCase):
         span = exporter.get_finished_spans()[0]
         self.assertFalse(span.attributes["app.stream.complete"])
         self.assertIn("半句", span.attributes["app.response"])
+        output = json.loads(span.attributes["gen_ai.output.messages"])
+        self.assertEqual(
+            output[0]["parts"][0]["content"], span.attributes["app.response"]
+        )
         self.assertEqual(span.status.status_code, StatusCode.ERROR)
+
+    def test_stream_http_error_preserves_server_response(self):
+        client, exporter = self.client(
+            lambda req: httpx.Response(
+                429, json={"error": {"message": "limited Bearer hidden-key"}}
+            )
+        )
+        with self.assertRaises(ModelError) as error:
+            with client as model:
+                model.chat_stream(
+                    [], on_text=lambda text: self.fail("错误响应不能作为回答")
+                )
+        self.assertEqual(error.exception.status_code, 429)
+        span = exporter.get_finished_spans()[0]
+        output = json.loads(span.attributes["gen_ai.output.messages"])
+        response = json.loads(output[0]["parts"][0]["content"])
+        self.assertEqual(response, {"error": {"message": "limited [REDACTED]"}})
+        self.assertEqual(response, json.loads(span.attributes["app.response"]))
+        self.assertNotIn("hidden-key", str(span.attributes))
+        self.assertFalse(span.attributes["app.stream.complete"])
+        self.assertNotIn("app.response.sse", span.attributes)
+        self.assertEqual(span.status.status_code, StatusCode.ERROR)
+
+    def test_stream_read_timeout_keeps_received_text(self):
+        class BrokenStream(httpx.SyncByteStream):
+            def __iter__(self):
+                yield b'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'
+                raise httpx.ReadTimeout("private detail")
+
+        client, exporter = self.client(
+            lambda req: httpx.Response(
+                200,
+                stream=BrokenStream(),
+                headers={
+                    "Content-Type": "text/event-stream",
+                    "X-Request-ID": "stream-fail-42",
+                },
+            )
+        )
+        text = []
+        with self.assertRaises(ModelError):
+            with client as model:
+                model.chat_stream([], on_text=text.append)
+        self.assertEqual(text, ["partial"])
+        span = exporter.get_finished_spans()[0]
+        output = json.loads(span.attributes["gen_ai.output.messages"])
+        response = json.loads(output[0]["parts"][0]["content"])
+        self.assertEqual(
+            response["choices"][0]["message"]["content"], "partial"
+        )
+        self.assertFalse(span.attributes["app.stream.complete"])
+        self.assertIn("ReadTimeout", span.status.description)
+        self.assertEqual(span.attributes["http.response.status_code"], 200)
+        self.assertEqual(
+            span.attributes["http.response.header.content-type"],
+            ("text/event-stream",),
+        )
+        self.assertEqual(
+            span.attributes["http.response.header.x-request-id"],
+            ("stream-fail-42",),
+        )
+        self.assertGreater(span.attributes["http.response.body.size"], 0)
+        self.assertNotIn("private detail", str(span.attributes))
+
+    def test_malformed_stream_keeps_partial_preview_and_model_error(self):
+        for invalid in (
+            "not json",
+            "[]",
+            '{"usage":{"total_tokens":1e999},"choices":[]}',
+        ):
+            with self.subTest(invalid=invalid):
+                raw = 'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'
+                raw += f"data: {invalid}\n\ndata: [DONE]\n"
+                client, exporter = self.client(
+                    lambda req: httpx.Response(200, text=raw)
+                )
+                with self.assertRaises(ModelError):
+                    with client as model:
+                        model.chat_stream([], on_text=lambda text: None)
+                span = exporter.get_finished_spans()[0]
+                self.assertIn(
+                    "partial", span.attributes["gen_ai.output.messages"]
+                )
+                self.assertEqual(span.attributes["error.type"], "ModelError")
+                self.assertIn(invalid, span.attributes["app.response.sse"])
+
+    def test_live_verifier_checks_model_and_tool_display_fields(self):
+        client, exporter = self.client(
+            lambda req: httpx.Response(200, json=reply())
+        )
+        with client as model:
+            model.chat([])
+            model.execute_tool(call(), self.tool_set.dispatch)
+        hits = []
+        for span in exporter.get_finished_spans():
+            hit = {
+                key.replace(".", "_"): value
+                for key, value in span.attributes.items()
+            }
+            hit.update(
+                operation_name="display label",
+                span_id=format(span.context.span_id, "016x"),
+                reference_parent_span_id=format(span.parent.span_id, "016x")
+                if span.parent
+                else "",
+                span_status="OK",
+            )
+            if span.name == "agent.run":
+                hit["operation_name"] = "agent.run"
+            hits.append(hit)
+        with patch("verify_live.query_trace", return_value=hits):
+            self.assertEqual(
+                check_trace(client.settings, client.trace_id, 1, 1), hits
+            )
+            for hit in hits:
+                if hit.get("gen_ai_operation_name") not in {
+                    "chat",
+                    "execute_tool",
+                }:
+                    continue
+                for field in (
+                    "gen_ai_input_messages",
+                    "gen_ai_output_messages",
+                ):
+                    with self.subTest(
+                        operation=hit["gen_ai_operation_name"], missing=field
+                    ):
+                        value = hit.pop(field)
+                        try:
+                            with self.assertRaisesRegex(
+                                AssertionError, "页面预览"
+                            ):
+                                check_trace(
+                                    client.settings, client.trace_id, 1, 1
+                                )
+                        finally:
+                            hit[field] = value
+                        hit[field + "_truncated"] = "true"
+                        try:
+                            with self.assertRaisesRegex(
+                                AssertionError, "已截断"
+                            ):
+                                check_trace(
+                                    client.settings, client.trace_id, 1, 1
+                                )
+                        finally:
+                            hit.pop(field + "_truncated")
 
     def test_redaction_truncation_and_content_off(self):
         settings = Settings(
@@ -601,6 +785,63 @@ class LearningTests(unittest.TestCase):
         self.assertIn(
             "gen_ai.usage.input_tokens", exp.get_finished_spans()[0].attributes
         )
+
+    def test_model_previews_respect_content_controls(self):
+        content = "test-private-key " + "text " * 150
+        for stream in (False, True):
+            for enabled in (False, True):
+                with self.subTest(stream=stream, capture_content=enabled):
+                    response = reply(content)
+                    if stream:
+                        chunk = {
+                            "choices": [
+                                {
+                                    "delta": {"content": content},
+                                    "finish_reason": "stop",
+                                }
+                            ],
+                            "usage": response["usage"],
+                        }
+                        handler = lambda request: httpx.Response(
+                            200,
+                            text=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n",
+                        )
+                    else:
+                        handler = lambda request: httpx.Response(
+                            200, json=response
+                        )
+                    client, exporter = self.client(
+                        handler, capture_content=enabled, content_max_chars=256
+                    )
+                    with client as model:
+                        if stream:
+                            result = model.chat_stream(
+                                [{"role": "user", "content": content}],
+                                on_text=lambda text: None,
+                            )
+                        else:
+                            result = model.chat(
+                                [{"role": "user", "content": content}]
+                            )
+                    self.assertEqual(
+                        result["choices"][0]["message"]["content"], content
+                    )
+                    attrs = exporter.get_finished_spans()[0].attributes
+                    for field in (
+                        "app.request",
+                        "app.response",
+                        "gen_ai.input.messages",
+                        "gen_ai.output.messages",
+                    ):
+                        if enabled:
+                            self.assertNotIn("test-private-key", attrs[field])
+                            self.assertIn("[REDACTED]", attrs[field])
+                            self.assertTrue(attrs[field + ".truncated"])
+                            self.assertTrue(
+                                attrs[field].endswith("…[TRUNCATED]")
+                            )
+                        else:
+                            self.assertNotIn(field, attrs)
 
     def test_export_failure_warns_once_and_does_not_raise(self):
         exporter = OpenObserveExporter("http://localhost/v1/traces", {})
