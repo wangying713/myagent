@@ -2,7 +2,7 @@
 name = "agent-toolkit"
 version = "0.1.0"
 description = "可复用的手写 Agent 循环、模型客户端、观测与会话工具"
-readme = "agent_toolkit/README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
