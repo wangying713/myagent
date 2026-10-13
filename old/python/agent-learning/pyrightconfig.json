@@ -1,0 +1,12 @@
+{
+  "typeCheckingMode": "standard",
+  "reportUnusedCallResult": false,
+  "reportAny": false,
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [".."],
+  "exclude": [
+    "**/.venv",
+    "**/__pycache__"
+  ]
+}

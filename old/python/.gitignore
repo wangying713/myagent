@@ -1,0 +1,26 @@
+# Python environments and generated files
+**/.venv/
+**/__pycache__/
+*.py[cod]
+
+# Local credentials
+.env
+*.env
+!*.env.example
+config.env
+
+# Local editor and operating system files
+.DS_Store
+.vscode/
+
+# Archived upstream Git metadata and generated caches
+.official-repo-git-backup/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Legacy local OpenObserve notes contain machine credentials
+old-workspace/doc/readme.md
+
+# Local learning sessions and generated reports
+agent-learning/.local/

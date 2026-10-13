@@ -1,0 +1,12 @@
+{
+  "typeCheckingMode": "standard",
+  "reportUnusedCallResult": false,
+  "reportAny": false,
+  "venvPath": "agent-learning",
+  "venv": ".venv",
+  "exclude": [
+    "**/.venv",
+    "**/__pycache__",
+    "**/node_modules"
+  ]
+}

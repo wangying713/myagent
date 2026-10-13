@@ -1,0 +1,16 @@
+[project]
+name = "agent-learning"
+version = "0.1.0"
+description = "从直接调 DeepSeek API 开始学 Agent 开发"
+requires-python = ">=3.11"
+dependencies = [
+    "agent-toolkit",
+]
+
+[tool.uv.sources]
+agent-toolkit = { path = "..", editable = true }
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+reportUnusedCallResult = false
+reportAny = false
