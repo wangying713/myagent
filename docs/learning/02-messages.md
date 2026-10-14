@@ -1,10 +1,10 @@
 # 第二课：消息历史由应用保存
 
 ```sh
-go run ./apps/interfaces/learning -lesson messages -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson messages -env-file .env -verify
 ```
 
-阅读 `apps/interfaces/learning/lessons.go` 的 `messagesLesson`，重点看调用前后的两次 `append`。
+阅读 `apps/interfaces/cli/learning/lessons.go` 的 `messagesLesson`，重点看调用前后的两次 `append`。
 
 ## 两轮的消息变化
 

@@ -5,7 +5,7 @@
 在 `.env` 中配置完整的 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 和 `OTEL_EXPORTER_OTLP_TRACES_HEADERS`。默认组织为 `default`、端点为 `http://localhost:5080/api/default/v1/traces`；stream 用 `stream-name` header 指定，默认 `default`。
 
 ```sh
-go run ./apps/interfaces/learning -lesson observe -env-file .env
+go run ./apps/interfaces/cli/learning -lesson observe -env-file .env
 ```
 
 这个命令不需要模型密钥，不调用模型。它发送 `observability.check`，刷新导出队列，再在最近 24 小时内按 trace ID 查询。只有记录实际查回且 ID、父子关系有效，才输出验收成功。
@@ -39,8 +39,8 @@ go run ./apps/interfaces/learning -lesson observe -env-file .env
 `-verify` 是严格验收模式：业务成功后，还要确认上报与实际查询。它会按真实请求和工具次数算出预期记录数，并检查父子关系；若查不全，命令返回失败，而不是把 HTTP 200 当成成功。
 
 ```sh
-go run ./apps/interfaces/learning -lesson agent -env-file .env -verify
-go run ./apps/interfaces/learning -lesson verify -env-file .env -trace-id 实际trace_id -expect 4
+go run ./apps/interfaces/cli/learning -lesson agent -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson verify -env-file .env -trace-id 实际trace_id -expect 4
 ```
 
 独立查询不生成新的 trace。`-expect` 是至少应查回的数量，默认值 1 不能证明整个多步骤课程已经入库。查询最多返回 100 个 span，适合第一阶段的有界运行。

@@ -1,7 +1,7 @@
 # 第三课：模型提出调用，程序决定怎么执行
 
 ```sh
-go run ./apps/interfaces/learning -lesson agent -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson agent -env-file .env -verify
 ```
 
 阅读顺序：`MultiplyTool` → `Registry.Dispatch` → `Agent.Run` → 入口组装的观测工具分发器。

@@ -2,7 +2,7 @@
 
 面向已有 Go 基础的学习者，从 HTTP 和消息协议开始，手写一个能够调用受控工具的 Agent，并在 OpenObserve 中查看实际请求、响应和工具结果。
 
-第一阶段提供三课：普通聊天、消息历史、工具调用循环。学习路径见[中文课程入口](docs/learning/README.md)，开发约定见[Go 开发规范](docs/development/README.md)。
+第一阶段提供三课：普通聊天、消息历史、工具调用循环。学习路径见[中文课程入口](docs/learning/README.md)，Go 与前端开发约定见[中文开发规范](docs/development/README.md)。
 
 ## 快速开始
 
@@ -16,16 +16,16 @@
 go mod download
 
 # 不调用模型，先验证观测发送与入库查询。
-go run ./apps/interfaces/learning -lesson observe -env-file .env
+go run ./apps/interfaces/cli/learning -lesson observe -env-file .env
 
 # 第一课：一次 HTTP 模型调用。
-go run ./apps/interfaces/learning -lesson chat -env-file .env
+go run ./apps/interfaces/cli/learning -lesson chat -env-file .env
 
 # 第二课：显式保存并传回消息历史。
-go run ./apps/interfaces/learning -lesson messages -env-file .env
+go run ./apps/interfaces/cli/learning -lesson messages -env-file .env
 
 # 第三课：模型提出工具调用，程序执行，再回填结果。
-go run ./apps/interfaces/learning -lesson agent -env-file .env
+go run ./apps/interfaces/cli/learning -lesson agent -env-file .env
 ```
 
 真实课程会调用模型并消耗 token；离线测试不会调用外部服务。若只体验模型、暂不连接 OpenObserve，明确设置 `TELEMETRY_ENABLED=false`。`observe` 和观测验收模式必须启用观测。
@@ -35,9 +35,13 @@ go run ./apps/interfaces/learning -lesson agent -env-file .env
 ## 目录与职责
 
 ```text
-apps/interfaces/
-  config/          # 显式文件与环境配置
-  learning/        # 命令入口和三个学习示例
+apps/
+  config/          # Go 应用启动配置：显式文件、环境变量、默认值与校验
+  interfaces/      # 对外交互与入口适配
+    http/          # 后台服务 API，当前阶段预留
+    console/       # Ant Design Pro 官方完整版演示
+    cli/
+      learning/    # 学习命令入口、课程示例与依赖组装
 domain/agent/
   entity/          # 消息、工具协议、响应与运行结果
   service/         # 工具注册与有限 Agent 循环
@@ -45,12 +49,18 @@ infra/
   deepseek/        # 标准 HTTP 模型客户端
   openobserve/    # trace、脱敏、OTLP 导出与查询
 docs/
-  development/    # 中文 Go 开发规范和技能
+  development/    # 中文 Go、前端开发规范和 Go 技能
   learning/       # 中文课程、练习与验收
 old/               # Python 课程参考，不参与 Go 构建
 ```
 
 其余空目录是预留骨架，第一阶段没有加入数据库、Kafka、流式、RAG 或持久化会话。
+
+入口调用 `apps/config.Load`，将模型、观测和运行预算显式传入各组件。各组件自己的配置类型保留在所属包；领域层不读取配置文件或环境变量。
+
+管理台后续通过 HTTP API 使用后台能力；命令行入口当前运行 Agent 学习课程。前端自己的构建和运行配置放在 `apps/interfaces/console` 内。
+
+管理台当前保留 Ant Design Pro 官方完整版示例，通过本机 Mock 展示通用表单、列表、详情、登录和权限页面；后续接入 Go HTTP 接口另行处理。启动方法和演示账号见[管理台说明](apps/interfaces/console/README.md)。
 
 ## 验收
 
@@ -62,12 +72,12 @@ go test ./...
 go test -race ./...
 
 # 真实课程同时检查业务结果、实际调用数和父子 span 入库。
-go run ./apps/interfaces/learning -lesson chat -env-file .env -verify
-go run ./apps/interfaces/learning -lesson messages -env-file .env -verify
-go run ./apps/interfaces/learning -lesson agent -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson chat -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson messages -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson agent -env-file .env -verify
 
 # 只查询已有记录，不调用模型、不新建 span。
-go run ./apps/interfaces/learning -lesson verify -env-file .env -trace-id 实际32位trace_id -expect 4
+go run ./apps/interfaces/cli/learning -lesson verify -env-file .env -trace-id 实际32位trace_id -expect 4
 ```
 
-格式检查可运行 `gofmt -l apps/interfaces domain/agent infra/deepseek infra/openobserve`；无输出表示格式一致。配置、观测失败、用量缺失与验收边界见[OpenObserve 说明](docs/learning/openobserve.md)。
+格式检查可运行 `gofmt -l apps/config apps/interfaces domain/agent infra/deepseek infra/openobserve`；无输出表示格式一致。配置、观测失败、用量缺失与验收边界见[OpenObserve 说明](docs/learning/openobserve.md)。

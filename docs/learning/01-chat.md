@@ -1,10 +1,10 @@
 # 第一课：一次 HTTP 模型调用
 
 ```sh
-go run ./apps/interfaces/learning -lesson chat -env-file .env -verify
+go run ./apps/interfaces/cli/learning -lesson chat -env-file .env -verify
 ```
 
-阅读顺序：`apps/interfaces/learning/lessons.go` 的 `chatLesson` → `domain/agent/entity/chat.go` 的请求与响应 → `infra/deepseek/client.go` 的 `Chat`。
+阅读顺序：`apps/interfaces/cli/learning/lessons.go` 的 `chatLesson` → `domain/agent/entity/chat.go` 的请求与响应 → `infra/deepseek/client.go` 的 `Chat`。
 
 ## 发生了什么
 

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src/.umi*/
+.cache/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+requestRecord.mock.js

@@ -16,7 +16,7 @@
 
 ## 代码怎么读
 
-从 `apps/interfaces/learning` 的课程函数开始，追踪到 `infra/deepseek` 的 HTTP 请求。第三课再看 `domain/agent/service` 的循环和注册表。
+从 `apps/interfaces/cli/learning` 的课程函数开始，追踪到 `infra/deepseek` 的 HTTP 请求。第三课再看 `domain/agent/service` 的循环和注册表。入口通过 `apps/config.Load` 加载启动配置，再组装模型、观测和 Agent。
 
 `entity.ChatRequest` 与 `entity.ChatResponse` 是类型明确的协议；`service.ChatClient` 由使用方定义，因此测试可以用假模型替换真实 HTTP 客户端。领域层不读取环境变量。
 

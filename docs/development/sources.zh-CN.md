@@ -48,3 +48,33 @@ Google 内部的日志设施、审阅流程和工具不能直接视为本项目�
 草案中的规范性依据沿用 Google 文档的层级，辅助建议明确结合场景选择。代码示例为简化示意，不是本项目的实际实现。
 
 阅读正文、示例注释和技能描述使用中文。保留的拉丁字符用于代码、命令、网址、作者名称、版本标识及 `SKILL.md` 格式字段，而非英文阅读正文。
+
+## 前端规范来源
+
+核对日期：2026-10-14。前端资料依据本次读取的官方网页；没有固定独立的前端来源提交，不将上面的 Go 来源提交当作本次前端版本。后续核查应以链接中的官方文档及本文件日期为依据。
+
+### Google 官方代码规范
+
+原作者：Google。来源仓库：[Google 风格规范仓库](https://github.com/google/styleguide)。许可：[CC BY 3.0 署名许可](https://creativecommons.org/licenses/by/3.0/)，依据[官方总览的许可说明](https://google.github.io/styleguide/)。
+
+| 官方来源 | 本地资料 | 处理方式 |
+| --- | --- | --- |
+| [TypeScript 规范](https://google.github.io/styleguide/tsguide.html) | [TypeScript 中文整理](google-typescript-guide.zh-CN.md) | 提炼模块、命名、类型、控制流、错误、注释和语言边界，保留主要例外，改写中文示例 |
+| [HTML/CSS 规范](https://google.github.io/styleguide/htmlcssguide.html) | [HTML/CSS 中文整理](google-html-css-guide.zh-CN.md) | 提炼语义、可访问性、文件格式、样式命名与组织，注明 JSX 等适配边界 |
+| [JavaScript 规范](https://google.github.io/styleguide/jsguide.html) | 阅读入口中的状态说明 | 官方已停止更新并建议使用 TypeScript 规范；本次不新增重复的 JavaScript 译解文件 |
+
+本次包含翻译、删减、重新组织和示例改写，并非官方中文版本，也不保证覆盖原文所有专项条款。原文中“必须”“建议”“允许”的约束强度尽量保留；新增的项目选择放到独立文档或明确标注为项目适配。
+
+### React 与 Umi 官方资料
+
+- [React 官方规则](https://react.dev/reference/rules)：用于核对渲染纯度、Hook 调用和 props/state 不可变等框架要求。
+- [Umi 官方路由文档](https://umijs.org/docs/guides/routes/)：用于核对组件路由入口；默认导出、别名和 Mock 的具体选择结合当前模板实际实现确认。
+- 项目工具依据：`apps/interfaces/console/biome.json`、`tsconfig.json` 和 `package.json`，以及当前模板的 `config`、`src` 入口结构。
+
+这些资料仅用于引用和工程适配说明，没有全文复制到本项目，也不沿用 Google 文档的许可声明代替它们各自的许可。
+
+### 项目前端具体约定的身份
+
+[本项目前端具体约定](frontend-decisions.zh-CN.md)由本次整理编写，明确列出框架例外与项目选择。它不属于 Google 官方文档，不把 React、Umi 或 Ant Design Pro 的工程选择描述成 Google 强制要求。
+
+本次只新增规范文档、文档入口与引用，不批量整改业务代码、官方 Demos 或工具规则，也不新增或安装前端技能。
