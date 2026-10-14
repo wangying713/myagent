@@ -1,0 +1,10 @@
+#!/bin/sh
+# 优先使用本项目已有的 Go 工具链；其他机器仍使用标准自动工具链机制。
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+local_root="$project_dir/.tools/go1.27.2"
+if [ -x "$local_root/bin/go" ]; then
+    GOROOT="$local_root" exec "$local_root/bin/go" "$@"
+fi
+exec go "$@"
