@@ -37,7 +37,7 @@ npm start
 apps/
   config/            # 显式文件与环境变量配置
   interfaces/
-    http/            # 启动入口、显式路由；agent 放接口适配，entity 放共用数据，proto 放协议
+    http/            # 启动入口、显式路由；agent 放接口适配，entity 放请求响应类型，proto 放协议源文件
     console/         # 通用管理台；agent-development 为三课独立页面
     cli/             # 预留，本次不新增 CLI 课程
 domain/agent/        # 三个业务流程、执行记录、协议、乘法工具和有限循环
@@ -54,7 +54,7 @@ docs/
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
-HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/agent.proto)。修改后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/agent/README.md)。
+HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/agent.proto)，生成到 [entity/agent.pb.go](apps/interfaces/http/entity/agent.pb.go)，API 方法统一使用 `entity` 中的请求与响应类型。修改协议后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/agent/README.md)。
 
 ## 观测与边界
 

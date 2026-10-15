@@ -1,4 +1,4 @@
-// Package entity 定义 HTTP 接口共用的数据结构，不承担业务处理或传输行为。
+// Package entity 定义 HTTP API 的请求、响应及共用数据类型，不承担业务处理或传输行为。
 package entity
 
 // AgentExecutionResult 是三个 Agent 接口共用的 HTTP JSON 响应数据。

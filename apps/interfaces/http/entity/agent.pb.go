@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: apps/interfaces/http/proto/agent.proto
 
-package httpproto
+package entity
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -491,7 +491,7 @@ const file_apps_interfaces_http_proto_agent_proto_rawDesc = "" +
 	"elapsed_ms\x18\x05 \x01(\x03R\telapsedMs\x12#\n" +
 	"\rfinish_reason\x18\x06 \x01(\tR\ffinishReason\x122\n" +
 	"\x05usage\x18\a \x01(\v2\x1c.sakelei.http.agent.v1.UsageR\x05usage\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05errorB0Z.saklay/ai/apps/interfaces/http/proto;httpprotob\x06proto3"
+	"\x05error\x18\b \x01(\tR\x05errorB'Z%saklay/ai/apps/interfaces/http/entityb\x06proto3"
 
 var (
 	file_apps_interfaces_http_proto_agent_proto_rawDescOnce sync.Once

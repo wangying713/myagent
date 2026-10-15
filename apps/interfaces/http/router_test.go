@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/deepseek"
 	"saklay/ai/infra/httpx"
@@ -481,7 +481,7 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, err := protojson.Marshal(&httpproto.ChatRequest{Question: &question})
+			body, err := protojson.Marshal(&entity.ChatRequest{Question: &question})
 			if err != nil {
 				t.Errorf("编码聊天请求：%v", err)
 				return

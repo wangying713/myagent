@@ -1,8 +1,8 @@
 # 后台服务 API
 
-`main.go` 解析启动参数、加载配置并组装 DeepSeek、OpenObserve 和 Agent 业务；`server.go` 管理 HTTP 服务及请求的生命周期；`router.go` 逐条注册完整路由；`proto/agent.proto` 定义业务消息并生成 Go 类型，`entity/agent.go` 定义共用 JSON 数据，`agent` 包（`agentapi`）实现具名处理方法和数据转换。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。生成命令与兼容边界见 [Proto 消息说明](agent/README.md)。
+`main.go` 解析启动参数、加载配置并组装 DeepSeek、OpenObserve 和 Agent 业务；`server.go` 管理 HTTP 服务及请求的生命周期；`router.go` 逐条注册完整路由；`proto/agent.proto` 定义业务消息，生成的请求响应类型位于 `entity/agent.pb.go`，手写 HTTP JSON 表现类型位于 `entity/agent_json.go`。`agent` 包（`agentapi`）实现具名处理方法，`agent/mapping.go` 负责数据转换。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。生成命令与兼容边界见 [Proto 消息说明](agent/README.md)。
 
-协议定义和生成文件放在 `proto`，手写共用数据放在 [entity](entity/README.md)，后续新增接口遵循相同规范。
+协议源文件放在 `proto`，API 使用的请求、响应及共用数据类型放在 [entity](entity/README.md)，后续新增接口遵循相同规范。
 
 三课原理、操作练习与通过标准见 [中文学习指南](../../../docs/learning/README.md)。
 

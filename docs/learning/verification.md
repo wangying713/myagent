@@ -49,11 +49,11 @@ npm run build
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
 
-## 2026-10-15：HTTP 共用数据集中验证
+## 2026-10-15：HTTP 请求响应统一归属验证
 
-Agent Proto 请求、响应、步骤与用量位于 `apps/interfaces/http/proto`，现有 JSON 结果、步骤和用量结构迁入 `entity/agent.go`。转换、字段准备与业务错误映射继续由 `http/agent` 负责。生成脚本、导入、阅读路径和项目约定已同步，后续新增接口沿用数据定义集中、业务适配分包的规则。
+`http/proto/agent.proto` 作为消息定义来源，生成脚本按 `go_package` 和模块输出模式生成 `http/entity/agent.pb.go`。三个 API 方法统一使用 `entity` 中生成的请求和响应类型，手写 HTTP JSON 表现类型位于 `entity/agent_json.go`；请求、领域结果及 JSON 数据之间的转换合并至 `agent/mapping.go`。字段准备及业务错误映射继续由 `http/agent` 负责。生成脚本、导入、阅读路径和项目约定已同步，后续新增接口沿用这一分工。
 
-生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、相关 Markdown 本地链接、旧路径扫描及 `git diff --check` 均通过。包依赖检查确认 `entity` 不依赖领域、Gin 或基础设施，领域与 `httpx` 也不依赖 `entity`。现有响应兼容测试继续覆盖数字整数、零值、未知用量、null 与空数组；本轮未调用真实模型或进行浏览器验收。
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、相关 Markdown 本地链接、目录分工检查及 `git diff --check` 均通过。包依赖检查确认 `entity` 不依赖领域、Gin 或基础设施，领域与 `httpx` 也不依赖 `entity`。手写 JSON 数据定义与迁移前逐字一致，现有响应兼容测试继续覆盖数字整数、零值、未知用量、null 与空数组；本轮未调用真实模型或进行浏览器验收。
 
 ## 2026-10-15：Agent 接口目录整理验证
 

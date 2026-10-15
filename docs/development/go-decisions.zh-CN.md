@@ -32,14 +32,14 @@ import (
 
 ## HTTP API 方法签名
 
-HTTP 入口下按业务划分包。Agent 的处理方法、请求响应转换与错误映射放在 `http/agent`（Go 包名 `agentapi`）。手写共用数据定义放在 `http/entity`，协议定义和生成文件放在 `http/proto`，第一版 Agent Proto 消息位于 `http/proto`（Go 包名 `httpproto`）。路由和服务生命周期留在 HTTP 入口，通用传输能力留在 `infra/httpx`。
+HTTP 入口下按业务划分包。Agent 的处理方法、请求响应转换与错误映射放在 `http/agent`（Go 包名 `agentapi`）。API 使用的请求、响应及共用数据类型统一放在 `http/entity`；`http/proto/agent.proto` 定义消息，通过生成脚本输出 `http/entity/agent.pb.go`。路由和服务生命周期留在 HTTP 入口，通用传输能力留在 `infra/httpx`。
 
-后续新增接口继续遵循这一分工：手写接口数据按业务放入 `entity` 中的文件，Proto 消息直接放在 `http/proto` 下，按业务分文件；多个接口复用同一数据定义。`entity` 只负责字段与序列化约定，不依赖业务处理包、领域服务、Gin 或基础设施；转换、字段准备和错误映射放在业务适配包。领域层与 `infra/httpx` 不依赖 `entity`。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
+后续新增接口继续遵循这一分工：协议源文件直接放在 `http/proto`，生成的请求响应类型与手写 HTTP JSON 表现类型放在 `entity`，均按业务分文件；多个接口复用同一数据定义。`entity` 只负责字段与序列化约定，不依赖业务处理包、领域服务、Gin 或基础设施；转换函数放在业务适配包的 `mapping.go`，字段准备和错误映射也留在业务适配包。领域层与 `infra/httpx` 不依赖 `entity`。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
 
-业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和生成的请求消息指针作为入参，生成的响应消息指针与 `error` 作为返回值。
+业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和 `entity` 中生成的请求消息指针作为入参，`entity` 中生成的响应消息指针与 `error` 作为返回值。
 
 ```go
-func (a *Agent) Chat(ctx context.Context, req *httpproto.ChatRequest) (*httpproto.ExecutionResult, error)
+func (a *Agent) Chat(ctx context.Context, req *entity.ChatRequest) (*entity.ExecutionResult, error)
 ```
 
 - API 方法负责参数转换、调用领域服务和返回结果，不接收 `gin.Context`，不解析 HTTP 或直接写出响应。

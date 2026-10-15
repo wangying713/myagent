@@ -36,9 +36,10 @@ output_dir=$(mktemp -d "${TMPDIR:-/tmp}/sakelei-proto.XXXXXX")
 trap 'rm -rf "$output_dir"' EXIT
 trap 'exit 1' HUP INT TERM
 schema=apps/interfaces/http/proto/agent.proto
-generated=apps/interfaces/http/proto/agent.pb.go
+generated=apps/interfaces/http/entity/agent.pb.go
+# 按 go_package 生成到 entity，移除模块前缀后得到项目内相对路径。
 "$compiler" -I . --plugin="protoc-gen-go=$generator" \
-    --go_out="$output_dir" --go_opt=paths=source_relative "$schema"
+    --go_out="$output_dir" --go_opt=module=saklay/ai "$schema"
 
 if [ "$check" = true ]; then
     if ! cmp -s "$output_dir/$generated" "$generated"; then

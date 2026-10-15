@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/httpx"
 
@@ -58,7 +58,7 @@ func TestResponseJSONCompatibility(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			router.POST("/chat", httpx.Adapt(adapter, func(context.Context, *httpproto.ChatRequest) (*httpproto.ExecutionResult, error) {
+			router.POST("/chat", httpx.Adapt(adapter, func(context.Context, *entity.ChatRequest) (*entity.ExecutionResult, error) {
 				return resultMessage(tc.result), nil
 			}))
 			out := httptest.NewRecorder()

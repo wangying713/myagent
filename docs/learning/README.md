@@ -51,7 +51,7 @@ npm start
 | [观测](../../infra/openobserve/telemetry.go) | 私有 provider、脱敏副本、OTLP/HTTP、生命周期 |
 | [路由](../../apps/interfaces/http/router.go)、[HTTP API](../../apps/interfaces/http/agent/chat.go) | 显式绑定 `(ctx, req) → (rsp, err)` 方法，参数与结果转换 |
 | [HTTP 适配器](../../infra/httpx/adapter.go)、[业务注入](../../apps/interfaces/http/agent/adapter.go) | 严格解码、超时、取消、部分结果与业务错误映射 |
-| [共用数据](../../apps/interfaces/http/entity/README.md)、[Proto 消息](../../apps/interfaces/http/proto/agent.proto)、[生成与 JSON 适配](../../apps/interfaces/http/agent/README.md) | 接口消息生成、字段存在性与现有 HTTP JSON 契约 |
+| [请求响应类型](../../apps/interfaces/http/entity/README.md)、[Proto 消息](../../apps/interfaces/http/proto/agent.proto)、[数据转换](../../apps/interfaces/http/agent/mapping.go) | 消息从 proto 生成到 entity，转换保留字段存在性与现有 HTTP JSON 契约 |
 | [通用 HTTP](../../infra/httpx/README.md) | 严格 JSON 解析、响应编码，不依赖业务 |
 | [启动入口](../../apps/interfaces/http/main.go)、[HTTP 生命周期](../../apps/interfaces/http/server.go) | 配置和依赖组装、信号取消、等待请求结束与有界清理 |
 | [管理台页面](../../apps/interfaces/console/src/pages/agent-development/index.tsx) | 发请求、取消、展示回答和真实步骤 |
