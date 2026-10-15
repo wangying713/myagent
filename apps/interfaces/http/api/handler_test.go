@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"sakelei/ai/apps/demos"
@@ -39,7 +40,7 @@ func (e *memoryExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnl
 }
 func (e *memoryExporter) Shutdown(context.Context) error { return nil }
 
-func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout time.Duration, exporter *memoryExporter) (http.Handler, *openobserve.Telemetry) {
+func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout time.Duration, exporter *memoryExporter) (*gin.Engine, *openobserve.Telemetry) {
 	t.Helper()
 	upstream := httptest.NewServer(model)
 	t.Cleanup(upstream.Close)
@@ -175,11 +176,13 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 			t.Errorf("输入 %s 实际 HTTP %d，预期 400", body, w.Code)
 		}
 	}
-	w, _ := invoke(handler, "chat", `{"question":"`+strings.Repeat("a", 40<<10)+`"}`)
-	if w.Code != 413 {
-		t.Errorf("超大请求实际 HTTP %d，预期 413", w.Code)
+	for _, body := range []string{`{"question":"` + strings.Repeat("a", 40<<10) + `"}`, `{}` + strings.Repeat(" ", 40<<10)} {
+		w, response := invoke(handler, "chat", body)
+		if w.Code != 413 || response.Error == nil || response.Error.Code != "request_too_large" {
+			t.Errorf("超大请求实际 HTTP %d，响应 %s，预期 request_too_large", w.Code, w.Body.String())
+		}
 	}
-	w, _ = invoke(handler, "messages", `{"questions":["只有一轮"]}`)
+	w, _ := invoke(handler, "messages", `{"questions":["只有一轮"]}`)
 	if w.Code != 400 {
 		t.Error("历史课程应明确限制两轮")
 	}
@@ -191,6 +194,107 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Fatalf("非法输入触发了 %d 次模型请求", calls.Load())
+	}
+}
+
+func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
+	var calls atomic.Int32
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	for _, tc := range []struct {
+		method, path, code, allow string
+		status                    int
+	}{
+		{method: "GET", path: "/api/demos/health", status: 200},
+		{method: "HEAD", path: "/api/demos/health", status: 200},
+		{method: "GET", path: "/api/demos/chat", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "GET", path: "/api/demos/messages", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "GET", path: "/api/demos/agent", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "POST", path: "/api/demos/health", status: 405, code: "method_not_allowed", allow: "GET,HEAD"},
+		{method: "OPTIONS", path: "/api/demos/chat", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "POST", path: "/api/demos/missing", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/demos/chat/", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/demos/Chat", status: 404, code: "not_found"},
+	} {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			request := httptest.NewRequest(tc.method, tc.path, nil)
+			out := httptest.NewRecorder()
+			handler.ServeHTTP(out, request)
+			if out.Code != tc.status || out.Header().Get("Cache-Control") != "no-store" || !strings.HasPrefix(out.Header().Get("Content-Type"), "application/json") {
+				t.Fatalf("实际状态 %d，头部 %v，正文 %s；预期状态 %d 和禁止缓存的 JSON 响应", out.Code, out.Header(), out.Body.String(), tc.status)
+			}
+			if tc.allow != "" {
+				for _, method := range strings.Split(tc.allow, ",") {
+					if !strings.Contains(out.Header().Get("Allow"), method) {
+						t.Errorf("实际 Allow %q，预期包含 %s", out.Header().Get("Allow"), method)
+					}
+				}
+			}
+			if tc.code != "" {
+				var response Response
+				if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || response.Error == nil || response.Error.Code != tc.code {
+					t.Errorf("实际错误响应 %s，预期 %s", out.Body.String(), tc.code)
+				}
+			} else if tc.method == "GET" && out.Body.String() != `{"status":"ok"}` {
+				t.Errorf("实际健康响应 %s，预期 status=ok", out.Body.String())
+			}
+		})
+	}
+	if calls.Load() != 0 {
+		t.Errorf("健康检查与无效路由触发了 %d 次模型请求，预期 0", calls.Load())
+	}
+}
+
+func TestContentTypeValidation(t *testing.T) {
+	var calls atomic.Int32
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		reply(w, map[string]string{"role": "assistant", "content": "正常回答"}, "stop")
+	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	for _, contentType := range []string{"", "text/plain", "application/json; charset=utf-8"} {
+		request := httptest.NewRequest(http.MethodPost, "/api/demos/chat", strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", contentType)
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, request)
+		want := http.StatusUnsupportedMediaType
+		if contentType == "application/json; charset=utf-8" {
+			want = http.StatusOK
+		}
+		if out.Code != want {
+			t.Errorf("Content-Type %q 实际 HTTP %d，预期 %d；响应 %s", contentType, out.Code, want, out.Body.String())
+		}
+	}
+	if calls.Load() != 1 {
+		t.Errorf("模型调用 %d 次，预期只有合法 JSON 触发 1 次", calls.Load())
+	}
+}
+
+func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { t.Error("异常路由不应请求模型") }, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	handler.GET("/panic", func(c *gin.Context) { panic("test-api-key") })
+	handler.GET("/written-panic", func(c *gin.Context) {
+		c.String(http.StatusAccepted, "已经写出的响应")
+		panic("test-api-key")
+	})
+	request := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	request.Header.Set("X-API-Key", "header-secret")
+	out := httptest.NewRecorder()
+	handler.ServeHTTP(out, request)
+	var response Response
+	if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || out.Code != 500 || response.Error == nil || response.Error.Code != "internal_error" || response.Data.Completed {
+		t.Fatalf("异常响应实际 %d %s，预期未完成的 internal_error", out.Code, out.Body.String())
+	}
+	if strings.Contains(out.Body.String(), "test-api-key") || strings.Contains(out.Body.String(), "header-secret") {
+		t.Error("异常响应暴露了 panic 或请求头")
+	}
+	out = httptest.NewRecorder()
+	handler.ServeHTTP(out, httptest.NewRequest(http.MethodGet, "/written-panic", nil))
+	if out.Code != http.StatusAccepted || out.Body.String() != "已经写出的响应" {
+		t.Errorf("恢复流程覆盖了已写响应：%d %s", out.Code, out.Body.String())
+	}
+	out = httptest.NewRecorder()
+	handler.ServeHTTP(out, httptest.NewRequest(http.MethodGet, "/api/demos/health", nil))
+	if out.Code != http.StatusOK {
+		t.Error("异常后健康检查不可用")
 	}
 }
 

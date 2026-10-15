@@ -4,13 +4,14 @@ import {
   Alert,
   Button,
   Card,
+  Col,
   Collapse,
   Descriptions,
   Empty,
   Form,
   Input,
+  Row,
   Space,
-  Tabs,
   Tag,
   Typography,
 } from 'antd';
@@ -18,6 +19,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Lesson, RunResponse } from './data';
 import { lessons } from './data';
 import { runLesson } from './service';
+
+const LESSON_ORDER: Lesson[] = ['chat', 'messages', 'agent'];
 
 function prettyJSON(text: string): string {
   if (!text) {
@@ -46,7 +49,7 @@ function ProtocolText({ text }: { text: string }) {
   );
 }
 
-export default function GoAgentDemo() {
+export default function AgentDevelopment() {
   const [lesson, setLesson] = useState<Lesson>('chat');
   const [questions, setQuestions] = useState<Record<Lesson, string[]>>({
     chat: [...lessons.chat.questions],
@@ -66,19 +69,20 @@ export default function GoAgentDemo() {
     [],
   );
 
-  const handleRun = async () => {
+  const handleRun = async (target: Lesson) => {
     if (controller.current) {
       return;
     }
     const current = new AbortController();
     controller.current = current;
+    setLesson(target);
     setRunning(true);
     setResult(undefined);
     setNotice('');
     try {
       const response = await runLesson(
-        lesson,
-        questions[lesson],
+        target,
+        questions[target],
         current.signal,
       );
       if (controller.current === current) {
@@ -107,83 +111,93 @@ export default function GoAgentDemo() {
     setNotice('已取消本次请求，后台会停止后续模型和工具调用。');
   };
 
-  const handleLessonChange = (key: string) => {
-    if (key === 'chat' || key === 'messages' || key === 'agent') {
-      setLesson(key);
-      setResult(undefined);
-      setNotice('');
-    }
-  };
-
   const data = result?.data;
-  const valid = questions[lesson].every(
-    (question) => question.trim().length > 0,
-  );
   return (
     <PageContainer
-      title="Go Agent 三课演示"
-      content="从原 Python demo 迁移：页面请求 Go 接口，展示实际执行结果。"
+      title="Agent 开发"
+      content="从普通聊天到工具调用循环，点击任一演示，查看 Go 接口的真实执行结果。"
     >
       <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-        <Card>
-          <Tabs
-            activeKey={lesson}
-            onChange={handleLessonChange}
-            items={(Object.keys(lessons) as Lesson[]).map((key) => ({
-              key,
-              label: lessons[key].title,
-              disabled: running,
-            }))}
-          />
-          <Typography.Paragraph type="secondary">
-            {lessons[lesson].description}
-          </Typography.Paragraph>
-          <Form layout="vertical">
-            {questions[lesson].map((question, index) => (
-              <Form.Item
-                key={index === 0 ? 'first-question' : 'second-question'}
-                label={
-                  lesson === 'messages' ? `第 ${index + 1} 轮问题` : '问题'
-                }
+        <Row gutter={[24, 24]}>
+          {LESSON_ORDER.map((key, index) => (
+            <Col key={key} xs={24} lg={8} style={{ display: 'flex' }}>
+              <Card
+                title={`${index + 1}. ${lessons[key].title}`}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+                styles={{
+                  body: { display: 'flex', flexDirection: 'column', flex: 1 },
+                }}
               >
-                <Input.TextArea
-                  value={question}
-                  disabled={running}
-                  maxLength={4096}
-                  showCount
-                  autoSize={{ minRows: 2, maxRows: 6 }}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setQuestions((previous) => ({
-                      ...previous,
-                      [lesson]: previous[lesson].map((text, position) =>
-                        position === index ? value : text,
-                      ),
-                    }));
-                  }}
-                />
-              </Form.Item>
-            ))}
-          </Form>
-          <Space>
-            <Button
-              type="primary"
-              icon={<PlayCircleOutlined />}
-              loading={running}
-              disabled={!valid}
-              onClick={handleRun}
-            >
-              执行演示
-            </Button>
-            <Button
-              icon={<StopOutlined />}
-              disabled={!running}
-              onClick={handleCancel}
-            >
-              取消
-            </Button>
-          </Space>
-        </Card>
+                <Typography.Paragraph type="secondary">
+                  {lessons[key].description}
+                </Typography.Paragraph>
+                <Form layout="vertical" style={{ flex: 1 }}>
+                  {questions[key].map((question, position) => (
+                    <Form.Item
+                      key={
+                        position === 0 ? 'first-question' : 'second-question'
+                      }
+                      label={
+                        key === 'messages'
+                          ? `第 ${position + 1} 轮问题`
+                          : '问题'
+                      }
+                      htmlFor={`${key}-question-${position}`}
+                    >
+                      <Input.TextArea
+                        id={`${key}-question-${position}`}
+                        value={question}
+                        disabled={running}
+                        maxLength={4096}
+                        showCount
+                        autoSize={{ minRows: 2, maxRows: 6 }}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setQuestions((previous) => ({
+                            ...previous,
+                            [key]: previous[key].map((text, questionIndex) =>
+                              questionIndex === position ? value : text,
+                            ),
+                          }));
+                        }}
+                      />
+                    </Form.Item>
+                  ))}
+                </Form>
+                <Button
+                  type="primary"
+                  block
+                  icon={<PlayCircleOutlined />}
+                  loading={running && lesson === key}
+                  disabled={
+                    running ||
+                    questions[key].some((question) => !question.trim())
+                  }
+                  onClick={() => handleRun(key)}
+                >
+                  运行{lessons[key].title}
+                </Button>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        {running && (
+          <Alert
+            type="info"
+            showIcon
+            title={`正在运行：${lessons[lesson].title}`}
+            description="正在等待后台完成模型或工具调用。取消后可重新运行任一演示。"
+            action={
+              <Button icon={<StopOutlined />} onClick={handleCancel}>
+                取消本次执行
+              </Button>
+            }
+          />
+        )}
         {notice && <Alert type="info" title={notice} showIcon />}
         {result?.error && (
           <Alert
@@ -196,7 +210,7 @@ export default function GoAgentDemo() {
         {data ? (
           <>
             <Card
-              title="执行结果"
+              title={`${lessons[lesson].title} · 执行结果`}
               extra={
                 <Tag color={data.completed ? 'success' : 'error'}>
                   {data.completed ? '已完成' : '未完成'}
@@ -286,7 +300,7 @@ export default function GoAgentDemo() {
           !running &&
           !notice && (
             <Card>
-              <Empty description="选择一课，点击执行演示查看结果" />
+              <Empty description="点击上方任一运行按钮，查看回答与执行过程" />
             </Card>
           )
         )}

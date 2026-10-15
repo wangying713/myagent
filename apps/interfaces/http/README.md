@@ -1,6 +1,6 @@
 # 后台服务 API
 
-`main.go` 组装配置、DeepSeek、OpenObserve 和三课执行器；`api` 包负责路由、请求校验、总超时和 JSON 响应。
+`main.go` 组装配置、DeepSeek、OpenObserve 和三课执行器；`api` 包通过 Gin 负责路由、请求校验、总超时和 JSON 响应。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。
 
 三课原理、操作练习与通过标准见 [中文学习指南](../../../docs/learning/README.md)。
 
@@ -15,6 +15,7 @@
 | 方法与接口 | 正文 | 含义 |
 | --- | --- | --- |
 | `GET /api/demos/health` | 无 | 服务存活检查，不调用模型、不检查外部服务 |
+| `HEAD /api/demos/health` | 无 | 健康检查的 HEAD 形式，不返回正文 |
 | `POST /api/demos/chat` | `{}` 或 `{"question":"问题"}` | 普通聊天 |
 | `POST /api/demos/messages` | `{}` 或 `{"questions":["第一轮问题","第二轮问题"]}` | 单次执行两轮，第二轮携带第一轮实际历史 |
 | `POST /api/demos/agent` | `{}` 或 `{"question":"乘法问题"}` | 只允许乘法工具的有限循环 |
@@ -28,12 +29,28 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 | HTTP 状态 | 错误码 | 含义 |
 | --- | --- | --- |
 | 400 | `invalid_input` | 请求结构或课程输入无效 |
+| 404 | `not_found` | 接口不存在，包括不匹配的大小写或末尾斜杠 |
+| 405 | `method_not_allowed` | 方法不允许，`Allow` 头给出支持的方法 |
 | 413 | `request_too_large` | 正文超限 |
 | 415 | `invalid_content_type` | 正文不是 JSON |
 | 409 | `budget_exceeded` | 达到预算，任务未完成 |
 | 408 | `canceled` | 调用方取消；客户端已经断开时无法再收到响应 |
 | 504 | `timeout` | 总运行或单次模型请求超时 |
 | 502 | `invalid_model_response` / `model_request_failed` | 模型协议或服务错误 |
+| 500 | `internal_error` | 尚未写出响应时发生未预期 panic，返回固定中文错误 |
+
+## Gin 使用约定
+
+- `api.New` 返回 `*gin.Engine`，以 `/api/demos` 路由组注册全部现有 Go 接口。后续 Go HTTP 接口也由 Gin 注册。
+- 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
+- `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
+- 保留现有严格 JSON 解码，不用默认绑定替代重复键、未知字段、大小写和多段 JSON 等校验。32 KiB 限制也覆盖 JSON 后的尾随空白。
+- 关闭尾斜杠自动重定向，不自动重发 POST；未找到接口和错误方法统一使用 JSON 错误响应。不信任转发 IP 请求头，后续接入实际反向代理时再显式配置可信地址。
+- Gin 作为标准库 `http.Server.Handler` 使用，沿用读写超时、信号取消和优雅退出；模型与工具的观测继续由原有组件负责，不增加重复 span。
+
+版本依据见 [Gin v1.12.0 发布说明](https://github.com/gin-gonic/gin/releases/tag/v1.12.0)，服务生命周期参考 [官方自定义 HTTP 服务说明](https://gin-gonic.com/en/docs/server-config/custom-http-config/)。上述目录、校验和日志策略是本项目约定。
+
+## 运行边界
 
 默认最多 5 次模型请求、8 次工具分发、8000 个已知累计 token 的调用间软预算，不自动重试。用量缺失时不伪装为零；预算不能证明未知用量没有超限。单次模型输出上限为 512 token，思考模式关闭。
 

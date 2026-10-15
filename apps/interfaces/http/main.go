@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"sakelei/ai/apps/config"
 	"sakelei/ai/apps/demos"
 	"sakelei/ai/apps/interfaces/http/api"
@@ -21,6 +23,8 @@ import (
 )
 
 func main() {
+	// 框架运行模式由入口设置，避免路由构造修改全局状态。
+	gin.SetMode(gin.ReleaseMode)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := execute(ctx); err != nil {

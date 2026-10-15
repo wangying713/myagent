@@ -1,5 +1,5 @@
 export default {
-  'menu.demos.go-agent': 'Go Agent demos',
+  'menu.agent-development': 'Agent 开发',
   'menu.chatbot': 'دستیار هوش مصنوعی',
   'menu.demos': 'نمونه‌ها',
   'menu.demos.user': 'نمونه‌های ثبت نام',

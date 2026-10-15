@@ -1,5 +1,5 @@
 export default {
-  'menu.demos.go-agent': 'Go Agent 示例',
+  'menu.agent-development': 'Agent 开发',
   'menu.demos': '示例页面（Demos）',
   'menu.demos.user': '注册示例',
   'menu.welcome': '欢迎',

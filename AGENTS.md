@@ -4,6 +4,7 @@
 - 按任务应用该目录的 Go 风格、错误处理、测试和并发技能。中文解释、注释、练习和运行提示；代码标识符保留 Go 惯用写法。
 - `apps/config` 负责启动配置加载、默认值和校验，`apps/demos` 负责指定的三课流程。`apps/interfaces` 负责入口适配：`http` 放后台服务 API，`console` 放管理台，`cli` 继续预留；本次不新增命令行课程。前端构建和运行配置放在 `console` 内。
 - `domain/agent` 负责聊天协议、乘法工具与有限循环；`infra` 负责 DeepSeek 和 OpenObserve 接入。各组件配置保留在所属包，由 Go 入口显式传入；领域层不读取环境或使用隐藏的全局依赖。
+- Go HTTP 接口统一使用 Gin，路由与中间件位于 `apps/interfaces/http`。业务层显式接收 `context.Context`，不依赖 `gin.Context`；保留严格 JSON 校验、稳定错误响应及现有取消和观测契约。
 - 当前只实现聊天、消息历史和受控工具循环三课及 OpenObserve Traces。默认问题、提示词与流程已迁入 Go；学习资料以 `docs/learning` 为入口，未实现专题只保留学习路线，不据此扩展业务代码。
 - `old` 为废弃的历史归档，不参与 Go 构建，不作为新开发依据；服务只读取显式 `-env-file` 指定的新配置，不自动读取旧凭据。
 - 测试默认离线，不读取真实密钥、不连接外部模型。新增或修改行为时验证相应契约；提交前运行格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...`。

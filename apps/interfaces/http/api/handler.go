@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"sakelei/ai/apps/demos"
 	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/openobserve"
@@ -30,26 +32,48 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-func New(runner *demos.Runner, telemetry *openobserve.Telemetry, cfg Config) (http.Handler, error) {
+func New(runner *demos.Runner, telemetry *openobserve.Telemetry, cfg Config) (*gin.Engine, error) {
 	if runner == nil || telemetry == nil || cfg.RunTimeout <= 0 {
 		return nil, errors.New("HTTP 依赖与请求超时无效")
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/demos/health", func(w http.ResponseWriter, r *http.Request) {
-		write(w, http.StatusOK, map[string]string{"status": "ok"})
+	router := gin.New()
+	router.HandleMethodNotAllowed = true
+	router.RedirectTrailingSlash = false
+	if err := router.SetTrustedProxies(nil); err != nil {
+		return nil, errors.New("Gin 代理配置无效")
+	}
+	// 默认 recovery 会打印请求头和 panic 值；这里只返回固定错误，避免泄漏凭据。
+	router.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, _ any) {
+		c.Abort()
+		if !c.Writer.Written() {
+			write(c, http.StatusInternalServerError, Response{Error: &Error{Code: "internal_error", Message: "服务处理异常，请稍后重试"}})
+		}
+	}))
+	router.NoRoute(func(c *gin.Context) {
+		write(c, http.StatusNotFound, Response{Error: &Error{Code: "not_found", Message: "接口不存在"}})
 	})
+	router.NoMethod(func(c *gin.Context) {
+		write(c, http.StatusMethodNotAllowed, Response{Error: &Error{Code: "method_not_allowed", Message: "接口不支持该请求方法"}})
+	})
+	routes := router.Group("/api/demos")
+	health := func(c *gin.Context) {
+		write(c, http.StatusOK, map[string]string{"status": "ok"})
+	}
+	routes.GET("/health", health)
+	routes.HEAD("/health", health)
 	for _, lesson := range []string{"chat", "messages", "agent"} {
-		mux.HandleFunc("POST /api/demos/"+lesson, func(w http.ResponseWriter, r *http.Request) {
+		routes.POST("/"+lesson, func(c *gin.Context) {
+			r := c.Request
 			media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || media != "application/json" {
-				write(w, http.StatusUnsupportedMediaType, Response{Error: &Error{Code: "invalid_content_type", Message: "请使用 application/json"}})
+				write(c, http.StatusUnsupportedMediaType, Response{Error: &Error{Code: "invalid_content_type", Message: "请使用 application/json"}})
 				return
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+			r.Body = http.MaxBytesReader(c.Writer, r.Body, 32<<10)
 			defer r.Body.Close()
 			input, err := decodeInput(r.Body, lesson)
 			if err != nil {
-				writeInputError(w, err)
+				writeInputError(c, err)
 				return
 			}
 			ctx, cancel := context.WithTimeout(r.Context(), cfg.RunTimeout)
@@ -58,10 +82,10 @@ func New(runner *demos.Runner, telemetry *openobserve.Telemetry, cfg Config) (ht
 			// 不把模型或客户端底层错误文本直接发给浏览器。
 			status, apiError := classify(err)
 			result.Answer = telemetry.Clean(result.Answer)
-			write(w, status, Response{Data: result, Error: apiError})
+			write(c, status, Response{Data: result, Error: apiError})
 		})
 	}
-	return mux, nil
+	return router, nil
 }
 
 // 明确拒绝 null、重复键、大小写别名和跨课程字段，避免模糊输入触发付费请求。
@@ -106,19 +130,22 @@ func decodeInput(body io.Reader, lesson string) (demos.Input, error) {
 	if _, err := d.Token(); err != nil {
 		return input, err
 	}
-	if d.Decode(new(any)) != io.EOF {
-		return input, demos.ErrInput
+	if err := d.Decode(new(any)); err != io.EOF {
+		if err == nil {
+			return input, demos.ErrInput
+		}
+		return input, err
 	}
 	return input, nil
 }
 
-func writeInputError(w http.ResponseWriter, err error) {
+func writeInputError(c *gin.Context, err error) {
 	var tooLarge *http.MaxBytesError
 	status, code, message := http.StatusBadRequest, "invalid_input", "请求必须为单个合法 JSON 对象，且只包含本课程允许的字段"
 	if errors.As(err, &tooLarge) {
 		status, code, message = http.StatusRequestEntityTooLarge, "request_too_large", "请求正文不能超过 32 KiB"
 	}
-	write(w, status, Response{Error: &Error{Code: code, Message: message}})
+	write(c, status, Response{Error: &Error{Code: code, Message: message}})
 }
 
 func classify(err error) (int, *Error) {
@@ -141,16 +168,14 @@ func classify(err error) (int, *Error) {
 	}
 }
 
-func write(w http.ResponseWriter, status int, value any) {
+func write(c *gin.Context, status int, value any) {
 	// 先编码再写响应头，编码失败不能发送半个成功响应。
 	body, err := json.Marshal(value)
 	if err != nil {
-		http.Error(w, "响应编码失败", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "响应编码失败")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	// 客户端断开时没有第二个响应渠道，忽略写入失败，不重试业务。
-	_, _ = w.Write(body)
+	c.Header("Cache-Control", "no-store")
+	// 复用统一 JSON 编码；Gin 负责写响应，不因客户端断开重试业务。
+	c.Data(status, "application/json; charset=utf-8", body)
 }

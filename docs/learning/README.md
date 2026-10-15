@@ -18,7 +18,7 @@ cd apps/interfaces/console
 npm start
 ```
 
-3. 打开 [Go Agent 示例](http://127.0.0.1:8000/demos/go-agent)。演示账号为 `admin` / `ant.design`，开发环境已预填。进入 Demos → Go Agent 示例，依次执行三个页签。
+3. 打开 [Agent 开发](http://127.0.0.1:8000/agent-development)。演示账号为 `admin` / `ant.design`，开发环境已预填。点击侧边栏“Agent 开发”，页面三个运行按钮分别调用普通聊天、消息历史和工具循环接口，可先编辑默认问题。
 4. 展开执行步骤，对照实际请求、响应和工具结果；复制 trace ID，到 OpenObserve 检查入库与父子关系。
 
 服务显式加载 `-env-file`，环境变量优先，不自动读取旧配置。健康检查 `GET /api/demos/health` 只验证 Go 服务存活，不代表模型与观测可用。真实点击会消耗模型 token。
@@ -48,11 +48,13 @@ npm start
 | [循环](../../domain/agent/loop.go) | 模型 → 工具 → 回填 → 模型，预算与取消 |
 | [模型客户端](../../infra/deepseek/client.go) | 标准库 HTTP/JSON、请求超时、响应验证 |
 | [观测](../../infra/openobserve/telemetry.go) | 私有 provider、脱敏副本、OTLP/HTTP、生命周期 |
-| [HTTP 适配](../../apps/interfaces/http/api/handler.go) | 输入边界、总超时、HTTP 状态与部分结果 |
+| [HTTP 适配](../../apps/interfaces/http/api/handler.go) | Gin 路由组、严格输入边界、总超时、HTTP 状态与部分结果 |
 | [启动入口](../../apps/interfaces/http/main.go) | 配置和依赖组装、信号取消、服务退出 |
-| [管理台页面](../../apps/interfaces/console/src/pages/demos/go-agent/index.tsx) | 发请求、取消、展示回答和真实步骤 |
+| [管理台页面](../../apps/interfaces/console/src/pages/agent-development/index.tsx) | 发请求、取消、展示回答和真实步骤 |
 
 模型 HTTP 客户端在服务启动时创建并复用；历史和统计在每次运行中创建。观测 provider 也属于整个服务，不能在一次请求结束时关闭。`context.Context` 从 HTTP 请求传入循环、模型和工具；请求结束后通过返回值和错误报告实际状态。
+
+后台接口使用 Gin；阅读 HTTP 代码时先看 `api.New` 的路由组，再进入课程处理函数。Gin 上下文只负责入口适配，业务继续使用标准 `context.Context`，模型客户端仍直接发送标准库 HTTP 请求。具体约定见 [HTTP 接口说明](../../apps/interfaces/http/README.md)。
 
 ## 迁移范围
 

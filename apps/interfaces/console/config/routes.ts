@@ -55,6 +55,12 @@ export default [
     component: './chatbot',
   },
   {
+    path: '/agent-development',
+    name: 'agent-development',
+    icon: 'experiment',
+    component: './agent-development',
+  },
+  {
     path: '/demos',
     name: 'demos',
     icon: 'appstore',
@@ -65,9 +71,8 @@ export default [
       },
       {
         path: '/demos/go-agent',
-        name: 'go-agent',
-        icon: 'experiment',
-        component: './demos/go-agent',
+        redirect: '/agent-development',
+        hideInMenu: true,
       },
       {
         path: '/demos/dashboard',

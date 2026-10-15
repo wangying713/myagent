@@ -14,7 +14,7 @@
 格式命令会修改有格式问题的 Go 文件，完成后检查 diff。前端在 `apps/interfaces/console` 中执行：
 
 ```sh
-npx --no-install biome check src/pages/demos/go-agent
+npx --no-install biome check src/pages/agent-development
 npm run tsc
 npm run build
 ```
@@ -24,7 +24,7 @@ npm run build
 | 测试文件 | 当前验证契约 |
 | --- | --- |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
-| [HTTP 测试](../../apps/interfaces/http/api/handler_test.go) | 三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
+| [HTTP 测试](../../apps/interfaces/http/api/handler_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
 | [配置测试](../../apps/config/config_test.go) | 显式文件、环境优先级及非法配置 |
 | [脱敏测试](../../infra/openobserve/telemetry_test.go) | 敏感字段、长度限制、不修改原始正文 |
 
@@ -42,7 +42,17 @@ npm run build
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
 
-## 已有 Go 迁移证据
+## 2026-10-15：Gin 迁移验证
+
+全部现有接口已使用 Gin v1.12.0。格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 与服务构建通过。三课的离线契约、历史与工具回填、取消、预算、观测父子关系及并发隔离通过；新增路由、健康检查、请求方法、内容类型、超限尾随空白和异常恢复检查通过。
+
+本机服务已重启，管理台健康检查代理通过。通过代理两次尝试真实聊天，均在 60 秒单次模型超时处返回 HTTP 504，未得到完整模型回答；DNS、TCP 与 TLS 连通检查通过，但不足以确定模型请求超时原因。本轮未完成三课真实成功路径复验，不沿用之前结果判定其通过。
+
+超时 trace `16899d95d9f46f8409ca1d61840b0b4c` 已从 OpenObserve 查回 2 个 span，运行根节点与实际模型子节点均记录失败，父子关系正确。该次 1 次模型请求、0 次工具调用，用量未知；这只证明该次失败路径与观测入库，不证明业务成功。
+
+本次未修改前端页面，也未进行新的浏览器点击验收。
+
+## 2026-10-14：Go 初次迁移证据
 
 2026-10-14 迁移时，Go 格式、vet、离线测试和竞态检查通过，前端 Biome、类型检查及构建通过。真实模型三课通过，下面三个 trace 已查回并核对 span 数量、根节点和父子关系：
 

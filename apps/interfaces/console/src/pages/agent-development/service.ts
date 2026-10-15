@@ -1,7 +1,7 @@
 import { request } from '@umijs/max';
 import type { Lesson, RunResponse } from './data';
 
-/** 业务失败也读取结构化正文，以展示失败前已完成的步骤。 */
+/** 调用 Go 三课接口；业务失败也读取结构化正文，保留已完成的步骤。 */
 export async function runLesson(
   lesson: Lesson,
   questions: string[],

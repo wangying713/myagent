@@ -2,6 +2,8 @@
 
 根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台点击后请求 Go HTTP 接口，展示实际消息、模型响应、工具结果和 OpenObserve trace ID。
 
+HTTP 接口统一使用 Gin，当前锁定 v1.12.0；标准库 `http.Server` 负责超时和优雅退出。模型客户端继续使用标准库 HTTP/JSON，Agent 循环保持显式实现。
+
 ## 启动
 
 Go 工具链为 1.27.2，模块为 `sakelei/ai`。`./scripts/go` 使用项目现有工具链，不覆盖系统安装。
@@ -17,7 +19,7 @@ cd apps/interfaces/console
 npm start
 ```
 
-打开 [Go Agent 示例](http://127.0.0.1:8000/demos/go-agent)。开发环境预填演示账号 `admin` / `ant.design`，点击登录即可。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
+打开 [Agent 开发](http://127.0.0.1:8000/agent-development)。开发环境预填演示账号 `admin` / `ant.design`，点击登录即可。侧边栏“Agent 开发”提供三个直接运行按钮，分别请求三课接口；可编辑问题并查看回答、真实步骤与 trace ID。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
 
 ## 三课与原始文件
 
@@ -36,8 +38,8 @@ apps/
   config/            # 显式文件与环境变量配置
   demos/             # 三课执行逻辑与结构化记录
   interfaces/
-    http/            # 启动入口；api 包负责 HTTP 适配
-    console/         # 通用管理台；demos/go-agent 为三课页面
+    http/            # 启动入口；api 包用 Gin 组织 HTTP 接口
+    console/         # 通用管理台；agent-development 为三课独立页面
     cli/             # 预留，本次不新增 CLI 课程
 domain/agent/        # 协议、乘法工具、有限循环
 infra/
@@ -68,7 +70,7 @@ docs/
 ./scripts/go test -race ./...
 
 cd apps/interfaces/console
-npx --no-install biome check src/pages/demos/go-agent
+npx --no-install biome check src/pages/agent-development
 npm run tsc
 npm run build
 ```

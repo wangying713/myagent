@@ -1,5 +1,5 @@
 export default {
-  'menu.demos.go-agent': 'Go Agent demos',
+  'menu.agent-development': 'Agent 开发',
   'menu.chatbot': 'AI アシスタント',
   'menu.demos': 'デモ',
   'menu.demos.user': '登録例',
