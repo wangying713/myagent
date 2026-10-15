@@ -6,7 +6,7 @@
 
 本课计算“每盒 17 支笔，买 23 盒，一共多少支”，默认提示要求乘法调用工具。确定性的乘法工具便于核对 391；目标是看见实际协议，不只是让回答里出现数字。
 
-阅读顺序：[工具](../../domain/agent/tools.go) 的 `Definitions` 和 `Dispatch` → [执行器](../../apps/demos/runner.go) 的工具包装 → [循环](../../domain/agent/loop.go) 的 `Run` → [协议](../../domain/agent/protocol.go)。本项目手写工具描述和校验，未引入 Python 装饰器或 Agent 框架。
+阅读顺序：[工具](../../domain/agent/tools.go) 的 `Definitions` 和 `Dispatch` → [业务入口](../../domain/agent/run.go) → [执行记录](../../domain/agent/recording.go) 的工具包装 → [循环](../../domain/agent/loop.go) 的 `Run` → [协议](../../domain/agent/protocol.go)。本项目手写工具描述和校验，未引入 Python 装饰器或 Agent 框架。
 
 ## 描述与调用
 

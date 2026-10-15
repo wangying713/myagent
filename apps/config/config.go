@@ -11,7 +11,6 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"sakelei/ai/apps/interfaces/http/api"
 	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/deepseek"
 	"sakelei/ai/infra/openobserve"
@@ -20,8 +19,14 @@ import (
 type Settings struct {
 	Model   deepseek.Config
 	Observe openobserve.Config
-	HTTP    api.Config
+	HTTP    HTTPSettings
 	Limits  agent.Limits
+}
+
+// HTTPSettings 保存 HTTP 进程启动设置，入口将请求超时显式传给 API。
+type HTTPSettings struct {
+	Address    string
+	RunTimeout time.Duration
 }
 
 func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) {
@@ -47,7 +52,7 @@ func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) 
 	settings := Settings{
 		Model:   deepseek.Config{APIKey: get("DEEPSEEK_API_KEY", ""), Model: get("DEEPSEEK_MODEL", "deepseek-flash"), BaseURL: get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")},
 		Observe: openobserve.Config{ServiceName: get("OTEL_SERVICE_NAME", "go-agent-demos"), Endpoint: get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces")},
-		HTTP:    api.Config{Address: get("HTTP_ADDRESS", "127.0.0.1:8080")},
+		HTTP:    HTTPSettings{Address: get("HTTP_ADDRESS", "127.0.0.1:8080")},
 	}
 	var err error
 	settings.Model.Timeout, err = time.ParseDuration(get("DEEPSEEK_TIMEOUT", "60s"))

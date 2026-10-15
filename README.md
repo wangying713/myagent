@@ -1,4 +1,4 @@
-# Go Agent 三课 HTTP 演示
+# Go Agent 后台与管理台
 
 根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台点击后请求 Go HTTP 接口，展示实际消息、模型响应、工具结果和 OpenObserve trace ID。
 
@@ -25,9 +25,9 @@ npm start
 
 | 课程 | 原始 Python demo | Go 流程 | HTTP 接口 |
 | --- | --- | --- | --- |
-| 普通聊天 | `old/agent-learning/demos/demo_01_chat.py` | system + user → 一次模型请求 → 完整回答 | `POST /api/demos/chat` |
-| 消息历史 | `old/agent-learning/demos/demo_02_messages.py` | 第一轮保存实际 assistant → 第二轮回传完整历史 | `POST /api/demos/messages` |
-| 工具循环 | `old/agent-learning/demos/demo_03_agent_loop.py` | 模型提出 multiply → Go 校验并执行 → 按调用 ID 回填 → 模型回答 | `POST /api/demos/agent` |
+| 普通聊天 | `old/agent-learning/demos/demo_01_chat.py` | system + user → 一次模型请求 → 完整回答 | `POST /api/agent/chat` |
+| 消息历史 | `old/agent-learning/demos/demo_02_messages.py` | 第一轮保存实际 assistant → 第二轮回传完整历史 | `POST /api/agent/messages` |
+| 工具循环 | `old/agent-learning/demos/demo_03_agent_loop.py` | 模型提出 multiply → Go 校验并执行 → 按调用 ID 回填 → 模型回答 | `POST /api/agent/run` |
 
 默认问题和提示词保留原 demo 内容。工具仅有本地乘法；不引入 Agent 框架，不执行模型生成的代码。`old` 不参与 Go 构建。
 
@@ -36,13 +36,13 @@ npm start
 ```text
 apps/
   config/            # 显式文件与环境变量配置
-  demos/             # 三课执行逻辑与结构化记录
   interfaces/
-    http/            # 启动入口；api 包用 Gin 组织 HTTP 接口
+    http/            # 启动入口、显式路由；api 放请求定义和处理方法
     console/         # 通用管理台；agent-development 为三课独立页面
     cli/             # 预留，本次不新增 CLI 课程
-domain/agent/        # 协议、乘法工具、有限循环
+domain/agent/        # 三个业务流程、执行记录、协议、乘法工具和有限循环
 infra/
+  httpx/             # 通用严格 JSON 解析、响应编码与传输错误
   deepseek/          # 标准库 HTTP 模型客户端
   openobserve/       # OTLP/HTTP Traces、脱敏、生命周期
 docs/
@@ -50,7 +50,7 @@ docs/
   learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。阅读顺序：`apps/demos/runner.go` → `domain/agent/loop.go`、`tools.go` → `infra/deepseek/client.go` → `apps/interfaces/http/api/handler.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。阅读顺序：`apps/interfaces/http/router.go` → `apps/interfaces/http/api/chat.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 

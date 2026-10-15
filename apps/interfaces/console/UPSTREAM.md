@@ -15,6 +15,6 @@
 6. 同步调整菜单翻译、跨目录 Mock 引用、注册结果跳转及登录检查。注册服务解包官方 Mock 的 `data` 字段，使成功结果能触发页面跳转；公共服务与 API 地址保持原有约定。
 7. 停用官方精简脚本的删除行为，避免破坏已归档的完整示例；`routes.simple.ts` 指向当前完整路由。
 8. 开发环境登录表单预填官方演示账号 `admin` / `ant.design`，保留手动编辑和提交；生产构建不预填。
-9. 经用户授权，新增 Go 三课页面；现已移至独立的 `agent-development` 目录和“Agent 开发”一级菜单，路由为 `/agent-development`，三个按钮分别请求三课接口。旧 `/demos/go-agent` 地址重定向到新入口。仅 `/api/demos/*` 代理到本机 Go 后台，这些请求不附加官方演示的固定 `token=123`；其他官方示例与 AI 助手保留原 Mock 行为。
+9. 经用户授权，新增 Go 三课页面；现已移至独立的 `agent-development` 目录和“Agent 开发”一级菜单，路由为 `/agent-development`，三个按钮分别请求三课接口。旧 `/demos/go-agent` 地址重定向到新入口。仅 `/api/agent/*` 和 `/api/health` 代理到本机 Go 后台，这些请求不附加官方演示的固定 `token=123`；其他官方示例与 AI 助手保留原 Mock 行为。
 
 本机使用说明单独维护，官方中文说明仍原样保留在 `README.zh-CN.md`。

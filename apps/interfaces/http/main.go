@@ -16,8 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"sakelei/ai/apps/config"
-	"sakelei/ai/apps/demos"
-	"sakelei/ai/apps/interfaces/http/api"
+	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/deepseek"
 	"sakelei/ai/infra/openobserve"
 )
@@ -59,11 +58,11 @@ func execute(ctx context.Context) error {
 		return err
 	}
 	defer client.Close()
-	runner, err := demos.New(client, telemetry, cfg.Limits)
+	service, err := agent.NewService(client, telemetry, cfg.Limits)
 	if err != nil {
 		return err
 	}
-	handler, err := api.New(runner, telemetry, cfg.HTTP)
+	handler, err := newRouter(service, cfg.HTTP.RunTimeout)
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func execute(ctx context.Context) error {
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: cfg.HTTP.RunTimeout + 10*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10, BaseContext: func(net.Listener) context.Context { return ctx }}
 	serveErrors := make(chan error, 1)
 	go func() { serveErrors <- server.Serve(listener) }()
-	fmt.Fprintln(os.Stdout, "Go demo 接口已启动：http://"+listener.Addr().String())
+	fmt.Fprintln(os.Stdout, "Go 后台接口已启动：http://"+listener.Addr().String())
 	select {
 	case err := <-serveErrors:
 		if !errors.Is(err, http.ErrServerClosed) {

@@ -1,6 +1,6 @@
 # 后台服务 API
 
-`main.go` 组装配置、DeepSeek、OpenObserve 和三课执行器；`api` 包通过 Gin 负责路由、请求校验、总超时和 JSON 响应。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。
+`main.go` 组装配置、DeepSeek、OpenObserve 和 Agent 业务；`router.go` 逐条注册完整路由；`api` 包定义请求、业务响应和具名处理方法。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。
 
 三课原理、操作练习与通过标准见 [中文学习指南](../../../docs/learning/README.md)。
 
@@ -14,11 +14,11 @@
 
 | 方法与接口 | 正文 | 含义 |
 | --- | --- | --- |
-| `GET /api/demos/health` | 无 | 服务存活检查，不调用模型、不检查外部服务 |
-| `HEAD /api/demos/health` | 无 | 健康检查的 HEAD 形式，不返回正文 |
-| `POST /api/demos/chat` | `{}` 或 `{"question":"问题"}` | 普通聊天 |
-| `POST /api/demos/messages` | `{}` 或 `{"questions":["第一轮问题","第二轮问题"]}` | 单次执行两轮，第二轮携带第一轮实际历史 |
-| `POST /api/demos/agent` | `{}` 或 `{"question":"乘法问题"}` | 只允许乘法工具的有限循环 |
+| `GET /api/health` | 无 | 服务存活检查，不调用模型、不检查外部服务 |
+| `HEAD /api/health` | 无 | 健康检查的 HEAD 形式，不返回正文 |
+| `POST /api/agent/chat` | `{}` 或 `{"question":"问题"}` | 普通聊天 |
+| `POST /api/agent/messages` | `{}` 或 `{"questions":["第一轮问题","第二轮问题"]}` | 单次执行两轮，第二轮携带第一轮实际历史 |
+| `POST /api/agent/run` | `{}` 或 `{"question":"乘法问题"}` | 只允许乘法工具的有限循环 |
 
 POST 使用 `Content-Type: application/json`。空对象使用原 Python demo 默认问题；拒绝未知或跨课程字段、重复字段、null、非法类型、空白问题及多段 JSON。每个问题最多 4096 字符，正文最多 32 KiB。
 
@@ -41,7 +41,9 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 
 ## Gin 使用约定
 
-- `api.New` 返回 `*gin.Engine`，以 `/api/demos` 路由组注册全部现有 Go 接口。后续 Go HTTP 接口也由 Gin 注册。
+- `router.go` 的 `newRouter` 返回 `*gin.Engine`，显式注册 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run` 和 `/api/health`。旧 `/api/demos/*` 已移除；不通过循环或课程字符串生成路由。
+- `api/chat.go`、`messages.go`、`run.go` 各自定义请求类型和处理方法，调用 `domain/agent.Service` 对应方法。业务结果转换为 API 数据，外层公共响应结构由 `httpx` 提供。
+- `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `api/errors.go`。
 - 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
 - `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
 - 保留现有严格 JSON 解码，不用默认绑定替代重复键、未知字段、大小写和多段 JSON 等校验。32 KiB 限制也覆盖 JSON 后的尾随空白。
@@ -59,3 +61,17 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 一个根 span 对应一次运行，模型和工具各有子 span。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。`TELEMETRY_CAPTURE_CONTENT` 控制观测正文采集；页面仍展示用于学习的脱敏执行记录。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
+
+## 从 URL 定位代码
+
+```text
+POST /api/agent/chat
+  → apps/interfaces/http/router.go：agentAPI.Chat
+  → apps/interfaces/http/api/chat.go：Agent.Chat
+  → domain/agent/chat.go：Service.Chat
+  → infra/deepseek/client.go：Client.Chat
+```
+
+历史消息对应 `messages.go`，工具调用对应 `run.go`。`domain/agent/recording.go` 只包装模型和工具，记录执行步骤与预算统计，不决定运行哪个业务。OpenObserve 通过 `infra/openobserve/agent.go` 实现领域定义的观测接口，领域层不依赖具体观测 SDK。
+
+通用 HTTP 包用法见 [httpx 说明](../../../infra/httpx/README.md)。

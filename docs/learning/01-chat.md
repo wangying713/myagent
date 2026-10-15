@@ -4,11 +4,11 @@
 
 能解释请求发给谁、模型看到哪些材料，以及接口成功为什么不等于任务完成。
 
-先看 [执行器](../../apps/demos/runner.go) 的普通聊天分支，再看 [客户端](../../infra/deepseek/client.go) 的 `Chat`，最后看 [协议](../../domain/agent/protocol.go) 的 `Response.Validate`。Go 结构体和切片保存数据，`json.Marshal` 将数据编码成 JSON，`http.Client.Do` 发送请求；通过 `error` 返回失败，使用 `defer` 释放响应 body。
+先看 [聊天业务](../../domain/agent/chat.go) 的 `Service.Chat`，再看 [客户端](../../infra/deepseek/client.go) 的 `Chat`，最后看 [协议](../../domain/agent/protocol.go) 的 `Response.Validate`。Go 结构体和切片保存数据，`json.Marshal` 将数据编码成 JSON，`http.Client.Do` 发送请求；通过 `error` 返回失败，使用 `defer` 释放响应 body。
 
 ## 页面请求与模型请求
 
-管理台发送 `POST /api/demos/chat`，正文 `{}` 使用默认问题，也可发送：
+管理台发送 `POST /api/agent/chat`，正文 `{}` 使用默认问题，也可发送：
 
 ```json
 {"question":"用一句话解释什么是递归。"}
@@ -60,10 +60,10 @@ Content-Type: application/json
 打开 Agent 开发页面，点击“运行普通聊天”执行默认问题。应有一次模型步骤；正常观测为一个根 span 和一个模型 span，共 2 个。
 
 1. 在页面把“递归”改为“函数”，检查请求的 user 正文变化。
-2. 在执行器中临时调整 system 提示词，重启 Go 服务，比较请求和回答后恢复。前端输入只控制问题。
+2. 在聊天业务中临时调整 system 提示词，重启 Go 服务，比较请求和回答后恢复。前端输入只控制问题。
 3. 在客户端中临时将 `MaxTokens` 改为 1，观察结束原因和未完成状态后恢复。该字段当前固定在客户端，不是 HTTP 参数。
 
-每次只改一个变量。可先用 [离线接口测试](../../apps/interfaces/http/api/handler_test.go) 构造截断响应，避免为验证错误反复调用真实模型。
+每次只改一个变量。可先用 [离线接口测试](../../apps/interfaces/http/router_test.go) 构造截断响应，避免为验证错误反复调用真实模型。
 
 ## 通过标准
 

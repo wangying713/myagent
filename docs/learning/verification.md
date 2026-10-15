@@ -23,14 +23,16 @@ npm run build
 
 | 测试文件 | 当前验证契约 |
 | --- | --- |
+| [领域业务测试](../../domain/agent/service_test.go) | 三个业务方法、默认问题、历史、部分结果、取消、脱敏与观测事件 |
+| [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
-| [HTTP 测试](../../apps/interfaces/http/api/handler_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
+| [HTTP 测试](../../apps/interfaces/http/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
 | [配置测试](../../apps/config/config_test.go) | 显式文件、环境优先级及非法配置 |
 | [脱敏测试](../../infra/openobserve/telemetry_test.go) | 敏感字段、长度限制、不修改原始正文 |
 
 ## 管理台人工验收
 
-按 [学习入口](README.md) 启动两个服务。先请求 `GET /api/demos/health` 确认存活，再依次运行：
+按 [学习入口](README.md) 启动两个服务。先请求 `GET /api/health` 确认存活，再依次运行：
 
 | 课程 | 业务检查 | 正常观测 |
 | --- | --- | --- |
@@ -41,6 +43,16 @@ npm run build
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-15：HTTP 与领域分层改造验证
+
+三个接口已改为 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run`；健康检查为 `/api/health`。`router.go` 逐条声明完整路径，`http/api` 定义请求、业务响应和具名处理方法，三个流程移入 `domain/agent`。`apps/demos` 已移除。
+
+通用 HTTP 解析、公共响应和传输错误已提取到 `infra/httpx`。领域层不依赖 Gin、OpenTelemetry 或 `infra`，通过领域定义的观测接口接收 OpenObserve 适配。API 保留现有业务响应字段（包括 `lesson`），路由级错误的 `data` 为 null，不绑定 Agent 响应类型。
+
+Go 格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 通过；前端本次三个修改文件的 Biome、TypeScript 类型检查和构建通过。离线模型 HTTP 服务及内存观测器验证了三个流程、父子 span、历史和工具回填、预算、取消、部分失败、脱敏、观测失败隔离与并发隔离。新增领域测试直接使用内存替身，不导入基础设施；`httpx` 测试用非 Agent 的目录请求验证复用及编码失败行为。
+
+本机前后端已启动：页面 HTTP 200，健康检查代理正常；通过管理台代理请求三个新接口，非法 JSON 值均被拒绝为 HTTP 400；旧 Go 接口返回 HTTP 404。这些请求不调用模型。本轮未进行真实模型成功路径复验或浏览器点击、视觉验收。
 
 ## 2026-10-15：Gin 迁移验证
 

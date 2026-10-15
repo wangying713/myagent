@@ -2,13 +2,13 @@
 
 ## 模型怎样“记住”上一句话
 
-本课程显式发送历史。在 Agent 开发页面点击“运行消息历史”：第一轮告知“小猫叫豆包”，第二轮询问名字，一次点击执行两次模型请求。Go 将本次历史保存在 `[]agent.Message`，下一轮发送增长后的切片。
+本课程显式发送历史。在 Agent 开发页面点击“运行消息历史”：第一轮告知“小猫叫豆包”，第二轮询问名字，一次点击执行两次模型请求。Go 将本次历史保存在 `[]Message`，下一轮发送增长后的切片。
 
-阅读 [执行器](../../apps/demos/runner.go) 中 `messages` 的追加过程。下面是其核心顺序的摘录，不是独立运行程序：
+阅读 [历史消息业务](../../domain/agent/messages.go) 中 `messages` 的追加过程。下面是其核心顺序的摘录，不是独立运行程序：
 
 ```go
-messages = append(messages, agent.Message{Role: "user", Content: question})
-response, callErr := model.Chat(ctx, agent.Request{Messages: messages})
+messages = append(messages, Message{Role: "user", Content: question})
+response, callErr := execution.model.Chat(ctx, Request{Messages: messages})
 if callErr != nil {
 	return result, callErr
 }
@@ -45,10 +45,10 @@ Token 是文本编码单位，不严格等于字数。第二轮重新发送第�
 ## 操作与练习
 
 1. 修改两轮问题，例如“请记住虚构项目代号是海盐”和“项目代号是什么？”。展开第二次请求，确认历史来自真实第一轮。
-2. 临时在执行器中让第二轮只发送最后一句 user，重启服务并比较，实验后恢复。缺少依据首先是应用输入问题。
+2. 临时在历史消息业务中让第二轮只发送最后一句 user，重启服务并比较，实验后恢复。缺少依据首先是应用输入问题。
 3. 阅读 `TestConcurrentRunsDoNotShareHistory` 和 `TestThreeLessonsAndParentSpans`，用离线测试理解并发隔离与历史回传。
 
-当前接口严格接收两轮；增加第三轮需要一起修改执行器输入校验、HTTP 契约、前端表单和测试，不只改页面数量。
+当前接口严格接收两轮；增加第三轮需要一起修改历史消息业务输入校验、HTTP 契约、前端表单和测试，不只改页面数量。
 
 ## 通过标准
 

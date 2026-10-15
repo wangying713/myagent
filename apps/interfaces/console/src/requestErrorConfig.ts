@@ -88,7 +88,10 @@ export const errorConfig: RequestConfig = {
   // 请求拦截器
   requestInterceptors: [
     (config: RequestOptions) => {
-      if (config.url?.startsWith('/api/demos/')) {
+      if (
+        config.url?.startsWith('/api/agent/') ||
+        config.url === '/api/health'
+      ) {
         return config;
       }
       // 拦截请求配置，进行个性化处理。

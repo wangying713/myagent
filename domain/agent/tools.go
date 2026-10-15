@@ -8,7 +8,7 @@ import (
 	"math"
 )
 
-// MultiplyTools 是第三课唯一可用的工具集；不会执行模型生成的函数或文本。
+// MultiplyTools 是当前唯一可用的工具集；不会执行模型生成的函数或文本。
 type MultiplyTools struct{}
 
 func (MultiplyTools) Definitions() []ToolDefinition {

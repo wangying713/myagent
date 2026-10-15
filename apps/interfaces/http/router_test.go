@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"bytes"
@@ -17,11 +17,14 @@ import (
 	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"sakelei/ai/apps/demos"
+	"sakelei/ai/apps/interfaces/http/api"
 	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/deepseek"
+	"sakelei/ai/infra/httpx"
 	"sakelei/ai/infra/openobserve"
 )
+
+type Response = httpx.Response[api.ExecutionResult]
 
 type memoryExporter struct {
 	mu    sync.Mutex
@@ -60,11 +63,11 @@ func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout ti
 		t.Fatal(err)
 	}
 	t.Cleanup(client.Close)
-	runner, err := demos.New(client, telemetry, limits)
+	runner, err := agent.NewService(client, telemetry, limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(runner, telemetry, Config{RunTimeout: timeout})
+	handler, err := newRouter(runner, timeout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +75,11 @@ func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout ti
 }
 
 func invoke(handler http.Handler, lesson, body string) (*httptest.ResponseRecorder, Response) {
-	r := httptest.NewRequest(http.MethodPost, "/api/demos/"+lesson, strings.NewReader(body))
+	path := "/api/agent/" + lesson
+	if lesson == "agent" {
+		path = "/api/agent/run"
+	}
+	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
@@ -111,7 +118,7 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 						reply(w, map[string]string{"role": "assistant", "content": "记住了豆包。", "extra": "历史扩展字段"}, "stop")
 						return
 					}
-					if len(input.Messages) != 4 || input.Messages[2].Content != "记住了豆包。" || input.Messages[3].Content != demos.SecondQuestion {
+					if len(input.Messages) != 4 || input.Messages[2].Content != "记住了豆包。" || input.Messages[3].Content != agent.SecondQuestion {
 						t.Errorf("第二轮未携带真实历史：%+v", input.Messages)
 					}
 					reply(w, map[string]string{"role": "assistant", "content": "豆包"}, "stop")
@@ -186,7 +193,7 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	if w.Code != 400 {
 		t.Error("历史课程应明确限制两轮")
 	}
-	r := httptest.NewRequest(http.MethodGet, "/api/demos/chat", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/agent/chat", nil)
 	out := httptest.NewRecorder()
 	handler.ServeHTTP(out, r)
 	if out.Code != 405 {
@@ -204,16 +211,20 @@ func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
 		method, path, code, allow string
 		status                    int
 	}{
-		{method: "GET", path: "/api/demos/health", status: 200},
-		{method: "HEAD", path: "/api/demos/health", status: 200},
-		{method: "GET", path: "/api/demos/chat", status: 405, code: "method_not_allowed", allow: "POST"},
-		{method: "GET", path: "/api/demos/messages", status: 405, code: "method_not_allowed", allow: "POST"},
-		{method: "GET", path: "/api/demos/agent", status: 405, code: "method_not_allowed", allow: "POST"},
-		{method: "POST", path: "/api/demos/health", status: 405, code: "method_not_allowed", allow: "GET,HEAD"},
-		{method: "OPTIONS", path: "/api/demos/chat", status: 405, code: "method_not_allowed", allow: "POST"},
-		{method: "POST", path: "/api/demos/missing", status: 404, code: "not_found"},
-		{method: "POST", path: "/api/demos/chat/", status: 404, code: "not_found"},
-		{method: "POST", path: "/api/demos/Chat", status: 404, code: "not_found"},
+		{method: "GET", path: "/api/health", status: 200},
+		{method: "HEAD", path: "/api/health", status: 200},
+		{method: "GET", path: "/api/agent/chat", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "GET", path: "/api/agent/messages", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "GET", path: "/api/agent/run", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "POST", path: "/api/health", status: 405, code: "method_not_allowed", allow: "GET,HEAD"},
+		{method: "OPTIONS", path: "/api/agent/chat", status: 405, code: "method_not_allowed", allow: "POST"},
+		{method: "POST", path: "/api/agent/missing", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/agent/chat/", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/agent/Chat", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/demos/chat", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/demos/messages", status: 404, code: "not_found"},
+		{method: "POST", path: "/api/demos/agent", status: 404, code: "not_found"},
+		{method: "GET", path: "/api/demos/health", status: 404, code: "not_found"},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			request := httptest.NewRequest(tc.method, tc.path, nil)
@@ -251,7 +262,7 @@ func TestContentTypeValidation(t *testing.T) {
 		reply(w, map[string]string{"role": "assistant", "content": "正常回答"}, "stop")
 	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
 	for _, contentType := range []string{"", "text/plain", "application/json; charset=utf-8"} {
-		request := httptest.NewRequest(http.MethodPost, "/api/demos/chat", strings.NewReader(`{}`))
+		request := httptest.NewRequest(http.MethodPost, "/api/agent/chat", strings.NewReader(`{}`))
 		request.Header.Set("Content-Type", contentType)
 		out := httptest.NewRecorder()
 		handler.ServeHTTP(out, request)
@@ -292,7 +303,7 @@ func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
 		t.Errorf("恢复流程覆盖了已写响应：%d %s", out.Code, out.Body.String())
 	}
 	out = httptest.NewRecorder()
-	handler.ServeHTTP(out, httptest.NewRequest(http.MethodGet, "/api/demos/health", nil))
+	handler.ServeHTTP(out, httptest.NewRequest(http.MethodGet, "/api/health", nil))
 	if out.Code != http.StatusOK {
 		t.Error("异常后健康检查不可用")
 	}
@@ -345,7 +356,7 @@ func TestRequestDeadlineAndCallerCancellation(t *testing.T) {
 			t.Cleanup(func() { close(release) })
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			req := httptest.NewRequest(http.MethodPost, "/api/demos/chat", strings.NewReader(`{}`)).WithContext(ctx)
+			req := httptest.NewRequest(http.MethodPost, "/api/agent/chat", strings.NewReader(`{}`)).WithContext(ctx)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			done := make(chan struct{})
@@ -414,7 +425,7 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, _ := json.Marshal(demos.Input{Question: question})
+			body, _ := json.Marshal(api.ChatRequest{Question: &question})
 			w, response := invoke(handler, "chat", string(body))
 			if w.Code != 200 || response.Data.Answer != question || response.Data.ModelCalls != 1 || len(response.Data.Steps) != 1 {
 				t.Errorf("并发运行混入其他结果：%s", w.Body.String())

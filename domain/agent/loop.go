@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// ChatClient 由模型的使用方定义，只要求本课程需要的非流式能力。
+// ChatClient 由模型的使用方定义，只要求当前业务需要的非流式能力。
 type ChatClient interface {
 	Chat(context.Context, Request) (Response, error)
 }
@@ -16,7 +16,7 @@ type Tools interface {
 	Dispatch(context.Context, ToolCall) (ToolResult, error)
 }
 
-// Run 保持 Python 第三课的顺序：模型 → 工具 → 回填 → 模型。
+// Run 顺序执行模型 → 工具 → 回填 → 模型，直到完成或达到预算。
 // 消息、用量和调用 ID 都属于本次运行，不保存在共享对象上。
 func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt string, limits Limits) (string, error) {
 	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
