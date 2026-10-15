@@ -1,4 +1,5 @@
 export default {
+  'menu.demos.go-agent': 'Go Agent demos',
   'menu.demos': 'Demos',
   'menu.demos.user': 'Registration examples',
   'menu.welcome': 'Welcome',

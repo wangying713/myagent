@@ -1,83 +1,76 @@
-# Go Agent 开发学习
+# Go Agent 三课 HTTP 演示
 
-面向已有 Go 基础的学习者，从 HTTP 和消息协议开始，手写一个能够调用受控工具的 Agent，并在 OpenObserve 中查看实际请求、响应和工具结果。
+根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台点击后请求 Go HTTP 接口，展示实际消息、模型响应、工具结果和 OpenObserve trace ID。
 
-第一阶段提供三课：普通聊天、消息历史、工具调用循环。学习路径见[中文课程入口](docs/learning/README.md)，Go 与前端开发约定见[中文开发规范](docs/development/README.md)。
+## 启动
 
-## 快速开始
+Go 工具链为 1.27.2，模块为 `sakelei/ai`。`./scripts/go` 使用项目现有工具链，不覆盖系统安装。
 
-项目工具链为 Go 1.27.2，OpenTelemetry 依赖锁定为 1.47.0。现有 Go 支持自动工具链下载时，根目录执行命令会选择项目版本，不覆盖系统安装。
-
-本机自动下载受到代理和网络影响，已从官方源码构建 Go 1.27.2 并保存在 Git 忽略的 `.tools/` 中。当前机器可把下文命令中的 `go` 换成 `./scripts/go`；这个入口只为当前命令设置对应的 `GOROOT`，不修改系统 Go 或全局配置。其他机器没有本地工具链时，它会调用普通 `go`。
-
-先把 [.env.example](.env.example) 复制为根目录 `.env`，填写 DeepSeek API key 和 OpenObserve 鉴权；已有文件时保留。程序只读取 `-env-file` 指定的文件，环境变量优先。不会自动读取 `old` 的配置。
+准备根目录 `.env`：可从 [.env.example](.env.example) 创建并填写模型及观测鉴权；已有文件不要覆盖。服务通过 `-env-file` 显式加载，环境变量优先，不自动读取 `old` 中的配置。真实凭据已被 Git 忽略。
 
 ```sh
-go mod download
+# 终端一：启动 Go HTTP 服务，默认 127.0.0.1:8080。
+./scripts/go run ./apps/interfaces/http -env-file .env
 
-# 不调用模型，先验证观测发送与入库查询。
-go run ./apps/interfaces/cli/learning -lesson observe -env-file .env
-
-# 第一课：一次 HTTP 模型调用。
-go run ./apps/interfaces/cli/learning -lesson chat -env-file .env
-
-# 第二课：显式保存并传回消息历史。
-go run ./apps/interfaces/cli/learning -lesson messages -env-file .env
-
-# 第三课：模型提出工具调用，程序执行，再回填结果。
-go run ./apps/interfaces/cli/learning -lesson agent -env-file .env
+# 终端二：启动管理台，默认 127.0.0.1:8000。
+cd apps/interfaces/console
+npm start
 ```
 
-真实课程会调用模型并消耗 token；离线测试不会调用外部服务。若只体验模型、暂不连接 OpenObserve，明确设置 `TELEMETRY_ENABLED=false`。`observe` 和观测验收模式必须启用观测。
+打开 [Go Agent 示例](http://127.0.0.1:8000/demos/go-agent)。开发环境预填演示账号 `admin` / `ant.design`，点击登录即可。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
 
-每次课程打印 `trace_id`。默认本机界面为 `http://localhost:5080/web/`，在 Traces 中选择配置的 stream，再查这个 ID。端点、组织与凭据都可以通过配置更换。
+## 三课与原始文件
 
-## 目录与职责
+| 课程 | 原始 Python demo | Go 流程 | HTTP 接口 |
+| --- | --- | --- | --- |
+| 普通聊天 | `old/agent-learning/demos/demo_01_chat.py` | system + user → 一次模型请求 → 完整回答 | `POST /api/demos/chat` |
+| 消息历史 | `old/agent-learning/demos/demo_02_messages.py` | 第一轮保存实际 assistant → 第二轮回传完整历史 | `POST /api/demos/messages` |
+| 工具循环 | `old/agent-learning/demos/demo_03_agent_loop.py` | 模型提出 multiply → Go 校验并执行 → 按调用 ID 回填 → 模型回答 | `POST /api/demos/agent` |
+
+默认问题和提示词保留原 demo 内容。工具仅有本地乘法；不引入 Agent 框架，不执行模型生成的代码。`old` 不参与 Go 构建。
+
+## 目录
 
 ```text
 apps/
-  config/          # Go 应用启动配置：显式文件、环境变量、默认值与校验
-  interfaces/      # 对外交互与入口适配
-    http/          # 后台服务 API，当前阶段预留
-    console/       # Ant Design Pro 官方完整版演示
-    cli/
-      learning/    # 学习命令入口、课程示例与依赖组装
-domain/agent/
-  entity/          # 消息、工具协议、响应与运行结果
-  service/         # 工具注册与有限 Agent 循环
+  config/            # 显式文件与环境变量配置
+  demos/             # 三课执行逻辑与结构化记录
+  interfaces/
+    http/            # 启动入口；api 包负责 HTTP 适配
+    console/         # 通用管理台；demos/go-agent 为三课页面
+    cli/             # 预留，本次不新增 CLI 课程
+domain/agent/        # 协议、乘法工具、有限循环
 infra/
-  deepseek/        # 标准 HTTP 模型客户端
-  openobserve/    # trace、脱敏、OTLP 导出与查询
+  deepseek/          # 标准库 HTTP 模型客户端
+  openobserve/       # OTLP/HTTP Traces、脱敏、生命周期
 docs/
-  development/    # 中文 Go、前端开发规范和 Go 技能
-  learning/       # 中文课程、练习与验收
-old/               # Python 课程参考，不参与 Go 构建
+  development/       # 中文 Go 和前端规范
+  learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-其余空目录是预留骨架，第一阶段没有加入数据库、Kafka、流式、RAG 或持久化会话。
+学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。阅读顺序：`apps/demos/runner.go` → `domain/agent/loop.go`、`tools.go` → `infra/deepseek/client.go` → `apps/interfaces/http/api/handler.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
 
-入口调用 `apps/config.Load`，将模型、观测和运行预算显式传入各组件。各组件自己的配置类型保留在所属包；领域层不读取配置文件或环境变量。
+旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
-管理台后续通过 HTTP API 使用后台能力；命令行入口当前运行 Agent 学习课程。前端自己的构建和运行配置放在 `apps/interfaces/console` 内。
+## 观测与边界
 
-管理台当前保留 Ant Design Pro 官方完整版示例，通过本机 Mock 展示通用表单、列表、详情、登录和权限页面；后续接入 Go HTTP 接口另行处理。启动方法和演示账号见[管理台说明](apps/interfaces/console/README.md)。
+每次运行一个根 span，每次模型请求和工具分发一个子 span。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
 
-## 验收
+默认总运行超时 120s、单次模型超时 60s；最多 5 次模型请求、8 次工具分发、8000 个累计已知 token 的软预算。真实演示会消耗模型 token；测试只使用假模型与内存观测器，不读取真实密钥。
 
-本次测试和真实链路结果见[验收记录](docs/learning/verification.md)。
+当前只做本机演示，不增加生产鉴权、流式、数据库或持久化会话。每次点击是独立运行，消息历史课程的一次运行包含两轮。
+
+## 验证
 
 ```sh
-go vet ./...
-go test ./...
-go test -race ./...
+./scripts/go vet ./...
+./scripts/go test ./...
+./scripts/go test -race ./...
 
-# 真实课程同时检查业务结果、实际调用数和父子 span 入库。
-go run ./apps/interfaces/cli/learning -lesson chat -env-file .env -verify
-go run ./apps/interfaces/cli/learning -lesson messages -env-file .env -verify
-go run ./apps/interfaces/cli/learning -lesson agent -env-file .env -verify
-
-# 只查询已有记录，不调用模型、不新建 span。
-go run ./apps/interfaces/cli/learning -lesson verify -env-file .env -trace-id 实际32位trace_id -expect 4
+cd apps/interfaces/console
+npx --no-install biome check src/pages/demos/go-agent
+npm run tsc
+npm run build
 ```
 
-格式检查可运行 `gofmt -l apps/config apps/interfaces domain/agent infra/deepseek infra/openobserve`；无输出表示格式一致。配置、观测失败、用量缺失与验收边界见[OpenObserve 说明](docs/learning/openobserve.md)。
+格式由 `gofmt` 和现有 Biome 统一处理。构建前停止前端开发服务，构建结束后重新执行 `npm start`。规范见 [中文开发规范](docs/development/README.md)。

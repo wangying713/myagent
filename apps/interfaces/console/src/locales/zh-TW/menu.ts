@@ -1,4 +1,5 @@
 export default {
+  'menu.demos.go-agent': 'Go Agent 示例',
   'menu.chatbot': 'AI 助手',
   'menu.demos': '示例頁面（Demos）',
   'menu.demos.user': '註冊示例',

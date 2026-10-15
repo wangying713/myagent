@@ -1,4 +1,6 @@
-# Python 与 Agent 开发学习
+# Python 与 Agent 开发学习（历史归档，已废弃）
+
+> 当前学习资料已迁移到 [Go 学习指南](../../docs/learning/README.md)。本目录不再维护；下面内容、命令和验收属于旧 Python 工作区，不是当前 Go 项目的运行说明。
 
 用普通 Python 和 HTTP 调用 DeepSeek，手写 Agent 循环，并通过 OpenObserve 查看模型请求、工具执行和运行结果。当前课程包含初级、中级、高级共 10 个 demo，另有独立的 Python 标准库练习。
 

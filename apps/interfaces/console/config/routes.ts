@@ -64,6 +64,12 @@ export default [
         redirect: '/demos/dashboard/analysis',
       },
       {
+        path: '/demos/go-agent',
+        name: 'go-agent',
+        icon: 'experiment',
+        component: './demos/go-agent',
+      },
+      {
         path: '/demos/dashboard',
         name: 'dashboard',
         icon: 'dashboard',

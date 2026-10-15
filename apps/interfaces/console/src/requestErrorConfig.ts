@@ -88,6 +88,9 @@ export const errorConfig: RequestConfig = {
   // 请求拦截器
   requestInterceptors: [
     (config: RequestOptions) => {
+      if (config.url?.startsWith('/api/demos/')) {
+        return config;
+      }
       // 拦截请求配置，进行个性化处理。
       const url = config?.url?.concat('?token=123');
       return { ...config, url };
