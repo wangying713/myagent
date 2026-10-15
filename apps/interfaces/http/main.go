@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"sakelei/ai/apps/config"
 	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/deepseek"
 	"sakelei/ai/infra/openobserve"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {

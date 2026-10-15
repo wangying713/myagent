@@ -1,0 +1,11 @@
+{
+  "go.alternateTools": {
+    "go": "${workspaceFolder}/.tools/go1.27.2/bin/go",
+    "gopls": "${workspaceFolder}/.tools/gopls/bin/gopls"
+  },
+  "go.toolsEnvVars": {
+    "GOROOT": "${workspaceFolder}/.tools/go1.27.2",
+    "GOTOOLCHAIN": "local",
+    "PATH": "${workspaceFolder}/.tools/go1.27.2/bin:${env:PATH}"
+  }
+}

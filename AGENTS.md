@@ -2,6 +2,7 @@
 
 - 本项目用于学习 Go Agent 开发，开发遵循 `docs/development` 中的核心规范、具体规范和最佳实践，注意三者的规范层级。
 - 按任务应用该目录的 Go 风格、错误处理、测试和并发技能。中文解释、注释、练习和运行提示；代码标识符保留 Go 惯用写法。
+- 手写 Go 文件导入按“标准库 → 本项目包（`sakelei/ai`）→ 外部依赖”分组，组间空一行，组内由 `gofmt` 排序；生成文件不手改。具体见 `docs/development/go-decisions.zh-CN.md`。
 - `apps/config` 负责启动配置加载、默认值和校验。`apps/interfaces` 负责入口适配：`http` 放后台服务 API，`console` 放管理台，`cli` 继续预留；本次不新增命令行课程。前端构建和运行配置放在 `console` 内。
 - `domain/agent` 负责聊天、消息历史、工具调用业务及协议、乘法工具与有限循环；`infra` 负责 DeepSeek、OpenObserve 和可复用的 `httpx` 请求解析、响应编码。各组件配置保留在所属包，由 Go 入口显式传入；领域层不读取环境或使用隐藏的全局依赖，不导入 Gin、OpenTelemetry 或 `infra`；观测能力通过使用方定义的小接口注入。
 - Go HTTP 接口统一使用 Gin，路由与中间件位于 `apps/interfaces/http`。HTTP API 请求、响应数据及业务错误映射位于 `http/api`，通用 HTTP 能力位于 `infra/httpx`，不依赖业务包。路由逐条声明完整路径并绑定具名方法，禁止用课程字符串动态分发。业务层显式接收 `context.Context`，不依赖 `gin.Context`；保留严格 JSON 校验、稳定错误响应及现有取消和观测契约。
