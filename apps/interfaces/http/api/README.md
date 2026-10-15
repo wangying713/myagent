@@ -1,0 +1,73 @@
+# HTTP API 与 Proto 消息
+
+三个 Agent 接口使用 Proto 定义请求和响应数据，继续通过 Gin 提供 HTTP JSON。接口路径、管理台调用方式、错误码、取消与观测行为保持原有约定。
+
+## 目录与阅读顺序
+
+```text
+api/
+  agent/v1/
+    agent.proto             # 请求、响应、步骤与用量的消息定义
+    agent.pb.go             # 工具生成的 Go 消息，不手工修改
+  agent.go                  # 处理器依赖与请求超时
+  chat.go                   # 普通聊天入口
+  messages.go               # 两轮消息历史入口
+  run.go                    # 工具循环入口
+  response.go               # 领域结果转换为 Proto 消息
+  response_json.go          # Proto 消息适配现有 HTTP JSON 格式
+  errors.go                 # 业务错误映射
+```
+
+从 `http/router.go` 找完整 URL，进入对应处理方法，再看 `agent/v1/agent.proto` 的输入输出。业务实现仍在 `domain/agent`，不导入生成包。
+
+`v1` 是消息包版本，不会自动在 URL 增加 `/v1`。本次只生成消息，不生成路由、RPC 服务、前端客户端或接口文档；三个完整路由仍逐条绑定具名方法。公共 `data` / `error` 外层继续由 `infra/httpx` 定义，不与 Agent 消息绑定。
+
+## 生成与一致性检查
+
+在项目根目录执行：
+
+```sh
+# 修改 agent.proto 后，重新生成 Go 消息。
+./scripts/generate-proto
+
+# 只比较生成结果，不修改已检入的生成文件；不一致时返回非零退出码。
+./scripts/generate-proto --check
+```
+
+工具版本：
+
+| 工具 | 固定版本与来源 |
+| --- | --- |
+| Go | 项目工具链 1.27.2，通过 `scripts/go` 使用 |
+| protoc | 29.3，脚本校验版本 |
+| protoc-gen-go 与 Go Protobuf 运行时 | 同为 `go.mod` 锁定的 v1.36.12 |
+
+生成脚本优先使用项目内 `.tools/protoc-29.3/bin/protoc`，否则检查 `PATH` 中的 `protoc`。已有 29.3 版可直接运行。其他机器可从 [Protobuf v29.3 官方发布页](https://github.com/protocolbuffers/protobuf/releases/tag/v29.3) 下载对应操作系统与架构的编译器压缩包，将其中的 `bin`、`include` 解压到 `.tools/protoc-29.3`；不需要覆盖系统安装。只构建、运行已检入的 Go 代码不需要 protoc。
+
+脚本使用项目 Go 工具链，将生成器构建到被忽略的 `.tools/protobuf`，不需要全局安装插件；第一次运行如果 Go 模块未缓存，需要下载锁定依赖。生成文件由临时目录中的完整结果覆盖，检查模式不改源文件。提交时同时包含 `.proto` 和 `.pb.go`，并运行生成一致性检查。
+
+生成文件开头可能将编译器显示为 `v5.29.3`，这是该工具的版本表示；命令行检查仍是 `libprotoc 29.3`。生成器自动附带的英文机械注释保留，业务消息注释来自中文 `.proto`。
+
+## HTTP JSON 兼容边界
+
+请求先由 `httpx.DecodeProtoJSON` 按消息描述符校验顶层字段名，再由官方 `protojson` 解码。保留 32 KiB 正文限制、内容类型检查，以及对顶层未知字段、重复字段、大小写与驼峰别名、显式 null、多段 JSON 的拒绝；不使用 Gin 默认绑定替代这些检查。字段名从 `.proto` 派生，不在处理器里维护第二份允许字段列表。
+
+- `question` 使用 `optional string`，区分省略与显式空字符串；省略使用默认问题，空字符串或空白问题无效。
+- `questions` 使用 `repeated string`。这类字段本身不提供存在性，因此通用解码器另行返回实际出现的顶层字段。处理器保留“省略使用默认问题、显式空数组无效”的原有行为，不在领域层引入协议依赖。
+- 用量使用 `optional int64`，区分未知、已知为零和其他数值。
+
+**响应使用现有项目的 HTTP JSON 格式，不是标准 ProtoJSON 响应。** 官方 ProtoJSON 默认使用驼峰字段名、将 64 位整数输出为字符串，并有自己的零值和 null 规则。管理台当前使用下划线字段名、数字整数、未知用量的 null、可省略的步骤属性，以及 `steps: null` 与 `steps: []` 的区别。直接替换编码器会改变这些契约。
+
+因此 `response.go` 先将领域结果转换为生成消息，再由 `response_json.go` 的私有格式类型转换，最终交给 `httpx` 统一编码和写出。这里的私有结构体只负责现有 JSON 表现，不作为另一套业务消息使用；不直接对生成类型调用 `encoding/json`，也不修改生成文件的标签。新增响应字段时，要同时补充领域映射、JSON 映射和响应契约测试。
+
+当前管理台仍使用手写 TypeScript HTTP 类型，不能直接用标准 ProtoJSON 响应解码器替代现有请求封装。Go `int64` 在服务端完整保留；浏览器中的数字仍受 JavaScript 安全整数范围限制，与改造前相同。
+
+## 修改消息的约定
+
+1. 先修改 `.proto`，字段编号在发布后不重用；删除字段时保留其编号与名称。
+2. 修改生成文件必须通过生成命令完成，不复制同步对象、不手写生成器内部结构。
+3. 接口类型停留在 HTTP 适配层，通过明确转换调用领域服务。
+4. Proto 类型不替代业务校验；问题数量、长度、工具权限和预算继续由现有业务处理。
+5. 运行生成检查、格式检查、`go vet`、普通测试与竞态测试；全程使用假模型和内存观测器。
+
+原理参考：[Go 消息生成说明](https://protobuf.dev/reference/go/go-generated/)、[ProtoJSON 格式](https://protobuf.dev/programming-guides/json/)、[字段存在性](https://protobuf.dev/programming-guides/field_presence/)。这些官方页面是来源资料，项目内使用说明以本中文文档为准。

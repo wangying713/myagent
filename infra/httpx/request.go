@@ -17,15 +17,9 @@ const MaxBodyBytes = 32 << 10
 // DecodeJSON 只接收单个 JSON 对象，顶层拒绝重复字段、未知字段、大小写别名和 null。
 // fields 由具体接口显式声明；本包不认识任何业务字段，也不校验业务语义。
 func DecodeJSON(c *gin.Context, dst any, fields ...string) error {
-	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
-	if err != nil || media != "application/json" {
-		return &RequestError{Status: http.StatusUnsupportedMediaType, Detail: Error{Code: "invalid_content_type", Message: "请使用 application/json"}}
-	}
-	body := http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodyBytes)
-	defer body.Close()
-	values, err := decodeObject(body, fields)
+	values, err := readJSONObject(c, fields)
 	if err != nil {
-		return requestError(err)
+		return err
 	}
 	// 按目标请求类型验证字段值；前面的 token 检查补足标准解码器的宽松行为。
 	raw, err := json.Marshal(values)
@@ -38,6 +32,20 @@ func DecodeJSON(c *gin.Context, dst any, fields ...string) error {
 		return requestError(err)
 	}
 	return nil
+}
+
+func readJSONObject(c *gin.Context, fields []string) (map[string]json.RawMessage, error) {
+	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
+	if err != nil || media != "application/json" {
+		return nil, &RequestError{Status: http.StatusUnsupportedMediaType, Detail: Error{Code: "invalid_content_type", Message: "请使用 application/json"}}
+	}
+	body := http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodyBytes)
+	defer body.Close()
+	values, err := decodeObject(body, fields)
+	if err != nil {
+		return nil, requestError(err)
+	}
+	return values, nil
 }
 
 func decodeObject(body io.Reader, fields []string) (map[string]json.RawMessage, error) {

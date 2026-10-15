@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package sakelei.http.agent.v1;
+
+option go_package = "sakelei/ai/apps/interfaces/http/api/agent/v1;agentv1";
+
+// ChatRequest 对应 POST /api/agent/chat；省略问题使用默认问题，空字符串无效。
+message ChatRequest {
+  optional string question = 1;
+}
+
+// MessagesRequest 对应 POST /api/agent/messages，一次执行固定两轮。
+// HTTP 层另行保留字段是否出现：省略使用默认问题，显式空数组无效。
+message MessagesRequest {
+  repeated string questions = 1;
+}
+
+// RunRequest 对应 POST /api/agent/run，只允许调用已注册的工具。
+message RunRequest {
+  optional string question = 1;
+}
+
+// ExecutionResult 是三个接口的响应数据，公共 data/error 外层由 httpx 定义。
+// 现有 HTTP JSON 使用下划线字段名和数字整数，具体编码由 API 边界适配。
+message ExecutionResult {
+  string lesson = 1;
+  bool completed = 2;
+  string answer = 3;
+  string trace_id = 4;
+  bool telemetry_enabled = 5;
+  int64 elapsed_ms = 6;
+  int64 model_calls = 7;
+  int64 tool_calls = 8;
+  int64 known_tokens = 9;
+  bool usage_complete = 10;
+  repeated ExecutionStep steps = 11;
+}
+
+// Usage 保留用量是否已知；未提供与明确为零的含义不同。
+message Usage {
+  optional int64 prompt_tokens = 1;
+  optional int64 completion_tokens = 2;
+  optional int64 total_tokens = 3;
+}
+
+// ExecutionStep 是一次实际模型请求或工具执行的脱敏记录。
+message ExecutionStep {
+  string kind = 1;
+  string name = 2;
+  string request = 3;
+  string response = 4;
+  int64 elapsed_ms = 5;
+  string finish_reason = 6;
+  Usage usage = 7;
+  string error = 8;
+}

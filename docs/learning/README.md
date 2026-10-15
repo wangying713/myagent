@@ -50,6 +50,7 @@ npm start
 | [模型客户端](../../infra/deepseek/client.go) | 标准库 HTTP/JSON、请求超时、响应验证 |
 | [观测](../../infra/openobserve/telemetry.go) | 私有 provider、脱敏副本、OTLP/HTTP、生命周期 |
 | [路由](../../apps/interfaces/http/router.go)、[HTTP API](../../apps/interfaces/http/api/chat.go) | 显式路由、请求定义、总超时、业务错误映射与结果转换 |
+| [Proto 消息](../../apps/interfaces/http/api/agent/v1/agent.proto)、[生成与 JSON 适配](../../apps/interfaces/http/api/README.md) | 接口消息生成、字段存在性与现有 HTTP JSON 契约 |
 | [通用 HTTP](../../infra/httpx/README.md) | 严格 JSON 解析、响应编码，不依赖业务 |
 | [启动入口](../../apps/interfaces/http/main.go) | 配置和依赖组装、信号取消、服务退出 |
 | [管理台页面](../../apps/interfaces/console/src/pages/agent-development/index.tsx) | 发请求、取消、展示回答和真实步骤 |

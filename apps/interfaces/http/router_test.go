@@ -16,15 +16,25 @@ import (
 
 	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
-	"sakelei/ai/apps/interfaces/http/api"
+	"sakelei/ai/apps/interfaces/http/api/agent/v1"
 	"sakelei/ai/domain/agent"
 	"sakelei/ai/infra/deepseek"
 	"sakelei/ai/infra/httpx"
 	"sakelei/ai/infra/openobserve"
 )
 
-type Response = httpx.Response[api.ExecutionResult]
+// 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
+type Response = httpx.Response[struct {
+	Completed   bool              `json:"completed"`
+	Answer      string            `json:"answer"`
+	TraceID     string            `json:"trace_id"`
+	ModelCalls  int               `json:"model_calls"`
+	ToolCalls   int               `json:"tool_calls"`
+	KnownTokens int               `json:"known_tokens"`
+	Steps       []json.RawMessage `json:"steps"`
+}]
 
 type memoryExporter struct {
 	mu    sync.Mutex
@@ -174,13 +184,53 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 	}
 }
 
+func TestCustomQuestionsReachModel(t *testing.T) {
+	for _, tc := range []struct {
+		lesson, body string
+		questions    []string
+	}{
+		{lesson: "chat", body: `{"question":"解释 Go 接口"}`, questions: []string{"解释 Go 接口"}},
+		{lesson: "messages", body: `{"questions":["请记住名字小白","刚才的名字是什么"]}`, questions: []string{"请记住名字小白", "刚才的名字是什么"}},
+		{lesson: "agent", body: `{"question":"计算 3 乘 5"}`, questions: []string{"计算 3 乘 5"}},
+	} {
+		t.Run(tc.lesson, func(t *testing.T) {
+			var calls atomic.Int32
+			handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+				var request agent.Request
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Errorf("模型请求解码失败：%v", err)
+					w.WriteHeader(400)
+					return
+				}
+				index := int(calls.Add(1)) - 1
+				if index >= len(tc.questions) || len(request.Messages) == 0 {
+					t.Errorf("实际第 %d 次模型请求、%d 条消息，预期最多 %d 次且非空", index+1, len(request.Messages), len(tc.questions))
+					w.WriteHeader(400)
+					return
+				}
+				last := request.Messages[len(request.Messages)-1]
+				if last.Role != "user" || last.Content != tc.questions[index] {
+					t.Errorf("模型实际收到 %+v，预期自定义问题 %q", last, tc.questions[index])
+				}
+				reply(w, map[string]string{"role": "assistant", "content": last.Content}, "stop")
+			}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+			out, response := invoke(handler, tc.lesson, tc.body)
+			if out.Code != 200 || !response.Data.Completed || response.Data.Answer != tc.questions[len(tc.questions)-1] || int(calls.Load()) != len(tc.questions) {
+				t.Errorf("实际 HTTP %d、响应 %s、调用 %d 次，预期使用自定义问题完成 %d 次调用", out.Code, out.Body.String(), calls.Load(), len(tc.questions))
+			}
+		})
+	}
+}
+
 func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	var calls atomic.Int32
 	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }, agent.DefaultLimits(), time.Second, &memoryExporter{})
-	for _, body := range []string{`null`, `[]`, `{`, `{} {}`, `{"question":null}`, `{"question":""}`, `{"Question":"问题"}`, `{"question":"a","question":"b"}`, `{"model":"override"}`, `{"questions":["a","b"]}`, `{"question":"  "}`} {
-		w, _ := invoke(handler, "chat", body)
-		if w.Code != 400 {
-			t.Errorf("输入 %s 实际 HTTP %d，预期 400", body, w.Code)
+	for _, lesson := range []string{"chat", "agent"} {
+		for _, body := range []string{`null`, `[]`, `{`, `{} {}`, `{"question":null}`, `{"question":""}`, `{"Question":"问题"}`, `{"question":"a","question":"b"}`, `{"model":"override"}`, `{"questions":["a","b"]}`, `{"question":"  "}`, `{"question":123}`} {
+			w, _ := invoke(handler, lesson, body)
+			if w.Code != 400 {
+				t.Errorf("接口 %s 输入 %s 实际 HTTP %d，预期 400", lesson, body, w.Code)
+			}
 		}
 	}
 	for _, body := range []string{`{"question":"` + strings.Repeat("a", 40<<10) + `"}`, `{}` + strings.Repeat(" ", 40<<10)} {
@@ -189,9 +239,11 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 			t.Errorf("超大请求实际 HTTP %d，响应 %s，预期 request_too_large", w.Code, w.Body.String())
 		}
 	}
-	w, _ := invoke(handler, "messages", `{"questions":["只有一轮"]}`)
-	if w.Code != 400 {
-		t.Error("历史课程应明确限制两轮")
+	for _, body := range []string{`{"questions":[]}`, `{"questions":null}`, `{"questions":["只有一轮"]}`, `{"questions":["a","b","c"]}`, `{"questions":[null,"b"]}`, `{"questions":["a",2]}`, `{"questions":["a",""]}`, `{"questions":["a","b"],"questions":["c","d"]}`, `{"Questions":["a","b"]}`, `{"questions":["a","b"],"model":"override"}`} {
+		w, _ := invoke(handler, "messages", body)
+		if w.Code != 400 {
+			t.Errorf("历史接口输入 %s 实际 HTTP %d，预期 400", body, w.Code)
+		}
 	}
 	r := httptest.NewRequest(http.MethodGet, "/api/agent/chat", nil)
 	out := httptest.NewRecorder()
@@ -425,7 +477,11 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, _ := json.Marshal(api.ChatRequest{Question: &question})
+			body, err := protojson.Marshal(&agentv1.ChatRequest{Question: &question})
+			if err != nil {
+				t.Errorf("编码聊天请求：%v", err)
+				return
+			}
 			w, response := invoke(handler, "chat", string(body))
 			if w.Code != 200 || response.Data.Answer != question || response.Data.ModelCalls != 1 || len(response.Data.Steps) != 1 {
 				t.Errorf("并发运行混入其他结果：%s", w.Body.String())

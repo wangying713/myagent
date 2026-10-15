@@ -1,0 +1,52 @@
+#!/bin/sh
+# 固定编译器版本；Go 生成器与运行时共用 go.mod 锁定的 Protobuf 版本。
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_dir"
+
+check=false
+case "${1:-}" in
+    "") ;;
+    --check) check=true ;;
+    *) echo "用法：./scripts/generate-proto [--check]" >&2; exit 1 ;;
+esac
+if [ "$#" -gt 1 ]; then
+    echo "用法：./scripts/generate-proto [--check]" >&2
+    exit 1
+fi
+
+compiler="$project_dir/.tools/protoc-29.3/bin/protoc"
+if [ ! -x "$compiler" ]; then
+    if ! compiler=$(command -v protoc); then
+        echo "未找到 protoc，请按 apps/interfaces/http/api/README.md 安装 29.3 版" >&2
+        exit 1
+    fi
+fi
+if [ "$("$compiler" --version)" != "libprotoc 29.3" ]; then
+    echo "需要 protoc 29.3，请按 apps/interfaces/http/api/README.md 配置工具" >&2
+    exit 1
+fi
+
+generator="$project_dir/.tools/protobuf/protoc-gen-go"
+mkdir -p "$project_dir/.tools/protobuf"
+./scripts/go build -o "$generator" google.golang.org/protobuf/cmd/protoc-gen-go
+
+output_dir=$(mktemp -d "${TMPDIR:-/tmp}/sakelei-proto.XXXXXX")
+trap 'rm -rf "$output_dir"' EXIT
+trap 'exit 1' HUP INT TERM
+schema=apps/interfaces/http/api/agent/v1/agent.proto
+generated=apps/interfaces/http/api/agent/v1/agent.pb.go
+"$compiler" -I . --plugin="protoc-gen-go=$generator" \
+    --go_out="$output_dir" --go_opt=paths=source_relative "$schema"
+
+if [ "$check" = true ]; then
+    if ! cmp -s "$output_dir/$generated" "$generated"; then
+        echo "生成文件与 proto 定义不一致，请运行 ./scripts/generate-proto" >&2
+        exit 1
+    fi
+    echo "Proto 生成文件检查通过"
+else
+    cp "$output_dir/$generated" "$generated"
+    echo "已生成 $generated"
+fi

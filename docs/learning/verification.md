@@ -5,6 +5,7 @@
 在项目根目录执行，测试不读取真实密钥、不连接模型或 OpenObserve：
 
 ```sh
+./scripts/generate-proto --check
 ./scripts/go fmt ./...
 ./scripts/go vet ./...
 ./scripts/go test ./...
@@ -25,6 +26,8 @@ npm run build
 | --- | --- |
 | [领域业务测试](../../domain/agent/service_test.go) | 三个业务方法、默认问题、历史、部分结果、取消、脱敏与观测事件 |
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
+| [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
+| [响应兼容测试](../../apps/interfaces/http/api/response_json_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
 | [HTTP 测试](../../apps/interfaces/http/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
 | [配置测试](../../apps/config/config_test.go) | 显式文件、环境优先级及非法配置 |
@@ -43,6 +46,16 @@ npm run build
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-15：Proto 消息接入验证
+
+三个接口的请求、响应、步骤与用量已在 `apps/interfaces/http/api/agent/v1/agent.proto` 定义并生成 Go 消息。Gin 路由、HTTP URL、公共响应和领域业务保持原有分工，领域层不依赖生成包。请求字段名从消息描述符提取，响应通过 API 私有格式适配保留现有 JSON；具体边界见 [Proto 使用说明](../../apps/interfaces/http/api/README.md)。
+
+`scripts/generate-proto --check`、Go 格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。编译器固定为 protoc 29.3，生成器与运行时共用现有 v1.36.12 依赖，未升级其他依赖。
+
+新增与扩展的离线测试验证了三个接口的默认与自定义问题、历史问题数组的省略和显式空数组、未知字段与别名、重复字段、null、类型错误和正文超限。响应契约测试核对下划线字段名、必需零值、数字整数、未知与零用量、步骤可选字段及 null/空数组；原有预算、取消、错误脱敏、观测父子关系和并发隔离测试继续通过。
+
+本轮未修改管理台源码，未启动服务或进行真实模型调用、浏览器点击与 OpenObserve 入库复验。通过离线契约测试确认现有调用格式，不将其表述为真实环境验收通过。
 
 ## 2026-10-15：HTTP 与领域分层改造验证
 

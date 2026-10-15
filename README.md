@@ -37,7 +37,7 @@ npm start
 apps/
   config/            # 显式文件与环境变量配置
   interfaces/
-    http/            # 启动入口、显式路由；api 放请求定义和处理方法
+    http/            # 启动入口、显式路由；api 放 Proto 消息、处理方法与 JSON 适配
     console/         # 通用管理台；agent-development 为三课独立页面
     cli/             # 预留，本次不新增 CLI 课程
 domain/agent/        # 三个业务流程、执行记录、协议、乘法工具和有限循环
@@ -54,6 +54,8 @@ docs/
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
+HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/api/agent/v1/agent.proto)。修改后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/api/README.md)。
+
 ## 观测与边界
 
 每次运行一个根 span，每次模型请求和工具分发一个子 span。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
@@ -65,6 +67,7 @@ docs/
 ## 验证
 
 ```sh
+./scripts/generate-proto --check
 ./scripts/go vet ./...
 ./scripts/go test ./...
 ./scripts/go test -race ./...

@@ -1,6 +1,6 @@
 # 后台服务 API
 
-`main.go` 组装配置、DeepSeek、OpenObserve 和 Agent 业务；`router.go` 逐条注册完整路由；`api` 包定义请求、业务响应和具名处理方法。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。
+`main.go` 组装配置、DeepSeek、OpenObserve 和 Agent 业务；`router.go` 逐条注册完整路由；`api/agent/v1/agent.proto` 定义业务消息并生成 Go 类型，`api` 包实现具名处理方法和 JSON 适配。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。生成命令与兼容边界见 [Proto 消息说明](api/README.md)。
 
 三课原理、操作练习与通过标准见 [中文学习指南](../../../docs/learning/README.md)。
 
@@ -42,7 +42,7 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 ## Gin 使用约定
 
 - `router.go` 的 `newRouter` 返回 `*gin.Engine`，显式注册 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run` 和 `/api/health`。旧 `/api/demos/*` 已移除；不通过循环或课程字符串生成路由。
-- `api/chat.go`、`messages.go`、`run.go` 各自定义请求类型和处理方法，调用 `domain/agent.Service` 对应方法。业务结果转换为 API 数据，外层公共响应结构由 `httpx` 提供。
+- `api/chat.go`、`messages.go`、`run.go` 使用生成的请求类型，分别调用 `domain/agent.Service` 对应方法。业务结果转换为生成的响应消息，再适配现有 HTTP JSON，外层公共响应结构由 `httpx` 提供。
 - `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `api/errors.go`。
 - 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
 - `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
