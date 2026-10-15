@@ -1,4 +1,4 @@
-module sakelei/ai
+module saklay/ai
 
 go 1.27.0
 

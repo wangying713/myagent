@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v5.29.3
-// source: apps/interfaces/http/api/agent/v1/agent.proto
+// source: apps/interfaces/http/proto/agent.proto
 
-package agentv1
+package httpproto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -31,7 +31,7 @@ type ChatRequest struct {
 
 func (x *ChatRequest) Reset() {
 	*x = ChatRequest{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[0]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *ChatRequest) String() string {
 func (*ChatRequest) ProtoMessage() {}
 
 func (x *ChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[0]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *ChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatRequest.ProtoReflect.Descriptor instead.
 func (*ChatRequest) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{0}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ChatRequest) GetQuestion() string {
@@ -77,7 +77,7 @@ type MessagesRequest struct {
 
 func (x *MessagesRequest) Reset() {
 	*x = MessagesRequest{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -89,7 +89,7 @@ func (x *MessagesRequest) String() string {
 func (*MessagesRequest) ProtoMessage() {}
 
 func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[1]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,7 +102,7 @@ func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessagesRequest.ProtoReflect.Descriptor instead.
 func (*MessagesRequest) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{1}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *MessagesRequest) GetQuestions() []string {
@@ -122,7 +122,7 @@ type RunRequest struct {
 
 func (x *RunRequest) Reset() {
 	*x = RunRequest{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -134,7 +134,7 @@ func (x *RunRequest) String() string {
 func (*RunRequest) ProtoMessage() {}
 
 func (x *RunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[2]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -147,7 +147,7 @@ func (x *RunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunRequest.ProtoReflect.Descriptor instead.
 func (*RunRequest) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{2}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RunRequest) GetQuestion() string {
@@ -178,7 +178,7 @@ type ExecutionResult struct {
 
 func (x *ExecutionResult) Reset() {
 	*x = ExecutionResult{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +190,7 @@ func (x *ExecutionResult) String() string {
 func (*ExecutionResult) ProtoMessage() {}
 
 func (x *ExecutionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[3]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -203,7 +203,7 @@ func (x *ExecutionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionResult.ProtoReflect.Descriptor instead.
 func (*ExecutionResult) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ExecutionResult) GetLesson() string {
@@ -295,7 +295,7 @@ type Usage struct {
 
 func (x *Usage) Reset() {
 	*x = Usage{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +307,7 @@ func (x *Usage) String() string {
 func (*Usage) ProtoMessage() {}
 
 func (x *Usage) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[4]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +320,7 @@ func (x *Usage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Usage.ProtoReflect.Descriptor instead.
 func (*Usage) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Usage) GetPromptTokens() int64 {
@@ -361,7 +361,7 @@ type ExecutionStep struct {
 
 func (x *ExecutionStep) Reset() {
 	*x = ExecutionStep{}
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[5]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +373,7 @@ func (x *ExecutionStep) String() string {
 func (*ExecutionStep) ProtoMessage() {}
 
 func (x *ExecutionStep) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[5]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +386,7 @@ func (x *ExecutionStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionStep.ProtoReflect.Descriptor instead.
 func (*ExecutionStep) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP(), []int{5}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExecutionStep) GetKind() string {
@@ -445,11 +445,11 @@ func (x *ExecutionStep) GetError() string {
 	return ""
 }
 
-var File_apps_interfaces_http_api_agent_v1_agent_proto protoreflect.FileDescriptor
+var File_apps_interfaces_http_proto_agent_proto protoreflect.FileDescriptor
 
-const file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc = "" +
+const file_apps_interfaces_http_proto_agent_proto_rawDesc = "" +
 	"\n" +
-	"-apps/interfaces/http/api/agent/v1/agent.proto\x12\x15sakelei.http.agent.v1\";\n" +
+	"&apps/interfaces/http/proto/agent.proto\x12\x15sakelei.http.agent.v1\";\n" +
 	"\vChatRequest\x12\x1f\n" +
 	"\bquestion\x18\x01 \x01(\tH\x00R\bquestion\x88\x01\x01B\v\n" +
 	"\t_question\"/\n" +
@@ -491,22 +491,22 @@ const file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc = "" +
 	"elapsed_ms\x18\x05 \x01(\x03R\telapsedMs\x12#\n" +
 	"\rfinish_reason\x18\x06 \x01(\tR\ffinishReason\x122\n" +
 	"\x05usage\x18\a \x01(\v2\x1c.sakelei.http.agent.v1.UsageR\x05usage\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05errorB6Z4sakelei/ai/apps/interfaces/http/api/agent/v1;agentv1b\x06proto3"
+	"\x05error\x18\b \x01(\tR\x05errorB0Z.saklay/ai/apps/interfaces/http/proto;httpprotob\x06proto3"
 
 var (
-	file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescOnce sync.Once
-	file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescData []byte
+	file_apps_interfaces_http_proto_agent_proto_rawDescOnce sync.Once
+	file_apps_interfaces_http_proto_agent_proto_rawDescData []byte
 )
 
-func file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescGZIP() []byte {
-	file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescOnce.Do(func() {
-		file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc), len(file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc)))
+func file_apps_interfaces_http_proto_agent_proto_rawDescGZIP() []byte {
+	file_apps_interfaces_http_proto_agent_proto_rawDescOnce.Do(func() {
+		file_apps_interfaces_http_proto_agent_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_apps_interfaces_http_proto_agent_proto_rawDesc), len(file_apps_interfaces_http_proto_agent_proto_rawDesc)))
 	})
-	return file_apps_interfaces_http_api_agent_v1_agent_proto_rawDescData
+	return file_apps_interfaces_http_proto_agent_proto_rawDescData
 }
 
-var file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_apps_interfaces_http_api_agent_v1_agent_proto_goTypes = []any{
+var file_apps_interfaces_http_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_apps_interfaces_http_proto_agent_proto_goTypes = []any{
 	(*ChatRequest)(nil),     // 0: sakelei.http.agent.v1.ChatRequest
 	(*MessagesRequest)(nil), // 1: sakelei.http.agent.v1.MessagesRequest
 	(*RunRequest)(nil),      // 2: sakelei.http.agent.v1.RunRequest
@@ -514,7 +514,7 @@ var file_apps_interfaces_http_api_agent_v1_agent_proto_goTypes = []any{
 	(*Usage)(nil),           // 4: sakelei.http.agent.v1.Usage
 	(*ExecutionStep)(nil),   // 5: sakelei.http.agent.v1.ExecutionStep
 }
-var file_apps_interfaces_http_api_agent_v1_agent_proto_depIdxs = []int32{
+var file_apps_interfaces_http_proto_agent_proto_depIdxs = []int32{
 	5, // 0: sakelei.http.agent.v1.ExecutionResult.steps:type_name -> sakelei.http.agent.v1.ExecutionStep
 	4, // 1: sakelei.http.agent.v1.ExecutionStep.usage:type_name -> sakelei.http.agent.v1.Usage
 	2, // [2:2] is the sub-list for method output_type
@@ -524,29 +524,29 @@ var file_apps_interfaces_http_api_agent_v1_agent_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_apps_interfaces_http_api_agent_v1_agent_proto_init() }
-func file_apps_interfaces_http_api_agent_v1_agent_proto_init() {
-	if File_apps_interfaces_http_api_agent_v1_agent_proto != nil {
+func init() { file_apps_interfaces_http_proto_agent_proto_init() }
+func file_apps_interfaces_http_proto_agent_proto_init() {
+	if File_apps_interfaces_http_proto_agent_proto != nil {
 		return
 	}
-	file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[0].OneofWrappers = []any{}
-	file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[2].OneofWrappers = []any{}
-	file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes[4].OneofWrappers = []any{}
+	file_apps_interfaces_http_proto_agent_proto_msgTypes[0].OneofWrappers = []any{}
+	file_apps_interfaces_http_proto_agent_proto_msgTypes[2].OneofWrappers = []any{}
+	file_apps_interfaces_http_proto_agent_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc), len(file_apps_interfaces_http_api_agent_v1_agent_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apps_interfaces_http_proto_agent_proto_rawDesc), len(file_apps_interfaces_http_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_apps_interfaces_http_api_agent_v1_agent_proto_goTypes,
-		DependencyIndexes: file_apps_interfaces_http_api_agent_v1_agent_proto_depIdxs,
-		MessageInfos:      file_apps_interfaces_http_api_agent_v1_agent_proto_msgTypes,
+		GoTypes:           file_apps_interfaces_http_proto_agent_proto_goTypes,
+		DependencyIndexes: file_apps_interfaces_http_proto_agent_proto_depIdxs,
+		MessageInfos:      file_apps_interfaces_http_proto_agent_proto_msgTypes,
 	}.Build()
-	File_apps_interfaces_http_api_agent_v1_agent_proto = out.File
-	file_apps_interfaces_http_api_agent_v1_agent_proto_goTypes = nil
-	file_apps_interfaces_http_api_agent_v1_agent_proto_depIdxs = nil
+	File_apps_interfaces_http_proto_agent_proto = out.File
+	file_apps_interfaces_http_proto_agent_proto_goTypes = nil
+	file_apps_interfaces_http_proto_agent_proto_depIdxs = nil
 }

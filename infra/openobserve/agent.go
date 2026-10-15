@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"time"
 
+	"saklay/ai/domain/agent"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-
-	"sakelei/ai/domain/agent"
 )
 
 var _ agent.Observer = (*Telemetry)(nil)

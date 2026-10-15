@@ -49,15 +49,16 @@ npm start
 | [循环](../../domain/agent/loop.go) | 模型 → 工具 → 回填 → 模型，预算与取消 |
 | [模型客户端](../../infra/deepseek/client.go) | 标准库 HTTP/JSON、请求超时、响应验证 |
 | [观测](../../infra/openobserve/telemetry.go) | 私有 provider、脱敏副本、OTLP/HTTP、生命周期 |
-| [路由](../../apps/interfaces/http/router.go)、[HTTP API](../../apps/interfaces/http/api/chat.go) | 显式路由、请求定义、总超时、业务错误映射与结果转换 |
-| [Proto 消息](../../apps/interfaces/http/api/agent/v1/agent.proto)、[生成与 JSON 适配](../../apps/interfaces/http/api/README.md) | 接口消息生成、字段存在性与现有 HTTP JSON 契约 |
+| [路由](../../apps/interfaces/http/router.go)、[HTTP API](../../apps/interfaces/http/agent/chat.go) | 显式绑定 `(ctx, req) → (rsp, err)` 方法，参数与结果转换 |
+| [HTTP 适配器](../../infra/httpx/adapter.go)、[业务注入](../../apps/interfaces/http/agent/adapter.go) | 严格解码、超时、取消、部分结果与业务错误映射 |
+| [共用数据](../../apps/interfaces/http/entity/README.md)、[Proto 消息](../../apps/interfaces/http/proto/agent.proto)、[生成与 JSON 适配](../../apps/interfaces/http/agent/README.md) | 接口消息生成、字段存在性与现有 HTTP JSON 契约 |
 | [通用 HTTP](../../infra/httpx/README.md) | 严格 JSON 解析、响应编码，不依赖业务 |
-| [启动入口](../../apps/interfaces/http/main.go) | 配置和依赖组装、信号取消、服务退出 |
+| [启动入口](../../apps/interfaces/http/main.go)、[HTTP 生命周期](../../apps/interfaces/http/server.go) | 配置和依赖组装、信号取消、等待请求结束与有界清理 |
 | [管理台页面](../../apps/interfaces/console/src/pages/agent-development/index.tsx) | 发请求、取消、展示回答和真实步骤 |
 
 模型 HTTP 客户端在服务启动时创建并复用；历史和统计在每次运行中创建。观测 provider 也属于整个服务，不能在一次请求结束时关闭。`context.Context` 从 HTTP 请求传入循环、模型和工具；请求结束后通过返回值和错误报告实际状态。
 
-后台接口使用 Gin；阅读 HTTP 代码时先看 `router.go` 中的完整路径，再进入 `api` 中的具名处理方法，最后进入 `domain/agent` 中的对应业务方法。Gin 上下文只负责入口适配，业务继续使用标准 `context.Context`，模型客户端仍直接发送标准库 HTTP 请求。具体约定见 [HTTP 接口说明](../../apps/interfaces/http/README.md)。
+后台接口使用 Gin；阅读 HTTP 代码时先看 `router.go` 中的完整路径，再进入 `agent` 中的具名处理方法，最后进入 `domain/agent` 中的对应业务方法。Gin 上下文只负责入口适配，业务继续使用标准 `context.Context`，模型客户端仍直接发送标准库 HTTP 请求。具体约定见 [HTTP 接口说明](../../apps/interfaces/http/README.md)。
 
 ## 迁移范围
 

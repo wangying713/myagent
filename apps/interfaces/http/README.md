@@ -1,6 +1,8 @@
 # 后台服务 API
 
-`main.go` 组装配置、DeepSeek、OpenObserve 和 Agent 业务；`router.go` 逐条注册完整路由；`api/agent/v1/agent.proto` 定义业务消息并生成 Go 类型，`api` 包实现具名处理方法和 JSON 适配。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。生成命令与兼容边界见 [Proto 消息说明](api/README.md)。
+`main.go` 解析启动参数、加载配置并组装 DeepSeek、OpenObserve 和 Agent 业务；`server.go` 管理 HTTP 服务及请求的生命周期；`router.go` 逐条注册完整路由；`proto/agent.proto` 定义业务消息并生成 Go 类型，`entity/agent.go` 定义共用 JSON 数据，`agent` 包（`agentapi`）实现具名处理方法和数据转换。通用 JSON 校验、响应编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。生成命令与兼容边界见 [Proto 消息说明](agent/README.md)。
+
+协议定义和生成文件放在 `proto`，手写共用数据放在 [entity](entity/README.md)，后续新增接口遵循相同规范。
 
 三课原理、操作练习与通过标准见 [中文学习指南](../../../docs/learning/README.md)。
 
@@ -38,12 +40,14 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 | 504 | `timeout` | 总运行或单次模型请求超时 |
 | 502 | `invalid_model_response` / `model_request_failed` | 模型协议或服务错误 |
 | 500 | `internal_error` | 尚未写出响应时发生未预期 panic，返回固定中文错误 |
+| 503 | `service_unavailable` | 服务退出期间拒绝刚进入处理器的新请求，不调用业务 |
 
 ## Gin 使用约定
 
 - `router.go` 的 `newRouter` 返回 `*gin.Engine`，显式注册 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run` 和 `/api/health`。旧 `/api/demos/*` 已移除；不通过循环或课程字符串生成路由。
-- `api/chat.go`、`messages.go`、`run.go` 使用生成的请求类型，分别调用 `domain/agent.Service` 对应方法。业务结果转换为生成的响应消息，再适配现有 HTTP JSON，外层公共响应结构由 `httpx` 提供。
-- `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `api/errors.go`。
+- `agent/chat.go`、`messages.go`、`run.go` 使用 `(ctx, req) → (rsp, err)` 签名，分别调用 `domain/agent.Service` 对应方法，返回生成的响应消息及错误。它们不接收 Gin 上下文或直接写 HTTP 响应。
+- `router.go` 使用 `httpx.Adapt` 逐条绑定 API；`agentapi.NewAgentAdapter` 注入 JSON 格式和业务错误映射，由通用适配器负责严格解码、请求超时、上下文释放和写出响应。失败时保留返回的部分结果。
+- `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `agent/errors.go`。
 - 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
 - `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
 - 保留现有严格 JSON 解码，不用默认绑定替代重复键、未知字段、大小写和多段 JSON 等校验。32 KiB 限制也覆盖 JSON 后的尾随空白。
@@ -62,15 +66,28 @@ POST 使用 `Content-Type: application/json`。空对象使用原 Python demo �
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
 
+## 服务退出与清理顺序
+
+`main` 负责信号和最终错误输出；`execute` 解析参数并加载配置；`run` 管理依赖；`server.go` 统一处理信号取消和监听异常。
+
+收到信号或监听失败后，先取消请求上下文并停止放行业务请求，再在共用的 10 秒期限内关闭服务、等待监听循环和正在执行的处理器结束。服务退出期间新进入的请求返回固定 JSON 503。监听失败、正常停止失败及强制关闭失败保留原始错误链，最终由入口统一输出。
+
+监听循环返回、连接被关闭，都不等于处理方法已经返回。入口通过请求计数与停止闸门单独确认完成，避免退出等待开始后又加入业务请求。正常结束后先释放模型客户端，再在独立的 5 秒期限内刷新并关闭观测；观测刷新失败只提示，不覆盖原始业务或退出错误。
+
+若退出超时，会强制关闭 HTTP 连接，并报告仍在运行的请求数。Go 无法强制终止不响应取消的处理方法，此时服务会有界返回错误并继续清理，提示后续观测可能缺失，不声称所有请求已经结束。业务和工具仍需遵守上下文取消约定。
+
 ## 从 URL 定位代码
 
 ```text
 POST /api/agent/chat
-  → apps/interfaces/http/router.go：agentAPI.Chat
-  → apps/interfaces/http/api/chat.go：Agent.Chat
+  → apps/interfaces/http/router.go：httpx.Adapt(adapter, agentAPI.Chat)
+  → infra/httpx/adapter.go：解码、派生上下文
+  → apps/interfaces/http/agent/chat.go：Agent.Chat(ctx, req) → (rsp, err)
   → domain/agent/chat.go：Service.Chat
   → infra/deepseek/client.go：Client.Chat
 ```
+
+结果沿调用链返回后，由适配器使用 `agent/adapter.go` 注入的规则映射错误和 JSON，统一写出响应。
 
 历史消息对应 `messages.go`，工具调用对应 `run.go`。`domain/agent/recording.go` 只包装模型和工具，记录执行步骤与预算统计，不决定运行哪个业务。OpenObserve 通过 `infra/openobserve/agent.go` 实现领域定义的观测接口，领域层不依赖具体观测 SDK。
 

@@ -4,15 +4,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"saklay/ai/apps/interfaces/http/agent"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/httpx"
 
-	"sakelei/ai/apps/interfaces/http/api"
-	"sakelei/ai/domain/agent"
-	"sakelei/ai/infra/httpx"
+	"github.com/gin-gonic/gin"
 )
 
 func newRouter(service *agent.Service, timeout time.Duration) (*gin.Engine, error) {
-	agentAPI, err := api.NewAgent(service, timeout)
+	agentAPI, err := agentapi.NewAgent(service)
+	if err != nil {
+		return nil, err
+	}
+	adapter, err := agentapi.NewAgentAdapter(timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -39,9 +43,9 @@ func newRouter(service *agent.Service, timeout time.Duration) (*gin.Engine, erro
 	// 路由逐条声明完整地址，便于从 URL 直接定位具名处理方法。
 	router.GET("/api/health", health)
 	router.HEAD("/api/health", health)
-	router.POST("/api/agent/chat", agentAPI.Chat)
-	router.POST("/api/agent/messages", agentAPI.Messages)
-	router.POST("/api/agent/run", agentAPI.Run)
+	router.POST("/api/agent/chat", httpx.Adapt(adapter, agentAPI.Chat))
+	router.POST("/api/agent/messages", httpx.Adapt(adapter, agentAPI.Messages, agentapi.PrepareMessages))
+	router.POST("/api/agent/run", httpx.Adapt(adapter, agentAPI.Run))
 	return router, nil
 }
 

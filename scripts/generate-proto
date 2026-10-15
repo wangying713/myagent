@@ -19,12 +19,12 @@ fi
 compiler="$project_dir/.tools/protoc-29.3/bin/protoc"
 if [ ! -x "$compiler" ]; then
     if ! compiler=$(command -v protoc); then
-        echo "未找到 protoc，请按 apps/interfaces/http/api/README.md 安装 29.3 版" >&2
+        echo "未找到 protoc，请按 apps/interfaces/http/agent/README.md 安装 29.3 版" >&2
         exit 1
     fi
 fi
 if [ "$("$compiler" --version)" != "libprotoc 29.3" ]; then
-    echo "需要 protoc 29.3，请按 apps/interfaces/http/api/README.md 配置工具" >&2
+    echo "需要 protoc 29.3，请按 apps/interfaces/http/agent/README.md 配置工具" >&2
     exit 1
 fi
 
@@ -35,8 +35,8 @@ mkdir -p "$project_dir/.tools/protobuf"
 output_dir=$(mktemp -d "${TMPDIR:-/tmp}/sakelei-proto.XXXXXX")
 trap 'rm -rf "$output_dir"' EXIT
 trap 'exit 1' HUP INT TERM
-schema=apps/interfaces/http/api/agent/v1/agent.proto
-generated=apps/interfaces/http/api/agent/v1/agent.pb.go
+schema=apps/interfaces/http/proto/agent.proto
+generated=apps/interfaces/http/proto/agent.pb.go
 "$compiler" -I . --plugin="protoc-gen-go=$generator" \
     --go_out="$output_dir" --go_opt=paths=source_relative "$schema"
 

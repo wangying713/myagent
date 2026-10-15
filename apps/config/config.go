@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/deepseek"
+	"saklay/ai/infra/openobserve"
 
-	"sakelei/ai/domain/agent"
-	"sakelei/ai/infra/deepseek"
-	"sakelei/ai/infra/openobserve"
+	"github.com/joho/godotenv"
 )
 
 type Settings struct {
@@ -23,7 +23,7 @@ type Settings struct {
 	Limits  agent.Limits
 }
 
-// HTTPSettings 保存 HTTP 进程启动设置，入口将请求超时显式传给 API。
+// HTTPSettings 保存 HTTP 进程启动设置，入口将请求超时显式传给 HTTP 适配器。
 type HTTPSettings struct {
 	Address    string
 	RunTimeout time.Duration

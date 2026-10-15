@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package sakelei.http.agent.v1;
 
-option go_package = "sakelei/ai/apps/interfaces/http/api/agent/v1;agentv1";
+option go_package = "saklay/ai/apps/interfaces/http/proto;httpproto";
 
 // ChatRequest 对应 POST /api/agent/chat；省略问题使用默认问题，空字符串无效。
 message ChatRequest {

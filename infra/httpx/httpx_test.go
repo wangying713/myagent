@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"saklay/ai/infra/httpx"
 
-	"sakelei/ai/infra/httpx"
+	"github.com/gin-gonic/gin"
 )
 
 // 使用与 Agent 无关的请求，验证本包可供其他后台模块复用。

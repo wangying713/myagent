@@ -1,12 +1,12 @@
-package api
+package agentapi
 
 import (
 	"context"
 	"errors"
 	"net/http"
 
-	"sakelei/ai/domain/agent"
-	"sakelei/ai/infra/httpx"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/httpx"
 )
 
 // Agent 业务错误的 HTTP 映射留在本接口包，不能进入通用 httpx。

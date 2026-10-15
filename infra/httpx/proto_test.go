@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"saklay/ai/infra/httpx"
+
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/types/known/typepb"
-
-	"sakelei/ai/infra/httpx"
 )
 
 func TestDecodeProtoJSONContract(t *testing.T) {

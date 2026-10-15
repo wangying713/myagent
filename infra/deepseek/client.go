@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/openobserve"
 
-	"sakelei/ai/domain/agent"
-	"sakelei/ai/infra/openobserve"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Config struct {

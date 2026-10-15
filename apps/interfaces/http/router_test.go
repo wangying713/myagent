@@ -14,15 +14,15 @@ import (
 	"testing"
 	"time"
 
+	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/deepseek"
+	"saklay/ai/infra/httpx"
+	"saklay/ai/infra/openobserve"
+
 	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	"sakelei/ai/apps/interfaces/http/api/agent/v1"
-	"sakelei/ai/domain/agent"
-	"sakelei/ai/infra/deepseek"
-	"sakelei/ai/infra/httpx"
-	"sakelei/ai/infra/openobserve"
 )
 
 // 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
@@ -395,6 +395,10 @@ func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 func TestRequestDeadlineAndCallerCancellation(t *testing.T) {
 	for _, callerCancel := range []bool{false, true} {
 		t.Run(map[bool]string{false: "总超时", true: "调用方取消"}[callerCancel], func(t *testing.T) {
+			timeout := 50 * time.Millisecond
+			if callerCancel {
+				timeout = 5 * time.Second
+			}
 			started, finished, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
 				io.Copy(io.Discard, r.Body)
@@ -404,7 +408,7 @@ func TestRequestDeadlineAndCallerCancellation(t *testing.T) {
 				case <-release:
 				}
 				close(finished)
-			}, agent.DefaultLimits(), 50*time.Millisecond, &memoryExporter{})
+			}, agent.DefaultLimits(), timeout, &memoryExporter{})
 			t.Cleanup(func() { close(release) })
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -477,7 +481,7 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, err := protojson.Marshal(&agentv1.ChatRequest{Question: &question})
+			body, err := protojson.Marshal(&httpproto.ChatRequest{Question: &question})
 			if err != nil {
 				t.Errorf("编码聊天请求：%v", err)
 				return

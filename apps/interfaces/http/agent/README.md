@@ -1,26 +1,57 @@
-# HTTP API 与 Proto 消息
+# Agent HTTP API 与 Proto 消息
 
 三个 Agent 接口使用 Proto 定义请求和响应数据，继续通过 Gin 提供 HTTP JSON。接口路径、管理台调用方式、错误码、取消与观测行为保持原有约定。
 
 ## 目录与阅读顺序
 
 ```text
-api/
-  agent/v1/
-    agent.proto             # 请求、响应、步骤与用量的消息定义
-    agent.pb.go             # 工具生成的 Go 消息，不手工修改
-  agent.go                  # 处理器依赖与请求超时
+http/agent/                 # Go 包名 agentapi
+  agent.go                  # API 业务依赖
   chat.go                   # 普通聊天入口
   messages.go               # 两轮消息历史入口
   run.go                    # 工具循环入口
+  request.go                # 请求到领域输入的转换
+  adapter.go                # 注入编码、错误映射与解码后的字段准备
   response.go               # 领域结果转换为 Proto 消息
   response_json.go          # Proto 消息适配现有 HTTP JSON 格式
   errors.go                 # 业务错误映射
+
+http/entity/
+  agent.go                  # 共用的 HTTP JSON 数据结构
+
+http/proto/                 # Go 包名 httpproto
+  agent.proto               # 请求、响应、步骤与用量的消息定义
+  agent.pb.go               # 工具生成的 Go 消息，不手工修改
 ```
 
-从 `http/router.go` 找完整 URL，进入对应处理方法，再看 `agent/v1/agent.proto` 的输入输出。业务实现仍在 `domain/agent`，不导入生成包。
+从 `http/router.go` 找完整 URL，进入 `http/agent` 对应处理方法，再看 `http/proto/agent.proto` 的输入输出。业务实现仍在 `domain/agent`，不导入生成包。
 
-`v1` 是消息包版本，不会自动在 URL 增加 `/v1`。本次只生成消息，不生成路由、RPC 服务、前端客户端或接口文档；三个完整路由仍逐条绑定具名方法。公共 `data` / `error` 外层继续由 `infra/httpx` 定义，不与 Agent 消息绑定。
+协议定义和生成文件直接放在 `http/proto`，按业务分文件。本次只生成消息，不生成路由、RPC 服务、前端客户端或接口文档；三个完整路由仍逐条绑定具名方法。公共 `data` / `error` 外层继续由 `infra/httpx` 定义，不与 Agent 消息绑定。修改消息时，同时检查 Proto、HTTP JSON、业务语义和管理台调用的兼容性。
+
+## API 方法写法
+
+三个 API 统一使用 `(ctx, req) → (rsp, err)`：上下文和请求是入参，响应与错误是返回值。例如当前消息历史入口：
+
+```go
+func (a *Agent) Messages(ctx context.Context, req *httpproto.MessagesRequest) (*httpproto.ExecutionResult, error) {
+	result, err := a.service.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
+	return resultMessage(result), err
+}
+```
+
+`Chat` 和 `Run` 先转换并校验问题的省略与空字符串，再按同样方式返回结果。API 方法不接收 `gin.Context`，不解析 HTTP 正文、不设置超时、不直接写响应。
+
+`router.go` 创建 `agentapi.NewAgent(service)` 和 `agentapi.NewAgentAdapter(timeout)`，再逐条绑定：
+
+```go
+router.POST("/api/agent/chat", httpx.Adapt(adapter, agentAPI.Chat))
+router.POST("/api/agent/messages", httpx.Adapt(adapter, agentAPI.Messages, agentapi.PrepareMessages))
+router.POST("/api/agent/run", httpx.Adapt(adapter, agentAPI.Run))
+```
+
+`infra/httpx/adapter.go` 为每个请求创建新的请求对象，严格解码后运行显式注入的字段准备函数，再从 HTTP 请求上下文派生总超时，调用具名 API，最后统一编码返回并释放上下文。泛型约束在编译期检查请求指针实现 Proto 消息接口，不通过反射寻找方法或按课程字符串分发。
+
+`agent/adapter.go` 只注入本业务的 JSON 格式和错误映射。响应和错误可以同时非空：例如预算中止、模型失败时仍返回已完成的步骤。适配器不能看到错误就丢弃响应，API 也不能在已有部分结果时提前返回 `nil, err`。解析失败或没有结果时，API 编码规则保留原有零值数据结构。
 
 ## 生成与一致性检查
 
@@ -53,12 +84,12 @@ api/
 请求先由 `httpx.DecodeProtoJSON` 按消息描述符校验顶层字段名，再由官方 `protojson` 解码。保留 32 KiB 正文限制、内容类型检查，以及对顶层未知字段、重复字段、大小写与驼峰别名、显式 null、多段 JSON 的拒绝；不使用 Gin 默认绑定替代这些检查。字段名从 `.proto` 派生，不在处理器里维护第二份允许字段列表。
 
 - `question` 使用 `optional string`，区分省略与显式空字符串；省略使用默认问题，空字符串或空白问题无效。
-- `questions` 使用 `repeated string`。这类字段本身不提供存在性，因此通用解码器另行返回实际出现的顶层字段。处理器保留“省略使用默认问题、显式空数组无效”的原有行为，不在领域层引入协议依赖。
+- `questions` 使用 `repeated string`。这类字段本身不提供存在性，因此通用解码器另行返回实际出现的顶层字段。路由为消息接口显式绑定 `agentapi.PrepareMessages`，在成功解码后将显式空数组保留为非 nil 的空切片，省略则保持 nil。领域方法仍按原规则处理，不从上下文读取隐藏参数。
 - 用量使用 `optional int64`，区分未知、已知为零和其他数值。
 
 **响应使用现有项目的 HTTP JSON 格式，不是标准 ProtoJSON 响应。** 官方 ProtoJSON 默认使用驼峰字段名、将 64 位整数输出为字符串，并有自己的零值和 null 规则。管理台当前使用下划线字段名、数字整数、未知用量的 null、可省略的步骤属性，以及 `steps: null` 与 `steps: []` 的区别。直接替换编码器会改变这些契约。
 
-因此 `response.go` 先将领域结果转换为生成消息，再由 `response_json.go` 的私有格式类型转换，最终交给 `httpx` 统一编码和写出。这里的私有结构体只负责现有 JSON 表现，不作为另一套业务消息使用；不直接对生成类型调用 `encoding/json`，也不修改生成文件的标签。新增响应字段时，要同时补充领域映射、JSON 映射和响应契约测试。
+因此 `response.go` 先将领域结果转换为生成消息，再由 `response_json.go` 转换为 `entity/agent.go` 定义的共用 JSON 数据，最终交给 `httpx` 统一编码和写出。这些结构体只负责现有 JSON 表现；转换函数仍留在 `http/agent`，不直接对生成类型调用 `encoding/json`，也不修改生成文件的标签。新增响应字段时，要同时补充共用数据定义、领域映射、JSON 映射和响应契约测试。后续接口的数据放置规则见 [HTTP 共用数据规范](../entity/README.md)。
 
 当前管理台仍使用手写 TypeScript HTTP 类型，不能直接用标准 ProtoJSON 响应解码器替代现有请求封装。Go `int64` 在服务端完整保留；浏览器中的数字仍受 JavaScript 安全整数范围限制，与改造前相同。
 

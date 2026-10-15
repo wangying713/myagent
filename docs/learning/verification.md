@@ -27,9 +27,11 @@ npm run build
 | [领域业务测试](../../domain/agent/service_test.go) | 三个业务方法、默认问题、历史、部分结果、取消、脱敏与观测事件 |
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
-| [响应兼容测试](../../apps/interfaces/http/api/response_json_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
+| [HTTP 适配器测试](../../infra/httpx/adapter_test.go) | 返回响应与错误、字段准备、超时取消、上下文释放与并发隔离 |
+| [响应兼容测试](../../apps/interfaces/http/agent/response_json_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
 | [HTTP 测试](../../apps/interfaces/http/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
+| [服务生命周期测试](../../apps/interfaces/http/server_test.go) | 信号与监听异常、等待处理器结束、强制关闭、有界退出、原始错误链和退出前结束 span |
 | [配置测试](../../apps/config/config_test.go) | 显式文件、环境优先级及非法配置 |
 | [脱敏测试](../../infra/openobserve/telemetry_test.go) | 敏感字段、长度限制、不修改原始正文 |
 
@@ -47,9 +49,37 @@ npm run build
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
 
+## 2026-10-15：HTTP 共用数据集中验证
+
+Agent Proto 请求、响应、步骤与用量位于 `apps/interfaces/http/proto`，现有 JSON 结果、步骤和用量结构迁入 `entity/agent.go`。转换、字段准备与业务错误映射继续由 `http/agent` 负责。生成脚本、导入、阅读路径和项目约定已同步，后续新增接口沿用数据定义集中、业务适配分包的规则。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、相关 Markdown 本地链接、旧路径扫描及 `git diff --check` 均通过。包依赖检查确认 `entity` 不依赖领域、Gin 或基础设施，领域与 `httpx` 也不依赖 `entity`。现有响应兼容测试继续覆盖数字整数、零值、未知用量、null 与空数组；本轮未调用真实模型或进行浏览器验收。
+
+## 2026-10-15：Agent 接口目录整理验证
+
+Agent 的处理方法、请求响应转换、JSON 适配、业务错误映射及响应契约测试统一迁入 `apps/interfaces/http/agent`，Go 包名为 `agentapi`；原 `http.go` 更名为 `adapter.go`。移除中间的 `api` 目录，`http/proto` 保存第一版 Proto 消息，完整路由仍由 `http/router.go` 显式绑定。导入、学习资料、生成工具的说明路径和项目约定已同步。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、相关 Markdown 本地链接及 `git diff --check` 均通过。URL、消息定义、JSON 格式及领域业务保持现有契约；本轮仅做目录与包组织调整，未调用真实模型或进行浏览器验收。
+
+## 2026-10-15：评审收尾与退出流程验证
+
+入口已拆分为参数与配置加载、依赖组装、HTTP 生命周期三个职责。`server.go` 在退出信号和监听异常时统一取消请求、停止接收业务、等待处理器结束，并在共用的 10 秒期限内清理；超时强制关闭连接、报告仍在运行的请求，不将连接关闭当作业务完成。底层监听、停止和关闭错误通过错误链保留。正常请求结束后才释放模型客户端，并用独立 5 秒期限刷新观测；未结束请求的强制退出会明确提示观测可能缺失。
+
+新增离线生命周期测试验证了信号取消、监听异常、保留原始错误、处理器不响应取消时有界退出、连接先关闭时仍等待处理器、退出期间拒绝新业务请求，以及退出返回前运行与模型 span 均已结束。普通取消测试使用较长截止时间，和 50ms 超时用例分开。旧文件的三组导入顺序与配置注释已同步。
+
+项目手写 Go 文件的导入分组检查、生成一致性检查、格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 与 `git diff --check` 均通过。本轮未启动实际后台或管理台，也未调用真实模型或验证 OpenObserve 入库；网络测试仅使用本机临时监听与假模型。
+
+## 2026-10-15：API 方法签名与统一适配验证
+
+聊天、消息历史和工具循环 API 已统一为 `(ctx, req) → (rsp, err)`，响应通过返回值提供。路由逐条使用 `httpx.Adapt` 绑定具名方法，适配器负责解析、超时、取消、响应写出和上下文释放；JSON 编码及业务错误映射由 API 显式注入。领域方法和三个 HTTP URL 保留现有行为。
+
+新增通用适配器测试使用与 Agent 无关的标准生成请求消息，验证成功响应、响应与错误同时返回、nil 响应、解码失败提前拒绝、显式字段准备、超时、调用方取消、返回后释放上下文和并发隔离。原有响应 JSON 契约测试改为通过适配器执行；三个接口的默认与自定义问题、显式空数组拒绝、预算中止后的部分记录、脱敏、取消和观测父子关系测试继续通过。
+
+生成一致性检查、Go 格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。本轮测试使用假模型及内存观测器，未修改管理台、未启动服务，也未进行真实模型或浏览器验收。
+
 ## 2026-10-15：Proto 消息接入验证
 
-三个接口的请求、响应、步骤与用量已在 `apps/interfaces/http/api/agent/v1/agent.proto` 定义并生成 Go 消息。Gin 路由、HTTP URL、公共响应和领域业务保持原有分工，领域层不依赖生成包。请求字段名从消息描述符提取，响应通过 API 私有格式适配保留现有 JSON；具体边界见 [Proto 使用说明](../../apps/interfaces/http/api/README.md)。
+三个接口的请求、响应、步骤与用量已在 `apps/interfaces/http/proto/agent.proto` 定义并生成 Go 消息。Gin 路由、HTTP URL、公共响应和领域业务保持原有分工，领域层不依赖生成包。请求字段名从消息描述符提取，响应通过 API 私有格式适配保留现有 JSON；具体边界见 [Proto 使用说明](../../apps/interfaces/http/agent/README.md)。
 
 `scripts/generate-proto --check`、Go 格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。编译器固定为 protoc 29.3，生成器与运行时共用现有 v1.36.12 依赖，未升级其他依赖。
 
@@ -59,7 +89,7 @@ npm run build
 
 ## 2026-10-15：HTTP 与领域分层改造验证
 
-三个接口已改为 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run`；健康检查为 `/api/health`。`router.go` 逐条声明完整路径，`http/api` 定义请求、业务响应和具名处理方法，三个流程移入 `domain/agent`。`apps/demos` 已移除。
+三个接口已改为 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run`；健康检查为 `/api/health`。`router.go` 逐条声明完整路径，`http/agent` 定义请求、业务响应和具名处理方法，三个流程移入 `domain/agent`。`apps/demos` 已移除。
 
 通用 HTTP 解析、公共响应和传输错误已提取到 `infra/httpx`。领域层不依赖 Gin、OpenTelemetry 或 `infra`，通过领域定义的观测接口接收 OpenObserve 适配。API 保留现有业务响应字段（包括 `lesson`），路由级错误的 `data` 为 null，不绑定 Agent 响应类型。
 

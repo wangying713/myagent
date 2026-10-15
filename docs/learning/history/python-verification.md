@@ -55,7 +55,7 @@
 ## 重现命令
 
 ```bash
-cd /Users/wangying/apps/sakelei/ai/agent-learning
+cd /Users/wangying/apps/saklay/ai/agent-learning
 uv run python -m unittest discover -s tests -v
 uv run python verify_live.py --level all --evaluate --report .local/verification-levels.json
 ```

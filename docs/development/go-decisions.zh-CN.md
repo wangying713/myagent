@@ -7,7 +7,7 @@
 手写 Go 文件的 `import` 按以下顺序分为三组，组间空一行：
 
 1. **标准库（系统）**：Go 标准库，例如 `context`、`net/http`、`time`。
-2. **本项目包（本地）**：当前模块 `sakelei/ai` 及其子包，例如 `sakelei/ai/apps/config`、`sakelei/ai/domain/agent`。
+2. **本项目包（本地）**：当前模块 `saklay/ai` 及其子包，例如 `saklay/ai/apps/config`、`saklay/ai/domain/agent`。
 3. **外部依赖（第三方）**：当前模块以外的依赖，例如 `github.com/gin-gonic/gin`、`google.golang.org/protobuf/proto`。Go 官方维护但不属于标准库的模块，例如 `golang.org/x/sync`，也属于这一组。
 
 ```go
@@ -16,8 +16,8 @@ import (
 	"net/http"
 	"time"
 
-	"sakelei/ai/apps/config"
-	"sakelei/ai/domain/agent"
+	"saklay/ai/apps/config"
+	"saklay/ai/domain/agent"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,3 +29,23 @@ import (
 - 工具生成的文件沿用生成器输出，不手工修改 `.pb.go` 等生成文件的导入分组。
 
 “标准库 → 本项目包 → 外部依赖”是本项目统一选择的顺序。Google 规范中的一般导入要求见 [Google Go 具体规范：导入](google-go-decisions.zh-CN.md#三导入)。
+
+## HTTP API 方法签名
+
+HTTP 入口下按业务划分包。Agent 的处理方法、请求响应转换与错误映射放在 `http/agent`（Go 包名 `agentapi`）。手写共用数据定义放在 `http/entity`，协议定义和生成文件放在 `http/proto`，第一版 Agent Proto 消息位于 `http/proto`（Go 包名 `httpproto`）。路由和服务生命周期留在 HTTP 入口，通用传输能力留在 `infra/httpx`。
+
+后续新增接口继续遵循这一分工：手写接口数据按业务放入 `entity` 中的文件，Proto 消息直接放在 `http/proto` 下，按业务分文件；多个接口复用同一数据定义。`entity` 只负责字段与序列化约定，不依赖业务处理包、领域服务、Gin 或基础设施；转换、字段准备和错误映射放在业务适配包。领域层与 `infra/httpx` 不依赖 `entity`。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
+
+业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和生成的请求消息指针作为入参，生成的响应消息指针与 `error` 作为返回值。
+
+```go
+func (a *Agent) Chat(ctx context.Context, req *httpproto.ChatRequest) (*httpproto.ExecutionResult, error)
+```
+
+- API 方法负责参数转换、调用领域服务和返回结果，不接收 `gin.Context`，不解析 HTTP 或直接写出响应。
+- `router.go` 逐条声明完整路径，通过 `httpx.Adapt` 绑定具体方法；不通过反射扫描方法或解析注释生成路由。
+- 解析、超时、取消和写出由通用适配器负责；具体 JSON 数据格式与业务错误映射由 API 注入，通用包不依赖业务。
+- 响应和错误可以同时非空，已有的步骤和用量必须保留，不能因错误而统一丢弃响应。
+- 领域层使用自己的输入输出，不依赖接口生成类型；解码后需要保留的字段存在性通过显式准备函数转换到请求对象，不藏在上下文中。
+
+实现与使用说明见 [HTTP API](../../apps/interfaces/http/agent/README.md) 和 [通用适配器](../../infra/httpx/README.md)。

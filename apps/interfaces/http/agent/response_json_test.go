@@ -1,20 +1,28 @@
-package api
+package agentapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/domain/agent"
+	"saklay/ai/infra/httpx"
 
 	"github.com/gin-gonic/gin"
-
-	"sakelei/ai/domain/agent"
 )
 
 func TestResponseJSONCompatibility(t *testing.T) {
+	adapter, err := NewAgentAdapter(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	zero, total := 0, 12
 	for _, tc := range []struct {
 		name   string
@@ -49,9 +57,14 @@ func TestResponseJSONCompatibility(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			router := gin.New()
+			router.POST("/chat", httpx.Adapt(adapter, func(context.Context, *httpproto.ChatRequest) (*httpproto.ExecutionResult, error) {
+				return resultMessage(tc.result), nil
+			}))
 			out := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(out)
-			writeResult(ctx, tc.result, nil)
+			request := httptest.NewRequest(http.MethodPost, "/chat", strings.NewReader(`{}`))
+			request.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(out, request)
 			if out.Code != http.StatusOK {
 				t.Fatalf("实际 HTTP %d，响应 %s，预期 200", out.Code, out.Body.String())
 			}
