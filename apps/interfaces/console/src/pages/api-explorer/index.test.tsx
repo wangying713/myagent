@@ -28,7 +28,7 @@ it('切换接口取消旧请求、保留参数草稿，迟到响应不会覆盖�
     traceID: '',
     elapsedMS: 1,
   });
-  render(<ApiExplorer />);
+  render(React.createElement(ApiExplorer));
   fireEvent.click(screen.getByRole('button', { name: /POST.*聊天接口/ }));
   fireEvent.change(screen.getByLabelText('请求参数（JSON）'), {
     target: { value: '{"question":"修改后的问题"}' },

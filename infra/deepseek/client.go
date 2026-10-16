@@ -58,7 +58,11 @@ func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Cl
 	}
 	copyClient := *client
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Client{config: cfg, http: &copyClient, telemetry: telemetry}, nil
+	return &Client{
+		config:    cfg,
+		http:      &copyClient,
+		telemetry: telemetry,
+	}, nil
 }
 
 // Close 关闭 Transport 的空闲连接，不取消正在执行的请求。

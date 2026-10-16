@@ -9,7 +9,11 @@ import (
 )
 
 func TestSafePayloadRedactionAndTruncation(t *testing.T) {
-	telemetry, err := New(context.Background(), Config{ServiceName: "test", MaxChars: 256, Secrets: []string{"real-key"}}, nil, nil)
+	telemetry, err := New(context.Background(), Config{
+		ServiceName: "test",
+		MaxChars:    256,
+		Secrets:     []string{"real-key"},
+	}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +21,11 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 	raw := []byte(input)
 	original := bytes.Clone(raw)
 	safe := telemetry.Safe(raw)
-	for _, secret := range []string{"real-key", "hidden-value", "token-value"} {
+	for _, secret := range []string{
+		"real-key",
+		"hidden-value",
+		"token-value",
+	} {
 		if strings.Contains(safe, secret) {
 			t.Errorf("脱敏后保留敏感值：%s", safe)
 		}
@@ -35,11 +43,19 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 }
 
 func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
-	telemetry, err := New(t.Context(), Config{ServiceName: "test", MaxChars: 4096}, nil, nil)
+	telemetry, err := New(t.Context(), Config{
+		ServiceName: "test",
+		MaxChars:    4096,
+	}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"9007199254740993", "9223372036854775807", "0.123456789012345678901", "1e400"} {
+	for _, value := range []string{
+		"9007199254740993",
+		"9223372036854775807",
+		"0.123456789012345678901",
+		"1e400",
+	} {
 		t.Run(value, func(t *testing.T) {
 			arguments := `{"a":` + value + `,"secret":"hidden"}`
 			raw, err := json.Marshal(map[string]string{"arguments": arguments})

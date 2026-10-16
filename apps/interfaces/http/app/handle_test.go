@@ -23,9 +23,22 @@ func TestHandleKeepsResponseWithError(t *testing.T) {
 		err    error
 		status int
 	}{
-		{name: "成功", rsp: &proto.ChatRsp{Answer: "完整结果"}, status: 200},
-		{name: "部分结果", rsp: &proto.ChatRsp{Answer: "已完成部分"}, err: errors.New("内部敏感错误"), status: 502},
-		{name: "无结果", err: errors.New("内部敏感错误"), status: 502},
+		{
+			name:   "成功",
+			rsp:    &proto.ChatRsp{Answer: "完整结果"},
+			status: 200,
+		},
+		{
+			name:   "部分结果",
+			rsp:    &proto.ChatRsp{Answer: "已完成部分"},
+			err:    errors.New("内部敏感错误"),
+			status: 502,
+		},
+		{
+			name:   "无结果",
+			err:    errors.New("内部敏感错误"),
+			status: 502,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
@@ -70,9 +83,21 @@ func TestHandleUsesRouterTimeoutAndReleasesContext(t *testing.T) {
 		router  *gin.Engine
 		timeout time.Duration
 	}{
-		{name: "短超时", router: short, timeout: time.Second},
-		{name: "长超时", router: long, timeout: 5 * time.Second},
-		{name: "再次短超时", router: short, timeout: time.Second},
+		{
+			name:    "短超时",
+			router:  short,
+			timeout: time.Second,
+		},
+		{
+			name:    "长超时",
+			router:  long,
+			timeout: 5 * time.Second,
+		},
+		{
+			name:    "再次短超时",
+			router:  short,
+			timeout: time.Second,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := time.Now()
@@ -93,8 +118,14 @@ func TestHandleUsesRouterTimeoutAndReleasesContext(t *testing.T) {
 }
 
 func TestHandleRejectsMissingTimeoutAndUnsupportedResponse(t *testing.T) {
-	for _, configured := range []bool{false, true} {
-		t.Run(map[bool]string{false: "缺少超时配置", true: "未适配响应类型"}[configured], func(t *testing.T) {
+	for _, configured := range []bool{
+		false,
+		true,
+	} {
+		t.Run(map[bool]string{
+			false: "缺少超时配置",
+			true:  "未适配响应类型",
+		}[configured], func(t *testing.T) {
 			router := gin.New()
 			if configured {
 				router.Use(requestTimeout(time.Second))

@@ -30,8 +30,11 @@ func TestExplicitFileAndEnvironment(t *testing.T) {
 
 func TestInvalidConfig(t *testing.T) {
 	for _, values := range []map[string]string{
-		{"TELEMETRY_ENABLED": "yes"}, {"AGENT_MAX_MODEL_CALLS": "0"}, {"HTTP_RUN_TIMEOUT": "-1s"},
-		{"DEEPSEEK_BASE_URL": "https://user:secret@example.com/v1"}, {"OTEL_EXPORTER_OTLP_TRACES_HEADERS": "Authorization=%0Asecret"},
+		{"TELEMETRY_ENABLED": "yes"},
+		{"AGENT_MAX_MODEL_CALLS": "0"},
+		{"HTTP_RUN_TIMEOUT": "-1s"},
+		{"DEEPSEEK_BASE_URL": "https://user:secret@example.com/v1"},
+		{"OTEL_EXPORTER_OTLP_TRACES_HEADERS": "Authorization=%0Asecret"},
 		{"OTEL_EXPORTER_OTLP_TRACES_HEADERS": "Authorization=x,authorization=y"},
 	} {
 		_, err := Load("", func(key string) (string, bool) {

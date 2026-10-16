@@ -12,7 +12,7 @@ type ChatInput struct {
 
 // Chat 发送一次模型请求；未提供问题时使用默认问题。
 func (s *Service) Chat(ctx context.Context, input ChatInput) (result ExecutionResult, err error) {
-	result = s.newResult("chat")
+	result = s.newResult(OperationChat)
 	if input.Question == "" {
 		input.Question = ChatQuestion
 	}
@@ -21,14 +21,22 @@ func (s *Service) Chat(ctx context.Context, input ChatInput) (result ExecutionRe
 	}
 	ctx, execution := s.begin(ctx, &result)
 	defer func() { execution.end(err) }()
-	response, err := execution.model.Chat(ctx, Request{Messages: []Message{
-		{Role: "system", Content: "你是一个简洁的中文助手。"},
-		{Role: "user", Content: input.Question},
-	}})
+	response, err := execution.model.Chat(ctx, Request{
+		Messages: []Message{
+			{
+				Role:    RoleSystem,
+				Content: "你是一个简洁的中文助手。",
+			},
+			{
+				Role:    RoleUser,
+				Content: input.Question,
+			},
+		},
+	})
 	if err != nil {
 		return result, err
 	}
-	if response.FinishReason != "stop" {
+	if response.FinishReason != FinishReasonStop {
 		return result, ErrInvalidResponse
 	}
 	result.Answer = response.Message.Content

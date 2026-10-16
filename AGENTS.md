@@ -3,6 +3,8 @@
 - 本项目用于学习 Go Agent 开发，开发遵循 `docs/development` 中的核心规范、具体规范和最佳实践，注意三者的规范层级。
 - 按任务应用该目录的 Go 风格、错误处理、测试和并发技能。中文解释、注释、练习和运行提示；代码标识符保留 Go 惯用写法。
 - 手写 Go 文件导入按“标准库 → 本项目包（`saklay/ai`）→ 外部依赖”分组，组间空一行，组内由 `gofmt` 排序；生成文件不手改。具体见 `docs/development/go-decisions.zh-CN.md`。
+- 手写 Go 代码（含测试）的复合字面量包含多个元素或字段时，每项单独一行；嵌套展开时外层同步展开，保留尾逗号并由 `gofmt` 格式化。空字面量和简单单项可保留单行。具体见 `docs/development/go-decisions.zh-CN.md` 的“复合字面量换行”。
+- 业务操作、角色、结束原因等固定取值使用所属包的具名常量，多次引用时复用定义；业务阈值和可配置默认值集中管理。个别语义明确的局部字面量、协议声明及独立测试样本可保留，不要求全面常量化。具体见 `docs/development/go-decisions.zh-CN.md` 的“具名常量与字面量”。
 - `apps/config` 负责启动配置加载、默认值和校验。`apps/interfaces` 负责入口适配：`http` 放后台服务 API，`console` 放管理台，`cli` 继续预留；本次不新增命令行课程。前端构建和运行配置放在 `console` 内。
 - `domain/agent` 负责聊天、消息历史、工具调用业务及协议、乘法工具与有限循环；`infra` 负责 DeepSeek、OpenObserve 和可复用的 `httpx` 请求解析、响应编码。各组件配置保留在所属包，由 Go 入口显式传入；领域层不读取环境或使用隐藏的全局依赖，不导入 Gin、OpenTelemetry 或 `infra`；观测能力通过使用方定义的小接口注入。
 - Go HTTP 接口统一使用 Gin，`apps/interfaces/http` 顶层只保留 `main.go` 一个 Go 文件，负责启动参数、配置加载、退出信号和最终错误输出。服务实现与测试集中在 `http/app`（包名 `app`），启动入口为 `Run(ctx, cfg)`；`app/run.go` 组装依赖并释放资源，`app/server.go` 管理 HTTP 生命周期，`app/router.go` 声明路由和中间件。Agent 请求准备、接口实现及各自的 Proto 响应组装放在 `app/impl_agent.go`，HTTP JSON 表现及错误映射位于 `app/handler.go`；后续业务使用 `app/impl_xxx.go`。通用 HTTP 能力位于 `infra/httpx`，不依赖业务包。路由逐条声明完整路径并绑定具名方法，禁止用课程字符串动态分发。业务层显式接收 `context.Context`，不依赖 `gin.Context`；保留严格 JSON 校验、稳定错误响应及现有取消和观测契约。

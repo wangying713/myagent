@@ -17,9 +17,12 @@ type MessagesInput struct {
 // Messages 顺序执行两轮，第二轮携带第一轮实际返回的 assistant 消息。
 // 第二轮失败时仍返回第一轮已完成的回答、步骤和已知用量。
 func (s *Service) Messages(ctx context.Context, input MessagesInput) (result ExecutionResult, err error) {
-	result = s.newResult("messages")
+	result = s.newResult(OperationMessages)
 	if input.Questions == nil {
-		input.Questions = []string{FirstQuestion, SecondQuestion}
+		input.Questions = []string{
+			FirstQuestion,
+			SecondQuestion,
+		}
 	}
 	if len(input.Questions) != 2 {
 		return result, ErrInput
@@ -31,14 +34,22 @@ func (s *Service) Messages(ctx context.Context, input MessagesInput) (result Exe
 	}
 	ctx, execution := s.begin(ctx, &result)
 	defer func() { execution.end(err) }()
-	messages := []Message{{Role: "system", Content: "用简短中文回答。"}}
+	messages := []Message{
+		{
+			Role:    RoleSystem,
+			Content: "用简短中文回答。",
+		},
+	}
 	for _, question := range input.Questions {
-		messages = append(messages, Message{Role: "user", Content: question})
+		messages = append(messages, Message{
+			Role:    RoleUser,
+			Content: question,
+		})
 		response, callErr := execution.model.Chat(ctx, Request{Messages: messages})
 		if callErr != nil {
 			return result, callErr
 		}
-		if response.FinishReason != "stop" {
+		if response.FinishReason != FinishReasonStop {
 			return result, ErrInvalidResponse
 		}
 		messages = append(messages, response.Message)

@@ -20,9 +20,15 @@ func CaptureBodies(limit int, record func(c *gin.Context, request, response []by
 		response := &bodyCapture{limit: limit}
 		body, writer := c.Request.Body, c.Writer
 		if body != nil {
-			c.Request.Body = &captureReader{ReadCloser: body, capture: request}
+			c.Request.Body = &captureReader{
+				ReadCloser: body,
+				capture:    request,
+			}
 		}
-		c.Writer = &captureWriter{ResponseWriter: writer, capture: response}
+		c.Writer = &captureWriter{
+			ResponseWriter: writer,
+			capture:        response,
+		}
 		defer func() {
 			c.Request.Body, c.Writer = body, writer
 		}()

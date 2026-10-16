@@ -34,14 +34,23 @@ func newRouter(service *agent.Service, timeout time.Duration, observer httpObser
 	router.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, _ any) {
 		c.Abort()
 		if !c.Writer.Written() {
-			writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{Code: entity.CodeInternalError, Message: "服务处理异常，请稍后重试"})
+			writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{
+				Code:    entity.CodeInternalError,
+				Message: "服务处理异常，请稍后重试",
+			})
 		}
 	}))
 	router.NoRoute(func(c *gin.Context) {
-		writeHTTPRsp(c, http.StatusNotFound, nil, &httpx.Error{Code: entity.CodeNotFound, Message: "接口不存在"})
+		writeHTTPRsp(c, http.StatusNotFound, nil, &httpx.Error{
+			Code:    entity.CodeNotFound,
+			Message: "接口不存在",
+		})
 	})
 	router.NoMethod(func(c *gin.Context) {
-		writeHTTPRsp(c, http.StatusMethodNotAllowed, nil, &httpx.Error{Code: entity.CodeMethodNotAllowed, Message: "接口不支持该请求方法"})
+		writeHTTPRsp(c, http.StatusMethodNotAllowed, nil, &httpx.Error{
+			Code:    entity.CodeMethodNotAllowed,
+			Message: "接口不支持该请求方法",
+		})
 	})
 
 	// 路由逐条声明完整地址，便于从 URL 直接定位具名处理方法。

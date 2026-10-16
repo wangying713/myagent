@@ -39,7 +39,10 @@ func runHTTP(ctx context.Context, handler http.Handler, cfg config.HTTPSettings)
 func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, timeout time.Duration) error {
 	requestCtx, cancelRequests := context.WithCancel(ctx)
 	defer cancelRequests()
-	requests := &requestTracker{handler: server.Handler, done: make(chan struct{})}
+	requests := &requestTracker{
+		handler: server.Handler,
+		done:    make(chan struct{}),
+	}
 	server.Handler = requests
 	server.BaseContext = func(net.Listener) context.Context { return requestCtx }
 	serveErrors := make(chan error, 1)

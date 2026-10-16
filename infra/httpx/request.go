@@ -38,7 +38,13 @@ func DecodeJSON(c *gin.Context, dst any, fields ...string) error {
 func readJSONObject(c *gin.Context, fields []string) (map[string]json.RawMessage, error) {
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || media != "application/json" {
-		return nil, &RequestError{Status: http.StatusUnsupportedMediaType, Detail: Error{Code: "invalid_content_type", Message: "请使用 application/json"}}
+		return nil, &RequestError{
+			Status: http.StatusUnsupportedMediaType,
+			Detail: Error{
+				Code:    "invalid_content_type",
+				Message: "请使用 application/json",
+			},
+		}
 	}
 	body := http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodyBytes)
 	defer body.Close()

@@ -54,9 +54,16 @@ func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) 
 		return fallback
 	}
 	settings := Settings{
-		Model:   deepseek.Config{APIKey: get("DEEPSEEK_API_KEY", ""), Model: get("DEEPSEEK_MODEL", "deepseek-flash"), BaseURL: get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")},
-		Observe: openobserve.Config{ServiceName: get("OTEL_SERVICE_NAME", "agent"), Endpoint: get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces")},
-		HTTP:    HTTPSettings{Address: get("HTTP_ADDRESS", "127.0.0.1:8080")},
+		Model: deepseek.Config{
+			APIKey:  get("DEEPSEEK_API_KEY", ""),
+			Model:   get("DEEPSEEK_MODEL", "deepseek-flash"),
+			BaseURL: get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+		},
+		Observe: openobserve.Config{
+			ServiceName: get("OTEL_SERVICE_NAME", "agent"),
+			Endpoint:    get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces"),
+		},
+		HTTP: HTTPSettings{Address: get("HTTP_ADDRESS", "127.0.0.1:8080")},
 	}
 	var err error
 	settings.Model.Timeout, err = time.ParseDuration(get("DEEPSEEK_TIMEOUT", "60s"))
@@ -128,7 +135,10 @@ func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) 
 			return settings, errors.New("启用观测时请填写 OTEL_EXPORTER_OTLP_TRACES_HEADERS 的 Authorization")
 		}
 	}
-	for _, endpoint := range []string{settings.Model.BaseURL, settings.Observe.Endpoint} {
+	for _, endpoint := range []string{
+		settings.Model.BaseURL,
+		settings.Observe.Endpoint,
+	} {
 		u, err := url.Parse(endpoint)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 			return settings, errors.New("服务地址应为不含凭据和查询参数的 HTTP(S) URL")
@@ -138,14 +148,15 @@ func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) 
 		return settings, errors.New("观测服务名不能为空，端点应以 /v1/traces 结束")
 	}
 	settings.Observe.Secrets = []string{settings.Model.APIKey}
-	settings.Limits.ModelCalls, err = integer("AGENT_MAX_MODEL_CALLS", 5)
+	defaults := agent.DefaultLimits()
+	settings.Limits.ModelCalls, err = integer("AGENT_MAX_MODEL_CALLS", defaults.ModelCalls)
 	if err != nil {
 		return settings, err
 	}
-	settings.Limits.ToolCalls, err = integer("AGENT_MAX_TOOL_CALLS", 8)
+	settings.Limits.ToolCalls, err = integer("AGENT_MAX_TOOL_CALLS", defaults.ToolCalls)
 	if err != nil {
 		return settings, err
 	}
-	settings.Limits.Tokens, err = integer("AGENT_TOKEN_BUDGET", 8000)
+	settings.Limits.Tokens, err = integer("AGENT_TOKEN_BUDGET", defaults.Tokens)
 	return settings, err
 }

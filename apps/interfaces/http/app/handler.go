@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"time"
@@ -264,16 +265,34 @@ func classifyAgentError(err error) (int, *httpx.Error) {
 	}
 	switch {
 	case errors.Is(err, agent.ErrInput):
-		return http.StatusBadRequest, &httpx.Error{Code: entity.CodeInvalidInput, Message: "聊天与工具调用需要一个问题；历史消息需要两个非空问题，每个问题最多 4096 字符"}
+		return http.StatusBadRequest, &httpx.Error{
+			Code:    entity.CodeInvalidInput,
+			Message: fmt.Sprintf("聊天与工具调用需要一个问题；历史消息需要两个非空问题，每个问题最多 %d 字符", agent.MaxQuestionChars),
+		}
 	case errors.Is(err, context.DeadlineExceeded):
-		return http.StatusGatewayTimeout, &httpx.Error{Code: entity.CodeTimeout, Message: "执行超时，已停止后续调用"}
+		return http.StatusGatewayTimeout, &httpx.Error{
+			Code:    entity.CodeTimeout,
+			Message: "执行超时，已停止后续调用",
+		}
 	case errors.Is(err, context.Canceled):
-		return http.StatusRequestTimeout, &httpx.Error{Code: entity.CodeCanceled, Message: "执行已取消"}
+		return http.StatusRequestTimeout, &httpx.Error{
+			Code:    entity.CodeCanceled,
+			Message: "执行已取消",
+		}
 	case errors.Is(err, agent.ErrBudgetExceeded):
-		return http.StatusConflict, &httpx.Error{Code: entity.CodeBudgetExceeded, Message: "达到运行预算，任务未完成"}
+		return http.StatusConflict, &httpx.Error{
+			Code:    entity.CodeBudgetExceeded,
+			Message: "达到运行预算，任务未完成",
+		}
 	case errors.Is(err, agent.ErrInvalidResponse):
-		return http.StatusBadGateway, &httpx.Error{Code: entity.CodeInvalidModelResponse, Message: "模型未返回完整回答或工具协议无效"}
+		return http.StatusBadGateway, &httpx.Error{
+			Code:    entity.CodeInvalidModelResponse,
+			Message: "模型未返回完整回答或工具协议无效",
+		}
 	default:
-		return http.StatusBadGateway, &httpx.Error{Code: entity.CodeModelRequestFailed, Message: "模型服务调用失败，请通过执行记录和 trace ID 排查"}
+		return http.StatusBadGateway, &httpx.Error{
+			Code:    entity.CodeModelRequestFailed,
+			Message: "模型服务调用失败，请通过执行记录和 trace ID 排查",
+		}
 	}
 }

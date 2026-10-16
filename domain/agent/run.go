@@ -16,7 +16,7 @@ type RunInput struct {
 
 // Run 通过受预算约束的循环调用模型和已注册的乘法工具。
 func (s *Service) Run(ctx context.Context, input RunInput) (result ExecutionResult, err error) {
-	result = s.newResult("agent")
+	result = s.newResult(OperationRun)
 	if input.Question == "" {
 		input.Question = AgentQuestion
 	}
@@ -25,7 +25,11 @@ func (s *Service) Run(ctx context.Context, input RunInput) (result ExecutionResu
 	}
 	ctx, execution := s.begin(ctx, &result)
 	defer func() { execution.end(err) }()
-	tools := &recordingTools{inner: MultiplyTools{}, observer: s.observer, result: &result}
+	tools := &recordingTools{
+		inner:    MultiplyTools{},
+		observer: s.observer,
+		result:   &result,
+	}
 	result.Answer, err = Run(ctx, execution.model, tools, input.Question, AgentPrompt, s.limits)
 	return result, err
 }

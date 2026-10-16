@@ -13,7 +13,11 @@ import (
 
 func TestCaptureBodiesKeepsActualReadWriteAndBoundsCopies(t *testing.T) {
 	const body = "abcdefghijk"
-	for _, limit := range []int{0, 4, 64} {
+	for _, limit := range []int{
+		0,
+		4,
+		64,
+	} {
 		t.Run(strconv.Itoa(limit), func(t *testing.T) {
 			handler := gin.New()
 			called := false

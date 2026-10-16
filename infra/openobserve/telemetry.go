@@ -76,7 +76,10 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 	if warnings == nil {
 		warnings = io.Discard
 	}
-	t := &Telemetry{config: cfg, tracer: noop.NewTracerProvider().Tracer("go-demos")}
+	t := &Telemetry{
+		config: cfg,
+		tracer: noop.NewTracerProvider().Tracer("go-demos"),
+	}
 	t.secrets = append(t.secrets, cfg.Secrets...)
 	for _, value := range cfg.Headers {
 		t.secrets = append(t.secrets, value)
@@ -91,7 +94,10 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 	if exporter == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
-		t.client = &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		t.client = &http.Client{
+			Transport:     transport,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
 		var err error
 		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(t.client), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}))
 		if err != nil {
@@ -99,7 +105,10 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 			return nil, fmt.Errorf("创建 OTLP 导出器失败，请检查观测配置")
 		}
 	}
-	t.provider = sdktrace.NewTracerProvider(sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", cfg.ServiceName))), sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithBatcher(&reportingExporter{inner: exporter, warnings: warnings}, sdktrace.WithBatchTimeout(time.Second), sdktrace.WithMaxQueueSize(256), sdktrace.WithMaxExportBatchSize(32)))
+	t.provider = sdktrace.NewTracerProvider(sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", cfg.ServiceName))), sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithBatcher(&reportingExporter{
+		inner:    exporter,
+		warnings: warnings,
+	}, sdktrace.WithBatchTimeout(time.Second), sdktrace.WithMaxQueueSize(256), sdktrace.WithMaxExportBatchSize(32)))
 	t.tracer = t.provider.Tracer("go-demos")
 	return t, nil
 }

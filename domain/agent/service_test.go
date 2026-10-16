@@ -65,7 +65,14 @@ func TestServiceChatRecordsSafeCopy(t *testing.T) {
 		if len(request.Messages) != 2 || request.Messages[1].Content != ChatQuestion {
 			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", request.Messages)
 		}
-		return Response{Message: Message{Role: "assistant", Content: "回答包含本机密钥"}, FinishReason: "stop", Raw: []byte(`{"answer":"本机密钥"}`)}, nil
+		return Response{
+			Message: Message{
+				Role:    "assistant",
+				Content: "回答包含本机密钥",
+			},
+			FinishReason: "stop",
+			Raw:          []byte(`{"answer":"本机密钥"}`),
+		}, nil
 	})
 	result, err := newTestService(t, model, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
 	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Steps) != 1 || result.UsageComplete {
@@ -77,8 +84,14 @@ func TestServiceChatRecordsSafeCopy(t *testing.T) {
 }
 
 func TestServiceMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
-	for _, limited := range []bool{false, true} {
-		t.Run(map[bool]string{false: "完整两轮", true: "预算停止"}[limited], func(t *testing.T) {
+	for _, limited := range []bool{
+		false,
+		true,
+	} {
+		t.Run(map[bool]string{
+			false: "完整两轮",
+			true:  "预算停止",
+		}[limited], func(t *testing.T) {
 			calls := 0
 			model := modelFunc(func(ctx context.Context, request Request) (Response, error) {
 				calls++
@@ -89,7 +102,13 @@ func TestServiceMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 					}
 					answer = "豆包"
 				}
-				return Response{Message: Message{Role: "assistant", Content: answer}, FinishReason: "stop"}, nil
+				return Response{
+					Message: Message{
+						Role:    "assistant",
+						Content: answer,
+					},
+					FinishReason: "stop",
+				}, nil
 			})
 			limits := DefaultLimits()
 			if limited {
@@ -116,12 +135,33 @@ func TestServiceRunRecordsTool(t *testing.T) {
 	model := modelFunc(func(ctx context.Context, request Request) (Response, error) {
 		calls++
 		if calls == 1 {
-			return Response{Message: Message{Role: "assistant", ToolCalls: []ToolCall{{ID: "one", Type: "function", Function: FunctionCall{Name: "multiply", Arguments: `{"a":17,"b":23}`}}}}, FinishReason: "tool_calls"}, nil
+			return Response{
+				Message: Message{
+					Role: "assistant",
+					ToolCalls: []ToolCall{
+						{
+							ID:   "one",
+							Type: "function",
+							Function: FunctionCall{
+								Name:      "multiply",
+								Arguments: `{"a":17,"b":23}`,
+							},
+						},
+					},
+				},
+				FinishReason: "tool_calls",
+			}, nil
 		}
 		if len(request.Messages) != 4 || request.Messages[3].ToolCallID != "one" || !strings.Contains(request.Messages[3].Content, "391") {
 			t.Fatalf("未回填工具结果：%+v", request.Messages)
 		}
-		return Response{Message: Message{Role: "assistant", Content: "391"}, FinishReason: "stop"}, nil
+		return Response{
+			Message: Message{
+				Role:    "assistant",
+				Content: "391",
+			},
+			FinishReason: "stop",
+		}, nil
 	})
 	observer := &testObserver{}
 	result, err := newTestService(t, model, observer, DefaultLimits()).Run(context.Background(), RunInput{})
@@ -139,7 +179,10 @@ func TestServiceInputAndCancellation(t *testing.T) {
 		t.Fatal("无效输入或取消后不应调用模型")
 		return Response{}, nil
 	}), observer, DefaultLimits())
-	for _, question := range []string{"  ", strings.Repeat("字", 4097)} {
+	for _, question := range []string{
+		"  ",
+		strings.Repeat("字", 4097),
+	} {
 		if _, err := service.Chat(context.Background(), ChatInput{Question: question}); !errors.Is(err, ErrInput) {
 			t.Errorf("聊天实际错误 %v，预期 ErrInput", err)
 		}
@@ -147,7 +190,18 @@ func TestServiceInputAndCancellation(t *testing.T) {
 			t.Errorf("工具运行实际错误 %v，预期 ErrInput", err)
 		}
 	}
-	for _, questions := range [][]string{{}, {"一轮"}, {" ", "第二轮"}, {"第一轮", ""}} {
+	for _, questions := range [][]string{
+		{},
+		{"一轮"},
+		{
+			" ",
+			"第二轮",
+		},
+		{
+			"第一轮",
+			"",
+		},
+	} {
 		if _, err := service.Messages(context.Background(), MessagesInput{Questions: questions}); !errors.Is(err, ErrInput) {
 			t.Errorf("历史消息实际错误 %v，预期 ErrInput", err)
 		}

@@ -8,15 +8,24 @@ import (
 	"math"
 )
 
+// ToolNameMultiply 是乘法工具在声明和调用校验中共用的协议名称。
+const ToolNameMultiply = "multiply"
+
 // MultiplyTools 是当前唯一可用的工具集；不会执行模型生成的函数或文本。
 type MultiplyTools struct{}
 
 // Definitions 返回乘法工具及其 JSON 参数约束，每次调用独立构建定义。
 func (MultiplyTools) Definitions() []ToolDefinition {
-	return []ToolDefinition{{Type: "function", Function: FunctionDefinition{
-		Name: "multiply", Description: "计算两个数的乘积。涉及乘法时使用。",
-		Parameters: json.RawMessage(`{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false}`),
-	}}}
+	return []ToolDefinition{
+		{
+			Type: ToolTypeFunction,
+			Function: FunctionDefinition{
+				Name:        ToolNameMultiply,
+				Description: "计算两个数的乘积。涉及乘法时使用。",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false}`),
+			},
+		},
+	}
 }
 
 // Dispatch 只执行已注册的乘法工具，未知工具或无效参数以 OK=false 的结果返回。
@@ -25,7 +34,7 @@ func (MultiplyTools) Dispatch(ctx context.Context, call ToolCall) (ToolResult, e
 	if err := ctx.Err(); err != nil {
 		return ToolResult{}, err
 	}
-	if call.Type != "function" || call.Function.Name != "multiply" {
+	if call.Type != ToolTypeFunction || call.Function.Name != ToolNameMultiply {
 		return ToolResult{Error: "unknown_tool"}, nil
 	}
 	if !json.Valid([]byte(call.Function.Arguments)) {
@@ -39,7 +48,10 @@ func (MultiplyTools) Dispatch(ctx context.Context, call ToolCall) (ToolResult, e
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return ToolResult{Error: "tool_execution_failed"}, nil
 	}
-	return ToolResult{OK: true, Result: value}, nil
+	return ToolResult{
+		OK:     true,
+		Result: value,
+	}, nil
 }
 
 // multiplyArguments 使用 JSON token 精确检查 a、b 和重复字段，只接受有限数值。

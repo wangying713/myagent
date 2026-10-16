@@ -24,9 +24,21 @@ func (e *RequestError) Error() string { return e.Detail.Message }
 func requestError(err error) *RequestError {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		return &RequestError{Status: http.StatusRequestEntityTooLarge, Detail: Error{Code: "request_too_large", Message: "请求正文不能超过 32 KiB"}}
+		return &RequestError{
+			Status: http.StatusRequestEntityTooLarge,
+			Detail: Error{
+				Code:    "request_too_large",
+				Message: "请求正文不能超过 32 KiB",
+			},
+		}
 	}
-	return &RequestError{Status: http.StatusBadRequest, Detail: Error{Code: "invalid_input", Message: "请求必须为单个合法 JSON 对象，字段、类型及值必须符合接口定义"}}
+	return &RequestError{
+		Status: http.StatusBadRequest,
+		Detail: Error{
+			Code:    "invalid_input",
+			Message: "请求必须为单个合法 JSON 对象，字段、类型及值必须符合接口定义",
+		},
+	}
 }
 
 // ClassifyReqError 将解码错误转换为 HTTP 状态和稳定的传输错误，不决定响应外层格式。

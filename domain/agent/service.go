@@ -11,6 +11,25 @@ import (
 // ErrInput 表示问题内容或固定两轮消息的数量不符合业务要求。
 var ErrInput = errors.New("Agent 输入无效")
 
+const (
+	// OperationChat 标识单轮聊天，沿用接口与观测中的既有取值。
+	OperationChat = "chat"
+	// OperationMessages 标识固定两轮的消息历史调用。
+	OperationMessages = "messages"
+	// OperationRun 标识工具循环，保留既有协议值 agent。
+	OperationRun = "agent"
+)
+
+const (
+	// StepKindModel 标识执行记录中的模型调用步骤。
+	StepKindModel = "model"
+	// StepKindTool 标识执行记录中的工具调用步骤。
+	StepKindTool = "tool"
+)
+
+// MaxQuestionChars 是单个问题允许的最大 Unicode 字符数。
+const MaxQuestionChars = 4096
+
 // Observer 由业务使用方定义，具体观测实现由入口注入。
 // Safe 和 Clean 只处理展示副本，不能修改实际模型消息或工具结果。
 // 同一实例可被多个 Service 调用并发使用，实现须保证并发安全。
@@ -78,18 +97,27 @@ func NewService(model ChatClient, observer Observer, limits Limits) (*Service, e
 	if model == nil || observer == nil || limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
 		return nil, errors.New("Agent 依赖或运行预算无效")
 	}
-	return &Service{model: model, observer: observer, limits: limits}, nil
+	return &Service{
+		model:    model,
+		observer: observer,
+		limits:   limits,
+	}, nil
 }
 
 func validateQuestion(question string) error {
-	if strings.TrimSpace(question) == "" || utf8.RuneCountInString(question) > 4096 {
+	if strings.TrimSpace(question) == "" || utf8.RuneCountInString(question) > MaxQuestionChars {
 		return ErrInput
 	}
 	return nil
 }
 
 func (s *Service) newResult(operation string) ExecutionResult {
-	return ExecutionResult{Operation: operation, UsageComplete: true, Steps: []ExecutionStep{}, TelemetryEnabled: s.observer.Enabled()}
+	return ExecutionResult{
+		Operation:        operation,
+		UsageComplete:    true,
+		Steps:            []ExecutionStep{},
+		TelemetryEnabled: s.observer.Enabled(),
+	}
 }
 
 // execution 持有单次运行的可变结果与观测句柄，供该次业务调用独占使用。
@@ -104,8 +132,18 @@ type execution struct {
 func (s *Service) begin(ctx context.Context, result *ExecutionResult) (context.Context, *execution) {
 	ctx, run := s.observer.StartRun(ctx, result.Operation)
 	result.TraceID = run.TraceID()
-	e := &execution{service: s, result: result, run: run, started: time.Now()}
-	e.model = &recordingModel{inner: s.model, observer: s.observer, result: result, limits: s.limits}
+	e := &execution{
+		service: s,
+		result:  result,
+		run:     run,
+		started: time.Now(),
+	}
+	e.model = &recordingModel{
+		inner:    s.model,
+		observer: s.observer,
+		result:   result,
+		limits:   s.limits,
+	}
 	return ctx, e
 }
 

@@ -37,23 +37,121 @@ func TestDecodeJSONContract(t *testing.T) {
 		name, body, contentType, code string
 		status                        int
 	}{
-		{name: "正常类型", body: `{"name":"数据目录","count":2}`, contentType: "application/json; charset=utf-8", status: 200},
-		{name: "空对象", body: `{}`, contentType: "application/json", status: 200},
-		{name: "仅校验传输类型", body: `{"name":"","count":-1}`, contentType: "application/json", status: 200},
-		{name: "缺少类型", body: `{}`, status: 415, code: "invalid_content_type"},
-		{name: "非 JSON 类型", body: `{}`, contentType: "text/plain", status: 415, code: "invalid_content_type"},
-		{name: "根 null", body: `null`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "数组", body: `[]`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "不完整对象", body: `{`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "字段 null", body: `{"name":null}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "重复字段", body: `{"name":"甲","name":"乙"}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "大小写别名", body: `{"Name":"目录"}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "未知字段", body: `{"other":1}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "错误类型", body: `{"count":"2"}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "多个对象", body: `{} {}`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "无效尾部", body: `{} trailing`, contentType: "application/json", status: 400, code: "invalid_input"},
-		{name: "正文超限", body: `{"name":"` + strings.Repeat("a", httpx.MaxBodyBytes) + `"}`, contentType: "application/json", status: 413, code: "request_too_large"},
-		{name: "尾随空白超限", body: `{}` + strings.Repeat(" ", httpx.MaxBodyBytes), contentType: "application/json", status: 413, code: "request_too_large"},
+		{
+			name:        "正常类型",
+			body:        `{"name":"数据目录","count":2}`,
+			contentType: "application/json; charset=utf-8",
+			status:      200,
+		},
+		{
+			name:        "空对象",
+			body:        `{}`,
+			contentType: "application/json",
+			status:      200,
+		},
+		{
+			name:        "仅校验传输类型",
+			body:        `{"name":"","count":-1}`,
+			contentType: "application/json",
+			status:      200,
+		},
+		{
+			name:   "缺少类型",
+			body:   `{}`,
+			status: 415,
+			code:   "invalid_content_type",
+		},
+		{
+			name:        "非 JSON 类型",
+			body:        `{}`,
+			contentType: "text/plain",
+			status:      415,
+			code:        "invalid_content_type",
+		},
+		{
+			name:        "根 null",
+			body:        `null`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "数组",
+			body:        `[]`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "不完整对象",
+			body:        `{`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "字段 null",
+			body:        `{"name":null}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "重复字段",
+			body:        `{"name":"甲","name":"乙"}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "大小写别名",
+			body:        `{"Name":"目录"}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "未知字段",
+			body:        `{"other":1}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "错误类型",
+			body:        `{"count":"2"}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "多个对象",
+			body:        `{} {}`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "无效尾部",
+			body:        `{} trailing`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
+			name:        "正文超限",
+			body:        `{"name":"` + strings.Repeat("a", httpx.MaxBodyBytes) + `"}`,
+			contentType: "application/json",
+			status:      413,
+			code:        "request_too_large",
+		},
+		{
+			name:        "尾随空白超限",
+			body:        `{}` + strings.Repeat(" ", httpx.MaxBodyBytes),
+			contentType: "application/json",
+			status:      413,
+			code:        "request_too_large",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/catalog", strings.NewReader(tc.body))
@@ -101,7 +199,10 @@ type testRsp[T any] struct {
 }
 
 func writeTestRsp(c *gin.Context, status int, data any, failure *httpx.Error) {
-	if err := httpx.Write(c, status, testRsp[any]{Data: data, Error: failure}); err != nil {
+	if err := httpx.Write(c, status, testRsp[any]{
+		Data:  data,
+		Error: failure,
+	}); err != nil {
 		panic("测试响应编码失败")
 	}
 }

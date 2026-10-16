@@ -15,6 +15,27 @@ var (
 	ErrBudgetExceeded = errors.New("达到运行预算，任务未完成")
 )
 
+const (
+	// RoleSystem 表示系统提示消息。
+	RoleSystem = "system"
+	// RoleUser 表示用户输入消息。
+	RoleUser = "user"
+	// RoleAssistant 表示模型返回的消息。
+	RoleAssistant = "assistant"
+	// RoleTool 表示回填给模型的工具执行结果。
+	RoleTool = "tool"
+)
+
+const (
+	// FinishReasonStop 表示模型已完成回答。
+	FinishReasonStop = "stop"
+	// FinishReasonToolCalls 表示模型请求执行工具。
+	FinishReasonToolCalls = "tool_calls"
+)
+
+// ToolTypeFunction 是当前支持的函数工具协议类型。
+const ToolTypeFunction = "function"
+
 // Message 保留模型原始 assistant 消息，回传历史时不丢失扩展字段或 null。
 type Message struct {
 	Role       string     `json:"role"`
@@ -86,7 +107,11 @@ type Usage struct {
 // Total 优先返回已知总用量，没有总数时尝试合计输入和输出用量。
 // 含负值、缺少必要用量或合计溢出时返回 false，不能将其视为已知零用量。
 func (u Usage) Total() (int, bool) {
-	for _, value := range []*int{u.PromptTokens, u.CompletionTokens, u.TotalTokens} {
+	for _, value := range []*int{
+		u.PromptTokens,
+		u.CompletionTokens,
+		u.TotalTokens,
+	} {
 		if value != nil && *value < 0 {
 			return 0, false
 		}
@@ -112,20 +137,24 @@ type Response struct {
 // Validate 校验 assistant 身份、结束原因、消息内容及非负用量。
 // 工具调用 ID 和参数由执行循环及注册工具继续校验。
 func (r Response) Validate() error {
-	if r.Message.Role != "assistant" {
+	if r.Message.Role != RoleAssistant {
 		return ErrInvalidResponse
 	}
-	for _, value := range []*int{r.Usage.PromptTokens, r.Usage.CompletionTokens, r.Usage.TotalTokens} {
+	for _, value := range []*int{
+		r.Usage.PromptTokens,
+		r.Usage.CompletionTokens,
+		r.Usage.TotalTokens,
+	} {
 		if value != nil && *value < 0 {
 			return ErrInvalidResponse
 		}
 	}
 	switch r.FinishReason {
-	case "stop":
+	case FinishReasonStop:
 		if strings.TrimSpace(r.Message.Content) == "" || len(r.Message.ToolCalls) != 0 {
 			return ErrInvalidResponse
 		}
-	case "tool_calls":
+	case FinishReasonToolCalls:
 		if len(r.Message.ToolCalls) == 0 {
 			return ErrInvalidResponse
 		}
@@ -151,4 +180,10 @@ type Limits struct {
 }
 
 // DefaultLimits 返回三个学习流程使用的默认运行预算。
-func DefaultLimits() Limits { return Limits{ModelCalls: 5, ToolCalls: 8, Tokens: 8000} }
+func DefaultLimits() Limits {
+	return Limits{
+		ModelCalls: 5,
+		ToolCalls:  8,
+		Tokens:     8000,
+	}
+}

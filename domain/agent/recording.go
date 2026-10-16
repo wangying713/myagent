@@ -41,7 +41,15 @@ func (m *recordingModel) Chat(ctx context.Context, input Request) (Response, err
 			request = encoded
 		}
 	}
-	step := ExecutionStep{Kind: "model", Name: fmt.Sprintf("第 %d 次模型请求", m.result.ModelCalls), Request: m.observer.Safe(request), Response: m.observer.Safe(response.Raw), ElapsedMS: time.Since(started).Milliseconds(), FinishReason: response.FinishReason, Usage: &response.Usage}
+	step := ExecutionStep{
+		Kind:         StepKindModel,
+		Name:         fmt.Sprintf("第 %d 次模型请求", m.result.ModelCalls),
+		Request:      m.observer.Safe(request),
+		Response:     m.observer.Safe(response.Raw),
+		ElapsedMS:    time.Since(started).Milliseconds(),
+		FinishReason: response.FinishReason,
+		Usage:        &response.Usage,
+	}
 	if err != nil {
 		step.Error = "模型调用未完成"
 	}
@@ -75,7 +83,13 @@ func (t *recordingTools) Dispatch(ctx context.Context, call ToolCall) (output To
 	if encodeErr != nil {
 		return output, fmt.Errorf("记录工具结果: %w", encodeErr)
 	}
-	step := ExecutionStep{Kind: "tool", Name: t.observer.Clean(call.Function.Name), Request: t.observer.Safe(request), Response: t.observer.Safe(response), ElapsedMS: time.Since(started).Milliseconds()}
+	step := ExecutionStep{
+		Kind:      StepKindTool,
+		Name:      t.observer.Clean(call.Function.Name),
+		Request:   t.observer.Safe(request),
+		Response:  t.observer.Safe(response),
+		ElapsedMS: time.Since(started).Milliseconds(),
+	}
 	if !output.OK {
 		step.Error = t.observer.Clean(output.Error)
 	}

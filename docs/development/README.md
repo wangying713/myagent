@@ -6,7 +6,7 @@ Go 资料整理日期：2026-10-13；前端资料核对日期：2026-10-14。本
 
 | 文档 | 内容 | 建议顺序 |
 | --- | --- | --- |
-| [本项目 Go 具体约定](go-decisions.zh-CN.md) | 标准库、本项目包、外部依赖的导入分组与顺序 | 先看项目约定，开发时遵循 |
+| [本项目 Go 具体约定](go-decisions.zh-CN.md) | 导入分组、复合字面量换行、常量与 HTTP API 等项目约定 | 先看项目约定，开发时遵循 |
 | [Go 编辑器配置与跳转](editor.zh-CN.md) | VS Code 工作区工具链、gopls 与无法跳转的排查 | 配置编辑器时阅读 |
 | [Google Go 核心规范](google-go-guide.zh-CN.md) | 五项原则、格式、命名、行宽、一致性 | 先读 |
 | [Google Go 具体规范](google-go-decisions.zh-CN.md) | 命名、错误、接口、并发、上下文、测试 | 写代码时查阅 |

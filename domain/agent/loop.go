@@ -26,7 +26,16 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
 		return "", fmt.Errorf("运行预算必须为正数")
 	}
-	messages := []Message{{Role: "system", Content: prompt}, {Role: "user", Content: question}}
+	messages := []Message{
+		{
+			Role:    RoleSystem,
+			Content: prompt,
+		},
+		{
+			Role:    RoleUser,
+			Content: question,
+		},
+	}
 	toolCalls, tokens := 0, 0
 	seen := make(map[string]bool)
 	for round := 0; round < limits.ModelCalls; round++ {
@@ -36,7 +45,11 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 		if tokens >= limits.Tokens {
 			return "", ErrBudgetExceeded
 		}
-		response, err := model.Chat(ctx, Request{Messages: messages, Tools: tools.Definitions(), ToolChoice: "auto"})
+		response, err := model.Chat(ctx, Request{
+			Messages:   messages,
+			Tools:      tools.Definitions(),
+			ToolChoice: "auto",
+		})
 		if err != nil {
 			return "", fmt.Errorf("第 %d 轮模型调用: %w", round+1, err)
 		}
@@ -52,7 +65,7 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 			}
 		}
 		messages = append(messages, response.Message)
-		if response.FinishReason == "stop" {
+		if response.FinishReason == FinishReasonStop {
 			return response.Message.Content, nil
 		}
 		calls := response.Message.ToolCalls
@@ -79,7 +92,11 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 			if err != nil {
 				return "", fmt.Errorf("编码工具结果: %w", err)
 			}
-			messages = append(messages, Message{Role: "tool", ToolCallID: call.ID, Content: string(body)})
+			messages = append(messages, Message{
+				Role:       RoleTool,
+				ToolCallID: call.ID,
+				Content:    string(body),
+			})
 		}
 	}
 	return "", ErrBudgetExceeded

@@ -24,7 +24,10 @@ import (
 func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 	exporter := &memoryExporter{}
 	handler, telemetry := setup(t, func(w http.ResponseWriter, _ *http.Request) {
-		reply(w, map[string]string{"role": "assistant", "content": "回答"}, "stop")
+		reply(w, map[string]string{
+			"role":    "assistant",
+			"content": "回答",
+		}, "stop")
 	}, agent.DefaultLimits(), time.Second, exporter)
 	handler.GET("/bad-json", func(c *gin.Context) {
 		writeHTTPRsp(c, http.StatusOK, make(chan int), nil)
@@ -34,15 +37,76 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 		status                         int
 		hasData                        bool
 	}{
-		{name: "成功", method: "POST", path: "/api/agent/chat", body: `{}`, code: "ok", status: 200, hasData: true},
-		{name: "解码前拒绝", method: "POST", path: "/api/agent/chat", body: `{"unknown":1}`, code: "invalid_input", status: 400},
-		{name: "空问题", method: "POST", path: "/api/agent/chat", body: `{"question":""}`, code: "invalid_input", status: 400},
-		{name: "领域拒绝空白", method: "POST", path: "/api/agent/chat", body: `{"question":" "}`, code: "invalid_input", status: 400},
-		{name: "领域拒绝空数组", method: "POST", path: "/api/agent/messages", body: `{"questions":[]}`, code: "invalid_input", status: 400},
-		{name: "工具输入拒绝", method: "POST", path: "/api/agent/run", body: `{"question":" "}`, code: "invalid_input", status: 400},
-		{name: "路由错误", method: "GET", path: "/missing", code: "not_found", status: 404},
-		{name: "方法错误", method: "GET", path: "/api/agent/chat", code: "method_not_allowed", status: 405},
-		{name: "编码失败", method: "GET", path: "/bad-json", code: "internal_error", status: 500},
+		{
+			name:    "成功",
+			method:  "POST",
+			path:    "/api/agent/chat",
+			body:    `{}`,
+			code:    "ok",
+			status:  200,
+			hasData: true,
+		},
+		{
+			name:   "解码前拒绝",
+			method: "POST",
+			path:   "/api/agent/chat",
+			body:   `{"unknown":1}`,
+			code:   "invalid_input",
+			status: 400,
+		},
+		{
+			name:   "空问题",
+			method: "POST",
+			path:   "/api/agent/chat",
+			body:   `{"question":""}`,
+			code:   "invalid_input",
+			status: 400,
+		},
+		{
+			name:   "领域拒绝空白",
+			method: "POST",
+			path:   "/api/agent/chat",
+			body:   `{"question":" "}`,
+			code:   "invalid_input",
+			status: 400,
+		},
+		{
+			name:   "领域拒绝空数组",
+			method: "POST",
+			path:   "/api/agent/messages",
+			body:   `{"questions":[]}`,
+			code:   "invalid_input",
+			status: 400,
+		},
+		{
+			name:   "工具输入拒绝",
+			method: "POST",
+			path:   "/api/agent/run",
+			body:   `{"question":" "}`,
+			code:   "invalid_input",
+			status: 400,
+		},
+		{
+			name:   "路由错误",
+			method: "GET",
+			path:   "/missing",
+			code:   "not_found",
+			status: 404,
+		},
+		{
+			name:   "方法错误",
+			method: "GET",
+			path:   "/api/agent/chat",
+			code:   "method_not_allowed",
+			status: 405,
+		},
+		{
+			name:   "编码失败",
+			method: "GET",
+			path:   "/bad-json",
+			code:   "internal_error",
+			status: 500,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
@@ -129,8 +193,14 @@ func checkHTTPPreview(t *testing.T, span sdktrace.ReadOnlySpan, body string, out
 		t.Errorf("实际响应预览 %s，预期 HTTP %d、正文 %s", attrs["app.response"].AsString(), out.Code, out.Body.String())
 	}
 	for _, tc := range []struct{ key, payload string }{
-		{key: "gen_ai.input.messages", payload: "app.request"},
-		{key: "gen_ai.output.messages", payload: "app.response"},
+		{
+			key:     "gen_ai.input.messages",
+			payload: "app.request",
+		},
+		{
+			key:     "gen_ai.output.messages",
+			payload: "app.response",
+		},
 	} {
 		if attrs[tc.key].AsString() != attrs[tc.payload].AsString() {
 			t.Errorf("实际预览字段 %s=%s，预期直接展示 %s 的正文，不添加角色", tc.key, attrs[tc.key].AsString(), tc.payload)
@@ -139,8 +209,14 @@ func checkHTTPPreview(t *testing.T, span sdktrace.ReadOnlySpan, body string, out
 }
 
 func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
-	for _, capture := range []bool{true, false} {
-		t.Run(map[bool]string{true: "采集正文", false: "关闭正文"}[capture], func(t *testing.T) {
+	for _, capture := range []bool{
+		true,
+		false,
+	} {
+		t.Run(map[bool]string{
+			true:  "采集正文",
+			false: "关闭正文",
+		}[capture], func(t *testing.T) {
 			exporter := &memoryExporter{}
 			telemetry, err := openobserve.New(t.Context(), openobserve.Config{
 				Enabled:        true,
@@ -199,7 +275,11 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, secret := range []string{"input-secret", "output-secret", "configured-secret"} {
+			for _, secret := range []string{
+				"input-secret",
+				"output-secret",
+				"configured-secret",
+			} {
 				if strings.Contains(string(raw), secret) {
 					t.Errorf("HTTP 预览泄漏 %q", secret)
 				}
@@ -212,7 +292,10 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 }
 
 func TestHTTPRspEncodingFallbackAndDisabledTrace(t *testing.T) {
-	telemetry, err := openobserve.New(context.Background(), openobserve.Config{ServiceName: "test", MaxChars: 256}, nil, io.Discard)
+	telemetry, err := openobserve.New(context.Background(), openobserve.Config{
+		ServiceName: "test",
+		MaxChars:    256,
+	}, nil, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +352,14 @@ func TestHTTPTraceDoesNotCaptureRawRequestMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"host-secret", "path-secret", "query-secret", "agent-secret", "forwarded-secret", "header-secret"} {
+	for _, secret := range []string{
+		"host-secret",
+		"path-secret",
+		"query-secret",
+		"agent-secret",
+		"forwarded-secret",
+		"header-secret",
+	} {
 		if strings.Contains(string(metadata), secret) {
 			t.Errorf("HTTP span 泄漏请求值 %q：%s", secret, metadata)
 		}

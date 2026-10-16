@@ -17,7 +17,10 @@ var _ agent.Observer = (*Telemetry)(nil)
 // StartRun 将领域执行事件适配为 span，沿用入口传入的父链路，领域层无需依赖 OpenTelemetry。
 func (t *Telemetry) StartRun(ctx context.Context, operation string) (context.Context, agent.RunObservation) {
 	ctx, span := t.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
-	return ctx, &runObservation{span: span, started: time.Now()}
+	return ctx, &runObservation{
+		span:    span,
+		started: time.Now(),
+	}
 }
 
 type runObservation struct {
@@ -43,7 +46,11 @@ func (t *Telemetry) StartTool(ctx context.Context, call agent.ToolCall) (context
 	// ToolCall 仅含字符串字段，不存在 JSON 编码失败的值。
 	request, _ := json.Marshal(call)
 	t.Payload(span, "app.request", request)
-	return ctx, &toolObservation{telemetry: t, span: span, started: time.Now()}
+	return ctx, &toolObservation{
+		telemetry: t,
+		span:      span,
+		started:   time.Now(),
+	}
 }
 
 type toolObservation struct {

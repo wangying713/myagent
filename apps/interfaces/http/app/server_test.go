@@ -39,7 +39,11 @@ func listenForTest(t *testing.T) net.Listener {
 func startHTTPForTest(t *testing.T, listener net.Listener, handler http.Handler, timeout time.Duration) *httpRun {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
-	run := &httpRun{server: &http.Server{Handler: handler}, cancel: cancel, done: make(chan struct{})}
+	run := &httpRun{
+		server: &http.Server{Handler: handler},
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
 	go func() {
 		run.err = serveHTTP(ctx, run.server, listener, timeout)
 		close(run.done)
@@ -71,7 +75,10 @@ func requestForTest(t *testing.T, listener net.Listener, path, body string) *htt
 	t.Helper()
 	transport := &http.Transport{Proxy: nil}
 	t.Cleanup(transport.CloseIdleConnections)
-	client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   2 * time.Second,
+	}
 	call := &httpCall{done: make(chan struct{})}
 	go func() {
 		defer close(call.done)
@@ -122,13 +129,22 @@ func (l *failedAcceptListener) Accept() (net.Conn, error) {
 }
 
 func TestServeHTTPCancelsAndJoinsRequests(t *testing.T) {
-	for _, acceptFailure := range []bool{false, true} {
-		t.Run(map[bool]string{false: "退出信号", true: "监听异常"}[acceptFailure], func(t *testing.T) {
+	for _, acceptFailure := range []bool{
+		false,
+		true,
+	} {
+		t.Run(map[bool]string{
+			false: "退出信号",
+			true:  "监听异常",
+		}[acceptFailure], func(t *testing.T) {
 			listener := listenForTest(t)
 			failure := errors.New("测试监听失败")
 			var serving net.Listener = listener
 			if acceptFailure {
-				serving = &failedAcceptListener{Listener: listener, failure: failure}
+				serving = &failedAcceptListener{
+					Listener: listener,
+					failure:  failure,
+				}
 			}
 			started, finished := make(chan struct{}), make(chan struct{})
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,13 +181,22 @@ func TestServeHTTPCancelsAndJoinsRequests(t *testing.T) {
 }
 
 func TestServeHTTPReportsUnfinishedRequestsWithoutHanging(t *testing.T) {
-	for _, acceptFailure := range []bool{false, true} {
-		t.Run(map[bool]string{false: "退出信号", true: "监听异常"}[acceptFailure], func(t *testing.T) {
+	for _, acceptFailure := range []bool{
+		false,
+		true,
+	} {
+		t.Run(map[bool]string{
+			false: "退出信号",
+			true:  "监听异常",
+		}[acceptFailure], func(t *testing.T) {
 			listener := listenForTest(t)
 			failure := errors.New("测试监听失败")
 			var serving net.Listener = listener
 			if acceptFailure {
-				serving = &failedAcceptListener{Listener: listener, failure: failure}
+				serving = &failedAcceptListener{
+					Listener: listener,
+					failure:  failure,
+				}
 			}
 			started, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			run := startHTTPForTest(t, serving, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -214,10 +239,13 @@ func TestServeHTTPReportsUnfinishedRequestsWithoutHanging(t *testing.T) {
 
 func TestRequestTrackerRejectsLateRequestsAndWaitsForActiveOnes(t *testing.T) {
 	started, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
-	tracker := &requestTracker{done: make(chan struct{}), handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(started)
-		<-release
-	})}
+	tracker := &requestTracker{
+		done: make(chan struct{}),
+		handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(started)
+			<-release
+		}),
+	}
 	go func() {
 		tracker.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 		close(finished)
@@ -267,7 +295,10 @@ func TestServeHTTPWaitsAfterConnectionsAreClosed(t *testing.T) {
 
 func TestRunHTTPPreservesListenError(t *testing.T) {
 	listener := listenForTest(t)
-	err := runHTTP(t.Context(), http.NotFoundHandler(), config.HTTPSettings{Address: listener.Addr().String(), RunTimeout: time.Second})
+	err := runHTTP(t.Context(), http.NotFoundHandler(), config.HTTPSettings{
+		Address:    listener.Addr().String(),
+		RunTimeout: time.Second,
+	})
 	var listenError *net.OpError
 	if !errors.As(err, &listenError) || listenError.Op != "listen" {
 		t.Fatalf("实际监听错误 %v，预期保留 net.OpError", err)
