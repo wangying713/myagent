@@ -10,7 +10,9 @@ import (
 
 type modelFunc func(context.Context, Request) (Response, error)
 
-func (f modelFunc) Chat(ctx context.Context, r Request) (Response, error) { return f(ctx, r) }
+func (f modelFunc) Chat(ctx context.Context, r Request) (Response, error) {
+	return f(ctx, r)
+}
 
 func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0

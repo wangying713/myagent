@@ -32,8 +32,10 @@ func (s *Service) Messages(ctx context.Context, input MessagesInput) (result Exe
 			return result, err
 		}
 	}
-	ctx, execution := s.begin(ctx, &result)
-	defer func() { execution.end(err) }()
+	ctx, execution := s.begin(ctx, &result, input.Questions)
+	defer func() {
+		execution.end(err)
+	}()
 	messages := []Message{
 		{
 			Role:    RoleSystem,

@@ -44,9 +44,13 @@ func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, 
 		done:    make(chan struct{}),
 	}
 	server.Handler = requests
-	server.BaseContext = func(net.Listener) context.Context { return requestCtx }
+	server.BaseContext = func(net.Listener) context.Context {
+		return requestCtx
+	}
 	serveErrors := make(chan error, 1)
-	go func() { serveErrors <- server.Serve(listener) }()
+	go func() {
+		serveErrors <- server.Serve(listener)
+	}()
 
 	var result error
 	serveStopped := false

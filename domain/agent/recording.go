@@ -64,7 +64,9 @@ type recordingTools struct {
 	result   *ExecutionResult
 }
 
-func (t *recordingTools) Definitions() []ToolDefinition { return t.inner.Definitions() }
+func (t *recordingTools) Definitions() []ToolDefinition {
+	return t.inner.Definitions()
+}
 
 func (t *recordingTools) Dispatch(ctx context.Context, call ToolCall) (output ToolResult, err error) {
 	if err := ctx.Err(); err != nil {
@@ -72,7 +74,9 @@ func (t *recordingTools) Dispatch(ctx context.Context, call ToolCall) (output To
 	}
 	ctx, observation := t.observer.StartTool(ctx, call)
 	started := time.Now()
-	defer func() { observation.End(output, err) }()
+	defer func() {
+		observation.End(output, err)
+	}()
 	t.result.ToolCalls++
 	request, encodeErr := json.Marshal(call)
 	if encodeErr != nil {

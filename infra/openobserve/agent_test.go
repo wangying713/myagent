@@ -1,0 +1,188 @@
+package openobserve
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"saklay/ai/domain/agent"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+)
+
+func newRunTelemetry(t *testing.T, capture bool, maxChars int) (*Telemetry, *tracetest.InMemoryExporter) {
+	t.Helper()
+	exporter := tracetest.NewInMemoryExporter()
+	telemetry, err := New(t.Context(), Config{
+		Enabled:        true,
+		ServiceName:    "test",
+		CaptureContent: capture,
+		MaxChars:       maxChars,
+		Secrets:        []string{"configured-secret"},
+	}, exporter, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := telemetry.Close(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	return telemetry, exporter
+}
+
+func runAttributes(t *testing.T, telemetry *Telemetry, exporter *tracetest.InMemoryExporter) (map[string]attribute.Value, codes.Code) {
+	t.Helper()
+	if err := telemetry.Flush(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	spans := exporter.GetSpans()
+	if len(spans) != 1 || spans[0].Name != "agent.run" {
+		t.Fatalf("实际导出 %v，预期一个 agent.run span", spans)
+	}
+	attrs := make(map[string]attribute.Value)
+	for _, attr := range spans[0].Attributes {
+		attrs[string(attr.Key)] = attr.Value
+	}
+	return attrs, spans[0].Status.Code
+}
+
+func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name, operation, wantInput string
+		questions                  []string
+		err                        error
+	}{
+		{
+			name:      "单轮问题",
+			operation: "chat",
+			questions: []string{"问题 configured-secret"},
+			wantInput: `{"question":"问题 [REDACTED]"}`,
+		},
+		{
+			name:      "历史消息失败保留部分回答",
+			operation: "messages",
+			questions: []string{
+				`{"password":"nested-secret","a":9007199254740993}`,
+				"第二轮 configured-secret",
+			},
+			wantInput: `{"questions":["{\"a\":9007199254740993,\"password\":\"[REDACTED]\"}","第二轮 [REDACTED]"]}`,
+			err:       errors.New("底层错误 error-secret"),
+		},
+		{
+			name:      "工具循环问题",
+			operation: "agent",
+			questions: []string{"乘法 configured-secret"},
+			wantInput: `{"question":"乘法 [REDACTED]"}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			telemetry, exporter := newRunTelemetry(t, true, 4096)
+			original := slices.Clone(tc.questions)
+			_, run := telemetry.StartRun(t.Context(), tc.operation, tc.questions)
+			result := agent.ExecutionResult{
+				Completed:     tc.err == nil,
+				Answer:        "已有回答 configured-secret",
+				ModelCalls:    1,
+				KnownTokens:   10,
+				UsageComplete: true,
+			}
+			run.End(result, tc.err)
+			attrs, status := runAttributes(t, telemetry, exporter)
+			if attrs["gen_ai.input.messages"].AsString() != tc.wantInput {
+				t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), tc.wantInput)
+			}
+			var output struct {
+				Completed bool   `json:"completed"`
+				Answer    string `json:"answer"`
+			}
+			if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"].AsString()), &output); err != nil {
+				t.Fatal(err)
+			}
+			if output.Completed != result.Completed || output.Answer != "已有回答 [REDACTED]" {
+				t.Errorf("实际输出预览 %+v，预期保留完成状态与脱敏后的已有回答", output)
+			}
+			if (status == codes.Error) != (tc.err != nil) {
+				t.Errorf("实际 span 状态 %v，预期失败=%v", status, tc.err != nil)
+			}
+			if attrs["app.llm_calls"].AsInt64() != 1 || attrs["app.total_tokens"].AsInt64() != 10 || attrs["app.lesson"].AsString() != tc.operation {
+				t.Error("运行预览改变了既有统计或操作属性")
+			}
+			for _, pair := range [][2]string{
+				{
+					"gen_ai.input.messages",
+					"app.request",
+				},
+				{
+					"gen_ai.output.messages",
+					"app.response",
+				},
+			} {
+				if attrs[pair[0]].AsString() != attrs[pair[1]].AsString() {
+					t.Errorf("预览 %s 未直接复用 %s", pair[0], pair[1])
+				}
+			}
+			for _, value := range attrs {
+				if strings.Contains(value.AsString(), "error-secret") || strings.Contains(value.AsString(), "configured-secret") || strings.Contains(value.AsString(), "nested-secret") {
+					t.Error("运行属性泄漏敏感正文或底层错误")
+				}
+			}
+			if !slices.Equal(tc.questions, original) || result.Answer != "已有回答 configured-secret" {
+				t.Error("观测适配修改了实际业务输入或结果")
+			}
+		})
+	}
+}
+
+func TestRunPreviewContentControlAndTruncation(t *testing.T) {
+	for _, capture := range []bool{
+		true,
+		false,
+	} {
+		t.Run(map[bool]string{
+			true:  "采集并截断",
+			false: "关闭正文采集",
+		}[capture], func(t *testing.T) {
+			telemetry, exporter := newRunTelemetry(t, capture, 256)
+			_, run := telemetry.StartRun(t.Context(), "chat", []string{strings.Repeat("输入", 200)})
+			run.End(agent.ExecutionResult{
+				Completed: true,
+				Answer:    strings.Repeat("输出", 200),
+			}, nil)
+			attrs, _ := runAttributes(t, telemetry, exporter)
+			for _, pair := range [][2]string{
+				{
+					"gen_ai.input.messages",
+					"app.request",
+				},
+				{
+					"gen_ai.output.messages",
+					"app.response",
+				},
+			} {
+				preview, exists := attrs[pair[0]]
+				payload, payloadExists := attrs[pair[1]]
+				truncated, truncatedExists := attrs[pair[1]+".truncated"]
+				if !capture {
+					if exists || payloadExists || truncatedExists {
+						t.Error("关闭正文采集仍记录了运行预览")
+					}
+					continue
+				}
+				text := preview.AsString()
+				if !exists || !payloadExists || text != payload.AsString() || !truncated.AsBool() || !strings.HasSuffix(text, "…[TRUNCATED]") || utf8.RuneCountInString(text) != 256+utf8.RuneCountInString("…[TRUNCATED]") {
+					t.Errorf("实际预览 %q，预期统一截断至 256 字符并保留标记", text)
+				}
+			}
+		})
+	}
+}

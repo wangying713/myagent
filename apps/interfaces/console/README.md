@@ -9,10 +9,29 @@
 ```sh
 cd apps/interfaces/console
 npm ci
+cd ../../..
+./scripts/server
+```
+
+`./scripts/server` 无参数时默认同时重启 Go 后台和 Node 管理台，不需要开两个终端；请先准备项目根目录的 `.env`。前端使用现有 `npm start` 配置，保留本机 Mock 和热更新。启动成功前检查管理台页面及 `/api/health` 到 Go 的代理，日志位于 `.runtime/console/server.log`，Go 日志位于 `.runtime/http/server.log`。已运行时先停止脚本管理的进程及其子进程，未运行时直接启动。
+
+从项目根目录统一管理前后端：
+
+```sh
+./scripts/server start
+./scripts/server status
+./scripts/server stop
+```
+
+`start` 会保留已运行的进程并补启动缺失的服务，`stop` 同时停止前后端，`status` 同时显示两者状态。前端进程管理实现留在本目录 `scripts/server.mjs`，作为统一脚本的内部辅助，不需要单独调用。
+
+也可以继续手动在本目录运行：
+
+```sh
 npm start
 ```
 
-本机地址：`http://127.0.0.1:8000`。默认显示中文，使用模板自带的本机 Mock 数据。按 Ctrl+C 停止服务。
+本机地址：`http://127.0.0.1:8000`。默认显示中文，使用模板自带的本机 Mock 数据。手动运行时按 Ctrl+C 停止服务；切换到整套脚本前先停止手动服务，以免占用端口。
 
 ## 演示账号
 
@@ -70,19 +89,19 @@ npm run build
 
 点击“Agent 开发”下方的独立“API”菜单，或打开 `/api-explorer`。页面根据实际 Go 接口提供列表，包含健康检查 GET/HEAD，以及聊天、消息历史、Agent 运行三个 POST 接口。此页面按接口组织，不依赖课程演示页。
 
-选中接口后可编辑默认 JSON，点击“发送请求”调用同源后台代理；GET/HEAD 不发送请求体。每个接口的编辑草稿在页面内分别保留，支持恢复默认参数。4xx/5xx 仍展示实际 HTTP 状态和响应正文，Trace ID 可复制。响应使用原文显示和复制，不通过 JavaScript 数字重新编码。请求期间可取消，切换接口或离开页面也会取消旧请求；迟到响应不覆盖当前结果。
+选中接口后可编辑默认 JSON，点击“发送请求”调用同源后台代理；GET/HEAD 不发送请求体。每个接口的编辑草稿在页面内分别保留，支持恢复默认参数。4xx/5xx 仍展示实际 HTTP 状态和响应正文，Trace ID 可复制。JSON 响应默认按两空格缩进、逐层换行显示，格式化只调整字符串之外的空白，保留大整数、精确小数、字段顺序和转义内容；非 JSON 响应保持原文。复制响应仍使用收到的原始正文。请求期间可取消，切换接口或离开页面也会取消旧请求；迟到响应不覆盖当前结果。
 
 接口定义与参数示例维护于 `src/pages/api-explorer/data.ts`，与 `apps/interfaces/http/app/router.go` 同步；后续新增后台接口时在列表中补充对应配置。此页不使用模板生成的 OpenAPI 示例或课程页面数据，也不保存模型密钥。
 
 ## Agent 接口联调
 
-先在项目根目录准备 `.env` 并启动 Go 服务：
+先在项目根目录准备 `.env`，再一键启动或重启前后端：
 
 ```sh
-./scripts/go run ./apps/interfaces/http -env-file .env
+./scripts/server
 ```
 
-再在本目录执行 `npm start`，打开 `http://127.0.0.1:8000/agent-development`。登录后点击侧边栏一级菜单“Agent 开发”，页面提供三个独立运行按钮：普通聊天、消息历史和工具调用循环。保留默认问题即可直接运行，也可先编辑问题。消息历史一次完成两轮，每次点击都重新开始。
+打开 `http://127.0.0.1:8000/agent-development`。登录后点击侧边栏一级菜单“Agent 开发”，页面提供三个独立运行按钮：普通聊天、消息历史和工具调用循环。保留默认问题即可直接运行，也可先编辑问题。消息历史一次完成两轮，每次点击都重新开始。
 
 Agent 接口使用 `code/data/traceID/msg` 外层，成功 code 为 `ok`，失败提示使用 `msg`；data 可为 null，已有部分结果仍予保留。Trace ID 从外层读取。
 

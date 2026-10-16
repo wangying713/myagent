@@ -16,6 +16,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import type { ApiResult, ProjectApi } from './data';
 import { projectApis } from './data';
+import { formatResponseJSON } from './format';
 import { sendApi, validateBody } from './service';
 
 export default function ApiExplorer() {
@@ -253,7 +254,7 @@ export default function ApiExplorer() {
                           fontFamily: 'monospace',
                         }}
                       >
-                        {result.body}
+                        {formatResponseJSON(result.body)}
                       </pre>
                     </>
                   ) : (

@@ -11,15 +11,26 @@ Go 工具链为 1.27.2，模块为 `saklay/ai`。`./scripts/go` 使用项目现�
 准备根目录 `.env`：可从 [.env.example](.env.example) 创建并填写模型及观测鉴权；已有文件不要覆盖。服务通过 `-env-file` 显式加载，环境变量优先，不自动读取 `old` 中的配置。真实凭据已被 Git 忽略。
 
 ```sh
-# 终端一：启动 Go HTTP 服务，默认 127.0.0.1:8080。
-./scripts/go run ./apps/interfaces/http -env-file .env
-
-# 终端二：启动管理台，默认 127.0.0.1:8000。
-cd apps/interfaces/console
-npm start
+# 同时启动或重启 Go 后台（8080）和 Node 管理台（8000）。
+./scripts/server
 ```
 
 打开 [Agent 开发](http://127.0.0.1:8000/agent-development)。开发环境预填演示账号 `admin` / `ant.design`，点击登录即可。侧边栏“Agent 开发”提供三个直接运行按钮，分别请求三课接口；可编辑问题并查看回答、真实步骤与 trace ID。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
+
+直接执行 `./scripts/server` 即可，默认整套重启；在 `scripts` 目录执行 `./server` 也可以。默认显式传入项目根目录的 `.env`，也可用 `./scripts/server restart -env-file 配置文件路径` 指定其他文件。Go 后台先编译最新代码，再优雅停止旧进程并启动；Node 前端复用 `npm start`，停止时一并通知其子进程退出。未运行的服务直接启动，成功前检查 Go 健康接口、管理台页面和前端到后台的代理。
+
+前端依赖需要先在 `apps/interfaces/console` 执行一次 `npm ci`；脚本不会自动安装依赖。缺少依赖或前端端口被其他进程占用时，会在重启 Go 前报错。日志分别位于 `.runtime/http/server.log` 和 `.runtime/console/server.log`。
+
+前后端统一通过同一个脚本管理：
+
+```sh
+./scripts/server start
+./scripts/server restart
+./scripts/server status
+./scripts/server stop
+```
+
+`start` 启动缺失的服务，已运行的服务保持运行；`restart` 重新编译 Go 并重启前后端；`stop` 停止前后端；`status` 同时显示两者状态，任一未运行时返回非零退出码。脚本只管理自己记录并核对过启动命令的进程；若此前在终端通过 `go run` 或 `npm start` 启动，请先在那个终端按 `Ctrl+C`，再用脚本启动。需要手动调试时仍可分别使用 `./scripts/go run ./apps/interfaces/http -env-file .env` 和前端目录中的 `npm start`。
 
 ## 三课与原始文件
 

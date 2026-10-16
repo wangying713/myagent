@@ -64,7 +64,9 @@ func (e *reportingExporter) ExportSpans(ctx context.Context, spans []sdktrace.Re
 	return nil
 }
 
-func (e *reportingExporter) Shutdown(ctx context.Context) error { return e.inner.Shutdown(ctx) }
+func (e *reportingExporter) Shutdown(ctx context.Context) error {
+	return e.inner.Shutdown(ctx)
+}
 
 // New 校验服务名和正文上限，创建私有观测组件；关闭观测时仍提供正文脱敏。
 // 启用观测且 exporter 为 nil 时使用标准 OTLP/HTTP，也可注入内存实现供离线测试。
@@ -87,7 +89,9 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 			t.secrets = append(t.secrets, token)
 		}
 	}
-	sort.Slice(t.secrets, func(i, j int) bool { return len(t.secrets[i]) > len(t.secrets[j]) })
+	sort.Slice(t.secrets, func(i, j int) bool {
+		return len(t.secrets[i]) > len(t.secrets[j])
+	})
 	if !cfg.Enabled {
 		return t, nil
 	}
@@ -95,8 +99,10 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
 		t.client = &http.Client{
-			Transport:     transport,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+			Transport: transport,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		}
 		var err error
 		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(t.client), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}))
@@ -124,7 +130,9 @@ func (t *Telemetry) StartClient(ctx context.Context, name string, attrs ...attri
 }
 
 // Enabled 报告配置是否启用观测，不表示导出器可达或数据已入库。
-func (t *Telemetry) Enabled() bool { return t.config.Enabled }
+func (t *Telemetry) Enabled() bool {
+	return t.config.Enabled
+}
 
 // Flush 在 ctx 允许的时间内刷新队列，保留 provider 供后续请求使用。
 // 上报失败通过 warnings 提示，返回 nil 不能证明观测数据已入库。

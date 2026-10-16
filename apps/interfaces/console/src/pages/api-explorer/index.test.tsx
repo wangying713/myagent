@@ -39,7 +39,10 @@ it('切换接口取消旧请求、保留参数草稿，迟到响应不会覆盖�
   fireEvent.click(screen.getByRole('button', { name: /GET.*健康检查/ }));
   expect(oldSignal.aborted).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: /发送请求/ }));
-  await screen.findByText('{"data":{"status":"ok"}}');
+  await screen.findByText('{\n  "data": {\n    "status": "ok"\n  }\n}', {
+    selector: 'pre',
+    normalizer: (text) => text,
+  });
   await act(async () => {
     finishOld?.({
       status: 200,

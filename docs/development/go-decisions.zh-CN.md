@@ -30,6 +30,26 @@ import (
 
 “标准库 → 本项目包 → 外部依赖”是本项目统一选择的顺序。Google 规范中的一般导入要求见 [Google Go 具体规范：导入](google-go-decisions.zh-CN.md#三导入)。
 
+## 代码块与语句换行
+
+- 手写 Go 代码（包括测试）的非空代码块统一展开：左花括号后换行，块内每条语句单独一行，右花括号另起一行；即使只有一条语句，也不压成单行。
+- 函数、方法、匿名函数以及 `if`、`for`、`switch`、`select` 等代码块均遵循此规则，包括 `defer`、`go`、排序回调和测试回调中的匿名函数。`case`、`default` 后的语句也另起一行，不用分号把多条语句挤在一行。
+- `if`、`for`、`switch` 头部所需的分号保留惯用写法，例如 `if err := validate(input); err != nil {`；空代码块可以保留 `{}`。生成文件与 `old` 历史归档不纳入整改。
+- 换行只调整书写方式，保留原有求值时机与执行顺序。例如下面的闭包需要在函数返回时读取最终的 `err`，不能为了简写替换成 `defer execution.end(err)`。
+
+```go
+defer func() {
+	execution.end(err)
+}()
+
+go func() {
+	handler.ServeHTTP(w, req)
+	close(done)
+}()
+```
+
+这是项目自己的可读性约定，缩进和其他格式交给 `gofmt`。
+
 ## 复合字面量换行
 
 - 手写 Go 代码（包括测试）中的切片、数组、映射和结构体复合字面量，只要包含多个元素或字段，就采用多行写法，每个元素或字段独占一行；不因内容较短而挤在同一行。
@@ -89,6 +109,8 @@ HTTP 统一外层手写于 `entity/response.go`：`Rsp[T]` 包含 `code`、`data
 HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显式注入私有 TracerProvider、noop MeterProvider 和空传播器，保持服务内链路且不依赖全局观测配置。领域运行作为其子 span，模型和工具仍是领域运行的子 span。通过 otelgin 的名称格式器只展示 URI 路由模板，例如 `/api/agent/chat`；未匹配路由统一为 `[unmatched]`。HTTP 方法保留在属性中，屏蔽默认属性中的原始路径、User-Agent 与客户端地址。启用正文采集时，在根 span 记录实际读写的请求体与最终 HTTP 响应，预览直接显示正文 JSON，不添加角色、消息或 body 包装；方法、路由模板和响应状态保留在 span 属性中，正文复用脱敏、限长及 OpenObserve 原生预览适配；不采集请求头或查询字符串，不预读请求。公共响应处理继续将 4xx 和 5xx 标记为失败。外层 `traceID` 来自实际请求链路，业务 Proto 响应不再重复携带；关闭观测或服务退出闸门尚未进入路由时为空，不伪造 ID。
 
 实现与使用说明见 [HTTP API](../../apps/interfaces/http/README.md) 和 [通用 HTTP 能力](../../infra/httpx/README.md)。
+
+领域运行 `agent.run` 的观测输入通过使用方定义的 `Observer.StartRun` 显式传入已补齐默认值并校验的问题；领域层不接触 OpenTelemetry 属性或 JSON 展示协议。`infra/openobserve` 组装输入问题与输出的 `completed/answer` 预览，复用正文采集开关、脱敏、限长及原生预览适配，失败保留已有回答，不记录底层错误正文。
 
 ## 第三方能力选择
 

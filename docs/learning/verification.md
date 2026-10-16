@@ -25,6 +25,7 @@ npm run build
 | 测试文件 | 当前验证契约 |
 | --- | --- |
 | [领域业务测试](../../domain/agent/service_test.go) | 三个业务方法、默认问题、历史、部分结果、取消、脱敏与观测事件 |
+| [领域运行预览测试](../../infra/openobserve/agent_test.go) | `agent.run` 输入输出预览、失败保留回答、正文开关、脱敏与限长 |
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
 | [HTTP 统一处理测试](../../apps/interfaces/http/app/handle_test.go) | 部分结果、路由超时隔离、上下文释放与未适配响应保护 |
@@ -50,6 +51,14 @@ npm run build
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-16：agent.run 输入输出预览
+
+领域运行显式传入补齐默认值并通过校验的问题，`infra/openobserve` 将聊天和工具循环的 `question`、历史消息的两轮 `questions` 适配为输入预览，将 `completed/answer` 适配为输出预览。失败仍保留已有回答，不记录底层错误正文；正文开关、脱敏和截断规则保持一致。
+
+格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 及 Proto 生成检查通过。离线测试覆盖三课默认输入、成功输出、部分失败、脱敏、不修改业务数据及关闭正文采集和截断。
+
+另外使用现有配置向本机 OpenObserve 发送假模型验证 trace `8da23db6f0381df13f366dc015ec6e1c`，按 trace ID 查询确认 `agent.run` 已入库，`gen_ai_input_messages` 为问题 JSON，`gen_ai_output_messages` 包含验证回答和 `completed: true`。未调用外部模型，未输出鉴权；本轮验证了预览数据入库，未进行浏览器布局验收。已有 trace 不会补写新增预览。
 
 ## 2026-10-16：输入输出直接预览 JSON
 

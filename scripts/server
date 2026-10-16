@@ -1,0 +1,183 @@
+#!/bin/bash
+# 统一管理本机 Go 后台与 Node 前端；配置文件只作为参数传给 Go。
+set -euo pipefail
+umask 077
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+console_manager="${project_dir}/apps/interfaces/console/scripts/server.mjs"
+runtime_dir="${project_dir}/.runtime/http"
+lock_dir="${project_dir}/.runtime/server.lock"
+binary="${runtime_dir}/server"
+pid_file="${runtime_dir}/server.pid"
+log_file="${runtime_dir}/server.log"
+shutdown_seconds=20
+startup_seconds=20
+build_file=""
+
+usage() {
+    cat <<'EOF'
+用法：
+  ./scripts/server          默认重启前后端；未启动时直接启动
+  ./scripts/server start    启动前后端；已运行的服务保持运行
+  ./scripts/server restart  重启前后端；未启动时直接启动
+  ./scripts/server stop     优雅停止前后端
+  ./scripts/server status   查看前后端状态
+
+start/restart 默认使用项目根目录的 .env，可追加 -env-file 配置文件路径。
+指定的配置路径相对于当前目录；环境变量优先于文件，不创建或覆盖配置。
+EOF
+}
+
+fail() {
+    echo "$*" >&2
+    exit 1
+}
+
+action=${1:-restart}
+if [ "$#" -gt 0 ]; then
+    shift
+fi
+case "${action}" in
+    -h|--help|help) usage; exit 0 ;;
+    start|restart)
+        if [ "$#" -eq 0 ]; then
+            set -- -env-file "${project_dir}/.env"
+        fi
+        [ "$#" -eq 2 ] && [ "$1" = "-env-file" ] || { usage >&2; exit 1; }
+        [ -f "$2" ] && [ -r "$2" ] || fail "无法读取配置文件：$2"
+        env_file=$(CDPATH= cd -- "$(dirname -- "$2")" && pwd)/$(basename -- "$2")
+        ;;
+    stop|status)
+        [ "$#" -eq 0 ] || { usage >&2; exit 1; }
+        ;;
+    *) usage >&2; exit 1 ;;
+esac
+
+command -v node >/dev/null || fail "请先安装 Node.js 20 或以上版本。"
+command -v curl >/dev/null || fail "请先安装 curl，用于检查健康接口。"
+mkdir -p "${runtime_dir}"
+mkdir "${lock_dir}" 2>/dev/null || fail "另一个服务管理操作正在运行；若已异常中断，请确认后删除 ${lock_dir}。"
+cleanup() {
+    if [ -n "${build_file}" ]; then
+        rm -f "${build_file}"
+    fi
+    rmdir "${lock_dir}"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# 同时核对 PID 和启动命令，避免 PID 被复用时向其他进程发送信号。
+running() {
+    server_pid=""
+    [ -f "${pid_file}" ] || return 1
+    IFS= read -r server_pid < "${pid_file}" || return 1
+    case "${server_pid}" in
+        ''|*[!0-9]*|0|1) return 1 ;;
+    esac
+    kill -0 "${server_pid}" 2>/dev/null || return 1
+    local process_command process_state
+    process_command=$(ps -p "${server_pid}" -o command= 2>/dev/null) || return 1
+    process_state=$(ps -p "${server_pid}" -o stat= 2>/dev/null) || return 1
+    case "${process_state}" in
+        *Z*) return 1 ;;
+    esac
+    case "${process_command}" in
+        "${binary} -env-file "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+stop_server() {
+    if ! running; then
+        rm -f "${pid_file}"
+        echo "没有运行中的脚本管理服务。"
+        return
+    fi
+    echo "正在停止后台服务（PID：${server_pid}）……"
+    kill -TERM "${server_pid}"
+    local deadline=$((SECONDS + shutdown_seconds))
+    while running; do
+        [ "${SECONDS}" -lt "${deadline}" ] || fail "等待退出超过 ${shutdown_seconds} 秒，未强制终止；请检查 ${log_file}。"
+        sleep 0.2
+    done
+    rm -f "${pid_file}"
+    echo "后台服务已停止。"
+}
+
+case "${action}" in
+    status)
+        result=0
+        if running; then
+            echo "Go 后台正在运行（PID：${server_pid}）。"
+            echo "后台日志：${log_file}"
+        else
+            echo "Go 后台未运行。"
+            result=1
+        fi
+        node "${console_manager}" status || result=1
+        exit "${result}"
+        ;;
+    stop)
+        result=0
+        node "${console_manager}" stop || result=1
+        stop_server
+        exit "${result}"
+        ;;
+esac
+
+# 先检查前端依赖与端口，避免可预知的错误打断现有服务。
+node "${console_manager}" check
+
+start_http() {
+    if [ "${action}" = "start" ] && running; then
+        echo "Go 后台已运行（PID：${server_pid}），保持运行。"
+        return
+    fi
+    # 编译成功后再停止旧进程，避免编译错误导致正在运行的服务被关闭。
+    echo "正在编译 Go HTTP 服务……"
+    build_file=$(mktemp "${runtime_dir}/build.XXXXXX")
+    cd "${project_dir}"
+    ./scripts/go build -o "${build_file}" ./apps/interfaces/http
+    if [ "${action}" = "restart" ]; then
+        stop_server
+    fi
+    mv -f "${build_file}" "${binary}"
+    build_file=""
+    nohup "${binary}" -env-file "${env_file}" > "${log_file}" 2>&1 < /dev/null &
+    server_pid=$!
+    echo "${server_pid}" > "${pid_file}"
+
+    # 从本次启动日志获取实际监听地址，兼容文件配置、环境覆盖和动态端口。
+    deadline=$((SECONDS + startup_seconds))
+    while [ "${SECONDS}" -lt "${deadline}" ]; do
+        if ! running; then
+            # nohup 可能尚未完成 exec；进程仍存活时等下一轮核对命令。
+            if kill -0 "${server_pid}" 2>/dev/null; then
+                sleep 0.2
+                continue
+            fi
+            rm -f "${pid_file}"
+            fail "后台服务启动失败，请查看日志：${log_file}"
+        fi
+        service_url=$(sed -n 's/^Go 后台接口已启动：//p' "${log_file}" | head -n 1)
+        if [ -n "${service_url}" ]; then
+            health_url=${service_url/http:\/\/0.0.0.0:/http:\/\/127.0.0.1:}
+            health_url=${health_url/http:\/\/\[::\]:/http:\/\/[::1]:}
+            if curl --noproxy '*' --fail --silent --max-time 1 --output /dev/null "${health_url}/api/health"; then
+                echo "后台服务已启动（PID：${server_pid}）。"
+                echo "健康检查：${health_url}/api/health"
+                echo "日志：${log_file}"
+                return
+            fi
+        fi
+        sleep 0.2
+    done
+    fail "健康检查超过 ${startup_seconds} 秒，进程仍由 PID 文件跟踪；请检查 ${log_file}，或执行 ./scripts/server stop。"
+}
+
+start_http
+if ! node "${console_manager}" "${action}"; then
+    fail "Go 后台已启动，前端未就绪；请检查 ${project_dir}/.runtime/console/server.log。"
+fi
+echo "整套服务已就绪。"

@@ -52,7 +52,9 @@ func (e *memoryExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnl
 	}
 	return nil
 }
-func (e *memoryExporter) Shutdown(context.Context) error { return nil }
+func (e *memoryExporter) Shutdown(context.Context) error {
+	return nil
+}
 
 func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout time.Duration, exporter *memoryExporter) (*gin.Engine, *openobserve.Telemetry) {
 	t.Helper()
@@ -239,6 +241,35 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			if root.Parent().SpanID() != requestSpan.SpanContext().SpanID() || root.SpanContext().TraceID() != requestSpan.SpanContext().TraceID() {
 				t.Error("领域运行没有挂到本次 HTTP 请求链路")
 			}
+			runAttrs := make(map[string]string)
+			for _, attr := range root.Attributes() {
+				runAttrs[string(attr.Key)] = attr.Value.AsString()
+			}
+			input := map[string]any{"question": agent.ChatQuestion}
+			if lesson == "messages" {
+				input = map[string]any{
+					"questions": []string{
+						agent.FirstQuestion,
+						agent.SecondQuestion,
+					},
+				}
+			} else if lesson == "agent" {
+				input["question"] = agent.AgentQuestion
+			}
+			wantInput, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantOutput, err := json.Marshal(map[string]any{
+				"completed": response.Data.Completed,
+				"answer":    response.Data.Answer,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if runAttrs["gen_ai.input.messages"] != string(wantInput) || runAttrs["gen_ai.output.messages"] != string(wantOutput) {
+				t.Errorf("实际运行预览输入=%s、输出=%s，预期输入=%s、输出=%s", runAttrs["gen_ai.input.messages"], runAttrs["gen_ai.output.messages"], wantInput, wantOutput)
+			}
 			for _, s := range exporter.spans {
 				if s.SpanKind() == trace.SpanKindClient {
 					attrs := make(map[string]string)
@@ -319,7 +350,9 @@ func TestCustomQuestionsReachModel(t *testing.T) {
 
 func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	var calls atomic.Int32
-	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
 	for _, lesson := range []string{
 		"chat",
 		"agent",
@@ -383,7 +416,9 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 
 func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
 	var calls atomic.Int32
-	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
 	for _, tc := range []struct {
 		method, path, code, allow string
 		status                    int
@@ -540,8 +575,12 @@ func TestContentTypeValidation(t *testing.T) {
 }
 
 func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
-	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) { t.Error("异常路由不应请求模型") }, agent.DefaultLimits(), time.Second, &memoryExporter{})
-	handler.GET("/panic", func(c *gin.Context) { panic("test-api-key") })
+	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("异常路由不应请求模型")
+	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	handler.GET("/panic", func(c *gin.Context) {
+		panic("test-api-key")
+	})
 	handler.GET("/written-panic", func(c *gin.Context) {
 		c.String(http.StatusAccepted, "已经写出的响应")
 		panic("test-api-key")
@@ -588,7 +627,9 @@ func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 			"非 JSON",
 			"invalid_model_response",
 			502,
-			func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "not json") },
+			func(w http.ResponseWriter, r *http.Request) {
+				io.WriteString(w, "not json")
+			},
 		},
 		{
 			"回答截断",
@@ -646,14 +687,19 @@ func TestRequestDeadlineAndCallerCancellation(t *testing.T) {
 				}
 				close(finished)
 			}, agent.DefaultLimits(), timeout, &memoryExporter{})
-			t.Cleanup(func() { close(release) })
+			t.Cleanup(func() {
+				close(release)
+			})
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			req := httptest.NewRequest(http.MethodPost, "/api/agent/chat", strings.NewReader(`{}`)).WithContext(ctx)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			done := make(chan struct{})
-			go func() { handler.ServeHTTP(w, req); close(done) }()
+			go func() {
+				handler.ServeHTTP(w, req)
+				close(done)
+			}()
 			select {
 			case <-started:
 			case <-time.After(time.Second):

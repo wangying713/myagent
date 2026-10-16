@@ -316,7 +316,9 @@ func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 		case <-release:
 		}
 	}, agent.DefaultLimits(), 5*time.Second, exporter)
-	t.Cleanup(func() { close(release) })
+	t.Cleanup(func() {
+		close(release)
+	})
 	listener := listenForTest(t)
 	run := startHTTPForTest(t, listener, handler, time.Second)
 	call := requestForTest(t, listener, "/api/agent/chat", `{}`)

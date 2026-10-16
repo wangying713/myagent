@@ -13,12 +13,16 @@ type testObserver struct {
 	tools []*testToolObservation
 }
 
-func (*testObserver) Enabled() bool            { return true }
-func (o *testObserver) Safe(raw []byte) string { return o.Clean(string(raw)) }
+func (*testObserver) Enabled() bool {
+	return true
+}
+func (o *testObserver) Safe(raw []byte) string {
+	return o.Clean(string(raw))
+}
 func (*testObserver) Clean(text string) string {
 	return strings.ReplaceAll(text, "本机密钥", "[REDACTED]")
 }
-func (o *testObserver) StartRun(ctx context.Context, _ string) (context.Context, RunObservation) {
+func (o *testObserver) StartRun(ctx context.Context, _ string, _ []string) (context.Context, RunObservation) {
 	run := &testRunObservation{}
 	o.runs = append(o.runs, run)
 	return ctx, run
@@ -35,7 +39,9 @@ type testRunObservation struct {
 	ended  bool
 }
 
-func (*testRunObservation) TraceID() string { return "test-trace" }
+func (*testRunObservation) TraceID() string {
+	return "test-trace"
+}
 func (r *testRunObservation) End(result ExecutionResult, err error) {
 	r.result, r.err, r.ended = result, err, true
 }

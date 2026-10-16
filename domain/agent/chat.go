@@ -19,8 +19,10 @@ func (s *Service) Chat(ctx context.Context, input ChatInput) (result ExecutionRe
 	if err := validateQuestion(input.Question); err != nil {
 		return result, err
 	}
-	ctx, execution := s.begin(ctx, &result)
-	defer func() { execution.end(err) }()
+	ctx, execution := s.begin(ctx, &result, []string{input.Question})
+	defer func() {
+		execution.end(err)
+	}()
 	response, err := execution.model.Chat(ctx, Request{
 		Messages: []Message{
 			{

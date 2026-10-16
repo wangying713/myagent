@@ -15,17 +15,39 @@ import (
 var _ agent.Observer = (*Telemetry)(nil)
 
 // StartRun 将领域执行事件适配为 span，沿用入口传入的父链路，领域层无需依赖 OpenTelemetry。
-func (t *Telemetry) StartRun(ctx context.Context, operation string) (context.Context, agent.RunObservation) {
+func (t *Telemetry) StartRun(ctx context.Context, operation string, questions []string) (context.Context, agent.RunObservation) {
 	ctx, span := t.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
+	input := runInput{}
+	if operation == agent.OperationMessages {
+		input.Questions = questions
+	} else if len(questions) > 0 {
+		input.Question = questions[0]
+	}
+	// 运行预览仅包含字符串、切片和布尔字段，不存在 JSON 编码失败的值。
+	request, _ := json.Marshal(input)
+	t.Payload(span, "app.request", request)
 	return ctx, &runObservation{
-		span:    span,
-		started: time.Now(),
+		telemetry: t,
+		span:      span,
+		started:   time.Now(),
 	}
 }
 
+// runInput 和 runOutput 只定义观测展示，不承担领域或 HTTP 序列化契约。
+type runInput struct {
+	Question  string   `json:"question,omitempty"`
+	Questions []string `json:"questions,omitempty"`
+}
+
+type runOutput struct {
+	Completed bool   `json:"completed"`
+	Answer    string `json:"answer"`
+}
+
 type runObservation struct {
-	span    trace.Span
-	started time.Time
+	telemetry *Telemetry
+	span      trace.Span
+	started   time.Time
 }
 
 func (r *runObservation) TraceID() string {
@@ -36,6 +58,11 @@ func (r *runObservation) TraceID() string {
 }
 
 func (r *runObservation) End(result agent.ExecutionResult, err error) {
+	response, _ := json.Marshal(runOutput{
+		Completed: result.Completed,
+		Answer:    result.Answer,
+	})
+	r.telemetry.Payload(r.span, "app.response", response)
 	r.span.SetAttributes(attribute.Int("app.llm_calls", result.ModelCalls), attribute.Int("app.tool_calls", result.ToolCalls), attribute.Int("app.total_tokens", result.KnownTokens), attribute.Bool("app.usage.complete", result.UsageComplete))
 	End(r.span, r.started, err)
 }

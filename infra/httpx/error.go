@@ -19,7 +19,9 @@ type RequestError struct {
 }
 
 // Error 返回传输错误的公开说明。
-func (e *RequestError) Error() string { return e.Detail.Message }
+func (e *RequestError) Error() string {
+	return e.Detail.Message
+}
 
 func requestError(err error) *RequestError {
 	var tooLarge *http.MaxBytesError

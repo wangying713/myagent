@@ -36,7 +36,9 @@ type Client struct {
 type ModelError struct{ Status int }
 
 // Error 返回状态码说明，不包含模型服务的响应正文。
-func (e *ModelError) Error() string { return fmt.Sprintf("模型服务返回 HTTP %d", e.Status) }
+func (e *ModelError) Error() string {
+	return fmt.Sprintf("模型服务返回 HTTP %d", e.Status)
+}
 
 // New 校验配置并创建客户端，client 为 nil 时使用独立的 HTTP Transport。
 // 传入 client 时复用其 Transport；调用方应在业务结束后调用 Client.Close。
@@ -57,7 +59,9 @@ func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Cl
 		client = &http.Client{Transport: transport}
 	}
 	copyClient := *client
-	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &Client{
 		config:    cfg,
 		http:      &copyClient,
@@ -66,7 +70,9 @@ func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Cl
 }
 
 // Close 关闭 Transport 的空闲连接，不取消正在执行的请求。
-func (c *Client) Close() { c.http.CloseIdleConnections() }
+func (c *Client) Close() {
+	c.http.CloseIdleConnections()
+}
 
 // Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
 // 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
@@ -103,7 +109,9 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 	req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	ctx, span := c.telemetry.StartClient(ctx, req.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", "deepseek"))
 	started := time.Now()
-	defer func() { openobserve.End(span, started, err) }()
+	defer func() {
+		openobserve.End(span, started, err)
+	}()
 	c.telemetry.Payload(span, "app.request", raw)
 	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", req.URL.Hostname()), attribute.String("url.full", req.URL.String()))
 	resp, err := c.http.Do(req.WithContext(ctx))

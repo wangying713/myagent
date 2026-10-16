@@ -125,9 +125,15 @@ func TestResponseJSONCompatibility(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
 			router.Use(requestTimeout(time.Second))
-			router.POST("/chat", handle(func(context.Context, *proto.ChatReq) (*proto.ChatRsp, error) { return tc.chat, nil }))
-			router.POST("/messages", handle(func(context.Context, *proto.MessagesReq) (*proto.MessagesRsp, error) { return tc.messages, nil }))
-			router.POST("/run", handle(func(context.Context, *proto.RunReq) (*proto.RunRsp, error) { return tc.run, nil }))
+			router.POST("/chat", handle(func(context.Context, *proto.ChatReq) (*proto.ChatRsp, error) {
+				return tc.chat, nil
+			}))
+			router.POST("/messages", handle(func(context.Context, *proto.MessagesReq) (*proto.MessagesRsp, error) {
+				return tc.messages, nil
+			}))
+			router.POST("/run", handle(func(context.Context, *proto.RunReq) (*proto.RunRsp, error) {
+				return tc.run, nil
+			}))
 			for _, path := range []string{
 				"/chat",
 				"/messages",

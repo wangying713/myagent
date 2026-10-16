@@ -34,6 +34,17 @@ http/
 
 默认监听 `127.0.0.1:8080`。服务不会自动读取任何 `.env`；环境变量优先于显式文件。启动时缺少模型或已启用观测的鉴权会明确报错。
 
+需要在后台运行或修改代码后重启整套服务时，在项目根目录执行：
+
+```sh
+./scripts/server
+./scripts/server status
+./scripts/server stop
+tail -f .runtime/http/server.log
+```
+
+`./scripts/server` 是前后端统一管理入口，**无参数默认执行整套重启**，也支持显式 `start`、`restart`、`stop` 和 `status`。`start` 补启动缺失的服务，`restart` 同时重启 Go 后台和 Node 管理台；两者默认显式传入项目根目录的 `.env`，指定其他配置可追加 `-env-file 配置文件路径`。`stop` 停止前后端，`status` 同时显示两者状态。Go 重启先编译，成功后发送 `SIGTERM` 并等待旧进程退出，再启动新进程并检查健康接口；未启动时直接启动。Go 二进制、PID 和日志保存在已被 Git 忽略的 `.runtime/http/`，前端 PID 和日志位于 `.runtime/console/`；每次启动重置对应日志。整套启动还会确认管理台页面和后台代理可用，浏览器访问 `http://127.0.0.1:8000/agent-development`。脚本只停止自身管理且启动命令匹配的进程，不按端口批量终止进程；之前手动启动的服务需要先在原终端按 `Ctrl+C`。配置文件只传给 Go 入口解析，不会被当作 Shell 脚本执行，也不会自动创建或覆盖。
+
 | 方法与接口 | 正文 | 含义 |
 | --- | --- | --- |
 | `GET /api/health` | 无 | 服务存活检查，不调用模型、不检查外部服务 |
@@ -93,6 +104,8 @@ HTTP 失败码：
 HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型和工具继续作为领域运行的子 span。正常聊天、历史和典型工具循环分别为 3、4、5 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、模型和工具的观测正文采集；页面仍展示用于学习的脱敏执行记录。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
+
+`agent.run` 在 OpenObserve 的“预览”中展示业务输入与输出：聊天和工具循环显示实际 `question`，历史消息显示两轮 `questions`（包括默认值）；输出为 `completed` 和最终 `answer`，失败时保留已有回答。预览沿用正文采集开关、脱敏和限长设置；模型与工具的详细协议继续查看子 span。新增预览只作用于服务更新后的新请求。
 
 ## 服务退出与清理顺序
 

@@ -37,8 +37,8 @@ type Observer interface {
 	Enabled() bool
 	Safe([]byte) string
 	Clean(string) string
-	// StartRun 返回运行观测及其上下文，须保留父上下文的取消和链路。
-	StartRun(context.Context, string) (context.Context, RunObservation)
+	// StartRun 接收补齐默认值并校验后的问题，须保留父上下文的取消和链路。
+	StartRun(context.Context, string, []string) (context.Context, RunObservation)
 	// StartTool 返回工具观测及其上下文，须保留父上下文的取消和链路。
 	StartTool(context.Context, ToolCall) (context.Context, ToolObservation)
 }
@@ -129,8 +129,8 @@ type execution struct {
 	started time.Time
 }
 
-func (s *Service) begin(ctx context.Context, result *ExecutionResult) (context.Context, *execution) {
-	ctx, run := s.observer.StartRun(ctx, result.Operation)
+func (s *Service) begin(ctx context.Context, result *ExecutionResult, questions []string) (context.Context, *execution) {
+	ctx, run := s.observer.StartRun(ctx, result.Operation, questions)
 	result.TraceID = run.TraceID()
 	e := &execution{
 		service: s,

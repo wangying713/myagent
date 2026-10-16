@@ -5,4 +5,5 @@
 **/.env.*
 !**/.env.example
 .tools/
+.runtime/
 coverage.out
