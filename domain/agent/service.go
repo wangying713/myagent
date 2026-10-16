@@ -37,10 +37,36 @@ type Observer interface {
 	Enabled() bool
 	Safe([]byte) string
 	Clean(string) string
-	// StartRun 接收补齐默认值并校验后的问题，须保留父上下文的取消和链路。
-	StartRun(context.Context, string, []string) (context.Context, RunObservation)
+	// StartRun 接收实际运行输入的只读快照，须保留父上下文的取消和链路。
+	StartRun(context.Context, string, RunDetails) (context.Context, RunObservation)
 	// StartTool 返回工具观测及其上下文，须保留父上下文的取消和链路。
 	StartTool(context.Context, ToolCall) (context.Context, ToolObservation)
+}
+
+// RunDetails 保存可观测的运行输入，不保存客户端、上下文对象或凭据。
+type RunDetails struct {
+	Questions  []string
+	Prompt     string
+	Tools      []ToolDefinition
+	ToolChoice string
+	Limits     Limits
+	Model      *ModelInfo
+}
+
+// ModelInfo 只描述客户端的公开配置，禁止放入 API Key 或请求头。
+type ModelInfo struct {
+	Provider     string
+	Name         string
+	Endpoint     string
+	Timeout      time.Duration
+	MaxTokens    int
+	ThinkingType string
+	Stream       bool
+}
+
+// ModelInfoProvider 是运行观测可选使用的模型描述能力，不改变聊天接口。
+type ModelInfoProvider interface {
+	ModelInfo() ModelInfo
 }
 
 // RunObservation 保存一次业务执行的观测句柄，由该次执行负责结束。
@@ -129,8 +155,13 @@ type execution struct {
 	started time.Time
 }
 
-func (s *Service) begin(ctx context.Context, result *ExecutionResult, questions []string) (context.Context, *execution) {
-	ctx, run := s.observer.StartRun(ctx, result.Operation, questions)
+func (s *Service) begin(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *execution) {
+	input.Limits = s.limits
+	if model, ok := s.model.(ModelInfoProvider); ok {
+		info := model.ModelInfo()
+		input.Model = &info
+	}
+	ctx, run := s.observer.StartRun(ctx, result.Operation, input)
 	result.TraceID = run.TraceID()
 	e := &execution{
 		service: s,

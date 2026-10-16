@@ -22,7 +22,7 @@ func (o *testObserver) Safe(raw []byte) string {
 func (*testObserver) Clean(text string) string {
 	return strings.ReplaceAll(text, "本机密钥", "[REDACTED]")
 }
-func (o *testObserver) StartRun(ctx context.Context, _ string, _ []string) (context.Context, RunObservation) {
+func (o *testObserver) StartRun(ctx context.Context, _ string, _ RunDetails) (context.Context, RunObservation) {
 	run := &testRunObservation{}
 	o.runs = append(o.runs, run)
 	return ctx, run

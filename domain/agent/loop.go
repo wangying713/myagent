@@ -48,7 +48,7 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 		response, err := model.Chat(ctx, Request{
 			Messages:   messages,
 			Tools:      tools.Definitions(),
-			ToolChoice: "auto",
+			ToolChoice: ToolChoiceAuto,
 		})
 		if err != nil {
 			return "", fmt.Errorf("第 %d 轮模型调用: %w", round+1, err)

@@ -36,6 +36,9 @@ const (
 // ToolTypeFunction 是当前支持的函数工具协议类型。
 const ToolTypeFunction = "function"
 
+// ToolChoiceAuto 允许模型在已注册工具中自行选择是否调用。
+const ToolChoiceAuto = "auto"
+
 // Message 保留模型原始 assistant 消息，回传历史时不丢失扩展字段或 null。
 type Message struct {
 	Role       string     `json:"role"`

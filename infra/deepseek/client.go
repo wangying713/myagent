@@ -25,6 +25,12 @@ type Config struct {
 	Timeout                time.Duration
 }
 
+const (
+	providerName        = "deepseek"
+	defaultMaxTokens    = 512
+	defaultThinkingType = "disabled"
+)
+
 // Client 执行非流式模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
 	config    Config
@@ -74,6 +80,19 @@ func (c *Client) Close() {
 	c.http.CloseIdleConnections()
 }
 
+// ModelInfo 返回运行观测使用的白名单配置，不暴露鉴权和 HTTP 客户端。
+func (c *Client) ModelInfo() agent.ModelInfo {
+	return agent.ModelInfo{
+		Provider:     providerName,
+		Name:         c.config.Model,
+		Endpoint:     strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions",
+		Timeout:      c.config.Timeout,
+		MaxTokens:    defaultMaxTokens,
+		ThinkingType: defaultThinkingType,
+		Stream:       false,
+	}
+}
+
 // Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
 // 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
 func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Response, err error) {
@@ -84,8 +103,8 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 		return result, errors.New("这三个 demo 不支持流式请求")
 	}
 	input.Model = c.config.Model
-	input.Thinking.Type = "disabled"
-	input.MaxTokens = 512
+	input.Thinking.Type = defaultThinkingType
+	input.MaxTokens = defaultMaxTokens
 	input.Stream = false
 	if len(input.Tools) == 0 {
 		input.ToolChoice = ""
@@ -107,7 +126,7 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.telemetry.StartClient(ctx, req.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", "deepseek"))
+	ctx, span := c.telemetry.StartClient(ctx, req.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
 	started := time.Now()
 	defer func() {
 		openobserve.End(span, started, err)

@@ -5,6 +5,9 @@ import "context"
 // ChatQuestion 是单轮聊天在未指定问题时使用的学习示例。
 const ChatQuestion = "用一句话解释什么是递归。"
 
+// ChatPrompt 是单轮聊天实际使用的系统提示词。
+const ChatPrompt = "你是一个简洁的中文助手。"
+
 // ChatInput 保存单轮问题；Question 为空字符串时使用 ChatQuestion。
 type ChatInput struct {
 	Question string
@@ -19,7 +22,10 @@ func (s *Service) Chat(ctx context.Context, input ChatInput) (result ExecutionRe
 	if err := validateQuestion(input.Question); err != nil {
 		return result, err
 	}
-	ctx, execution := s.begin(ctx, &result, []string{input.Question})
+	ctx, execution := s.begin(ctx, &result, RunDetails{
+		Questions: []string{input.Question},
+		Prompt:    ChatPrompt,
+	})
 	defer func() {
 		execution.end(err)
 	}()
@@ -27,7 +33,7 @@ func (s *Service) Chat(ctx context.Context, input ChatInput) (result ExecutionRe
 		Messages: []Message{
 			{
 				Role:    RoleSystem,
-				Content: "你是一个简洁的中文助手。",
+				Content: ChatPrompt,
 			},
 			{
 				Role:    RoleUser,

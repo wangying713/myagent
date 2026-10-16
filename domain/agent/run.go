@@ -23,12 +23,18 @@ func (s *Service) Run(ctx context.Context, input RunInput) (result ExecutionResu
 	if err := validateQuestion(input.Question); err != nil {
 		return result, err
 	}
-	ctx, execution := s.begin(ctx, &result, []string{input.Question})
+	baseTools := MultiplyTools{}
+	ctx, execution := s.begin(ctx, &result, RunDetails{
+		Questions:  []string{input.Question},
+		Prompt:     AgentPrompt,
+		Tools:      baseTools.Definitions(),
+		ToolChoice: ToolChoiceAuto,
+	})
 	defer func() {
 		execution.end(err)
 	}()
 	tools := &recordingTools{
-		inner:    MultiplyTools{},
+		inner:    baseTools,
 		observer: s.observer,
 		result:   &result,
 	}

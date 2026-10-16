@@ -7,6 +7,8 @@ const (
 	FirstQuestion = "我给一只虚构小猫取名叫豆包，请记住。"
 	// SecondQuestion 是历史消息示例中检查上下文是否保留的第二轮问题。
 	SecondQuestion = "我给小猫取了什么名字？"
+	// MessagesPrompt 是两轮历史消息实际使用的系统提示词。
+	MessagesPrompt = "用简短中文回答。"
 )
 
 // MessagesInput 保存固定两轮的问题；Questions 为 nil 时使用默认示例，空切片无效。
@@ -32,14 +34,17 @@ func (s *Service) Messages(ctx context.Context, input MessagesInput) (result Exe
 			return result, err
 		}
 	}
-	ctx, execution := s.begin(ctx, &result, input.Questions)
+	ctx, execution := s.begin(ctx, &result, RunDetails{
+		Questions: input.Questions,
+		Prompt:    MessagesPrompt,
+	})
 	defer func() {
 		execution.end(err)
 	}()
 	messages := []Message{
 		{
 			Role:    RoleSystem,
-			Content: "用简短中文回答。",
+			Content: MessagesPrompt,
 		},
 	}
 	for _, question := range input.Questions {
