@@ -166,7 +166,9 @@ func (t *Telemetry) clean(value any, depth int) any {
 		}
 	case string:
 		var nested any
-		if json.Unmarshal([]byte(v), &nested) == nil {
+		d := json.NewDecoder(strings.NewReader(v))
+		d.UseNumber()
+		if d.Decode(&nested) == nil && d.Decode(new(any)) == io.EOF {
 			encoded, err := json.Marshal(t.clean(nested, depth+1))
 			if err == nil {
 				return string(encoded)

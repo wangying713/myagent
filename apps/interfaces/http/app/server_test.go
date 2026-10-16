@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -302,7 +302,7 @@ func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 	}
 	exporter.mu.Lock()
 	defer exporter.mu.Unlock()
-	if len(exporter.spans) != 2 {
-		t.Errorf("HTTP 返回后实际收集 %d 个 span，预期运行与模型的 2 个 span 均已结束", len(exporter.spans))
+	if len(exporter.spans) != 3 {
+		t.Errorf("HTTP 返回后实际收集 %d 个 span，预期 HTTP、运行与模型的 3 个 span 均已结束", len(exporter.spans))
 	}
 }

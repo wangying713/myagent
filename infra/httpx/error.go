@@ -4,8 +4,6 @@ package httpx
 import (
 	"errors"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Error struct {
@@ -29,11 +27,11 @@ func requestError(err error) *RequestError {
 	return &RequestError{Status: http.StatusBadRequest, Detail: Error{Code: "invalid_input", Message: "请求必须为单个合法 JSON 对象，字段、类型及值必须符合接口定义"}}
 }
 
-// WriteRequestError 允许调用方传入其响应数据的零值，保持各接口的响应契约。
-func WriteRequestError(c *gin.Context, err error, data any) {
+// ClassifyReqError 将解码错误转换为 HTTP 状态和稳定的传输错误，不决定响应外层格式。
+func ClassifyReqError(err error) (int, *Error) {
 	var failure *RequestError
 	if !errors.As(err, &failure) {
 		failure = requestError(err)
 	}
-	WriteResult(c, failure.Status, data, &failure.Detail)
+	return failure.Status, &failure.Detail
 }

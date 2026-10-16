@@ -2,7 +2,7 @@
 
 根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台点击后请求 Go HTTP 接口，展示实际消息、模型响应、工具结果和 OpenObserve trace ID。
 
-HTTP 接口统一使用 Gin，当前锁定 v1.12.0；标准库 `http.Server` 负责超时和优雅退出。模型客户端继续使用标准库 HTTP/JSON，Agent 循环保持显式实现。
+HTTP 接口统一使用 Gin，当前锁定 v1.12.0；请求链路由官方 `otelgin` 中间件管理，显式注入私有观测配置；标准库 `http.Server` 负责超时和优雅退出。模型客户端继续使用标准库 HTTP/JSON，Agent 循环保持显式实现。
 
 ## 启动
 
@@ -50,15 +50,15 @@ docs/
   learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。阅读顺序：`apps/interfaces/http/router.go` → `apps/interfaces/http/agent/chat.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
-HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/agent.proto)，生成到 [entity/agent.pb.go](apps/interfaces/http/entity/agent.pb.go)，API 方法统一使用 `entity` 中的请求与响应类型。修改协议后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/agent/README.md)。
+HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/agent.proto)，生成到 [proto/agent.pb.go](apps/interfaces/http/proto/agent.pb.go)，API 方法使用 `proto` 中的 `ChatReq/ChatRsp`、`MessagesReq/MessagesRsp`、`RunReq/RunRsp`，各自显式组装响应；HTTP handler 统一包装 `code/data/traceID/msg`，trace ID 不再位于业务 data。修改协议后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/README.md)。
 
 ## 观测与边界
 
-每次运行一个根 span，每次模型请求和工具分发一个子 span。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
+每次 HTTP 请求建立根 span，领域运行是其子 span，每次模型请求和工具分发再创建领域运行的子 span。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
 
 默认总运行超时 120s、单次模型超时 60s；最多 5 次模型请求、8 次工具分发、8000 个累计已知 token 的软预算。真实演示会消耗模型 token；测试只使用假模型与内存观测器，不读取真实密钥。
 

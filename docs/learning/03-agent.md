@@ -68,7 +68,7 @@ flowchart TD
 3. 阅读 `TestToolsRejectInvalidArguments`，离线构造无效参数，不用真实模型制造输入错误。
 4. 临时将 `.env` 的 `AGENT_MAX_MODEL_CALLS` 改为 1，重启服务。若首轮提出工具请求，执行后没有模型额度，应返回 `budget_exceeded` 和未完成，实验后恢复为 5。
 
-默认限制为模型 5 次、工具分发 8 次、累计已知 token 8000；token 是调用间软预算，详见 [失败与预算](06-reliability.md)。典型轨迹为根 + 模型 + 工具 + 模型，共 4 个 span，实际数量以步骤为准。
+默认限制为模型 5 次、工具分发 8 次、累计已知 token 8000；token 是调用间软预算，详见 [失败与预算](06-reliability.md)。典型轨迹为HTTP 根 + 领域运行 + 模型 + 工具 + 模型，共 5 个 span，实际数量以步骤为准。
 
 ## 通过标准
 

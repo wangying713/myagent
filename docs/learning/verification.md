@@ -28,10 +28,11 @@ npm run build
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
 | [HTTP 适配器测试](../../infra/httpx/adapter_test.go) | 返回响应与错误、字段准备、超时取消、上下文释放与并发隔离 |
-| [响应兼容测试](../../apps/interfaces/http/agent/response_json_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
+| [HTTP 包装测试](../../apps/interfaces/http/app/handler_test.go) | code/data/traceID/msg、无结果为 null、解码前链路及编码回退 |
+| [响应兼容测试](../../apps/interfaces/http/app/impl_agent_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
-| [HTTP 测试](../../apps/interfaces/http/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
-| [服务生命周期测试](../../apps/interfaces/http/server_test.go) | 信号与监听异常、等待处理器结束、强制关闭、有界退出、原始错误链和退出前结束 span |
+| [HTTP 测试](../../apps/interfaces/http/app/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
+| [服务生命周期测试](../../apps/interfaces/http/app/server_test.go) | 信号与监听异常、等待处理器结束、强制关闭、有界退出、原始错误链和退出前结束 span |
 | [配置测试](../../apps/config/config_test.go) | 显式文件、环境优先级及非法配置 |
 | [脱敏测试](../../infra/openobserve/telemetry_test.go) | 敏感字段、长度限制、不修改原始正文 |
 
@@ -41,13 +42,55 @@ npm run build
 
 | 课程 | 业务检查 | 正常观测 |
 | --- | --- | --- |
-| 聊天 | 一次请求，非空回答，正常结束 | 根 + 模型，共 2 个 |
-| 消息历史 | 第二次请求包含真实第一轮 assistant，回答“豆包” | 根 + 两次模型，共 3 个 |
-| 工具循环 | 参数 17、23，实际结果 391，ID 配对，最终回答一致 | 典型根 + 两次模型 + 一次工具，共 4 个 |
+| 聊天 | 一次请求，非空回答，正常结束 | HTTP 根 + 领域运行 + 模型，共 3 个 |
+| 消息历史 | 第二次请求包含真实第一轮 assistant，回答“豆包” | HTTP 根 + 领域运行 + 两次模型，共 4 个 |
+| 工具循环 | 参数 17、23，实际结果 391，ID 配对，最终回答一致 | HTTP 根 + 领域运行 + 两次模型 + 一次工具，共 5 个 |
 
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-16：数值精度、协议命名与 HTTP 观测依赖验证
+
+观测脱敏在解析字符串中的 JSON 时统一使用 `Decoder.UseNumber`，并确认单个 JSON 值完整结束，展示副本保留大整数、高精度小数与极大指数；敏感字段仍被脱敏，实际正文保持原样。Proto 命名空间统一为 `saklay.http.agent`，生成脚本的临时目录同步清理旧项目名，生成文件通过脚本更新。
+
+HTTP 请求链路改用官方 `otelgin` v0.72.0，显式注入私有 TracerProvider、noop MeterProvider 和空传播器；保留固定 span 名称、路由模板、服务内父子链路和公共响应中的实际 trace ID。原始路径、User-Agent 和客户端地址属性替换为脱敏标记，公共响应处理继续标记 4xx/5xx 和编码失败。`go.mod` 与 `go.sum` 已整理并锁定相应依赖。配置库经过评估后保留 `godotenv.Read` 与标准库解析，原因见开发约定。
+
+Proto 生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。新增回归覆盖数值精度与原始正文保护、请求元数据脱敏及请求内容保持、编码失败链路状态，以及关闭观测时携带外部 traceparent 仍返回空 trace ID；现有测试继续验证三课的 3/4/5 个 span、部分结果、取消和退出等待。本轮仅运行离线测试，未调用真实模型或连接 OpenObserve。
+
+## 2026-10-15：接口独立响应与显式返回验证
+
+三个接口分别定义并返回 `ChatRsp`、`MessagesRsp`、`RunRsp`，在 `app/impl_agent.go` 内显式处理领域返回值和组装响应，移除了统一业务响应类型及返回包装函数。各接口的字段赋值允许重复，步骤与用量继续复用实际共用的消息。路由为三种响应分别配置 HTTP 适配器，JSON 表现、错误映射及 `code/data/traceID/msg` 公共外层保持原有契约。项目约定和当前示例已同步。
+
+Proto 生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...` 及 `git diff --check` 均通过。响应兼容测试分别覆盖三种独立响应的 nil、零值、空步骤、完整字段、未知及零用量和大整数；现有路由测试继续验证三个业务流程、输入拒绝、预算、部分失败、取消及并发隔离。本轮未修改管理台或调用真实模型。
+
+## 2026-10-15：HTTP 入口收敛与 app 包迁移验证
+
+HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、退出信号及最终错误输出，随后调用 `app.Run(ctx, cfg)`。依赖组装及资源释放迁至 `http/app/run.go`，路由、接口实现、响应处理、服务生命周期及测试统一迁入 `http/app`（包名 `app`）；应用对外函数只有 `Run`，`entity` 和 `proto` 仍为同级目录。服务实现及测试在迁移时仅调整包名，启动命令、HTTP 协议与资源清理顺序保持原有契约。当前阅读路径、项目约定及测试命令已同步，下方记录保留此前目录演进的历史。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、文档本地链接与 `git diff --check` 均通过。`go run ./apps/interfaces/http -h` 正常输出启动参数，目录检查确认顶层只有 `main.go`。本轮未启动真实后台、未调用模型，也未修改管理台。
+
+## 2026-10-15：Proto 源文件与生成类型归并验证
+
+`agent.proto` 与生成的 `agent.pb.go` 统一放在 `http/proto`，Go 包名为 `proto`；`entity` 只保存手写的 HTTP 公共外层及 JSON 表现类型。生成脚本按新的 `go_package` 输出到同目录，旧的 `entity/agent.pb.go` 已移除。接口、转换和测试直接使用 `proto.ChatReq`、`proto.MessagesReq`、`proto.RunReq` 与 `proto.AgentRsp`，项目约定及当前阅读路径已同步；下方记录保留此前目录演进的历史。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、文档本地链接、依赖边界和 `git diff --check` 均通过。本轮只调整生成位置与 Go 导入，HTTP JSON、公共外层和领域行为保持既有契约；未修改管理台或调用真实模型。
+
+## 2026-10-15：Req/Rsp 与 HTTP 统一响应验证
+
+Proto 请求消息统一为 `ChatReq`、`MessagesReq`、`RunReq`，三个接口共用业务响应 `AgentRsp`。生成文件通过脚本更新，移除的业务 `trace_id` 字段编号与名称已保留。接口方法继续返回 `(rsp, error)`；`http/handler.go` 统一包装 `entity.Rsp[T]` 的 `code/data/traceID/msg`，成功 code 为 `ok`，失败保留原有 HTTP 状态与字符串错误码，无结果使用 `data: null`，有部分执行结果则保留。
+
+HTTP 解码前建立请求 span，领域运行挂到 HTTP 请求下，模型和工具仍挂到领域运行下。正常聊天、历史与典型工具流程分别为 3、4、5 个 span；外层 trace ID 对应实际链路，关闭观测时为空。退出闸门直接返回的 503 尚未进入路由，也使用四字段外层和空 trace ID。管理台已适配新外层、无结果错误及部分结果展示。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、前端三文件 Biome、TypeScript 类型检查及生产构建均通过。新增和更新的离线测试验证四字段外层、成功、解码与领域校验拒绝、404/405、真实 trace 关联、HTTP 与领域父子关系、关闭观测、编码回退；现有部分失败、预算、取消、并发隔离和退出等待测试继续通过。本轮未调用真实模型、未验证 OpenObserve 入库，也未进行浏览器交互验收。
+
+## 2026-10-15：Agent 接口实现合并验证
+
+原 `http/agent` 包的处理方法、参数转换、响应映射、JSON 适配及业务错误映射已合并到 `http/impl_agent.go`，与 HTTP 入口同属 `main` 包。内部类型使用 `agentAPI`，辅助函数保持私有并带 Agent 业务含义。响应兼容测试迁至 `http/impl_agent_test.go`；`router.go` 继续逐条声明完整路由并通过 `httpx.Adapt` 绑定方法。
+
+请求响应数据仍在 `entity`，协议源文件仍在 `proto`。原业务包的使用说明合并到 HTTP 入口 README，项目约定、生成脚本提示、学习路径和测试命令同步更新。下方保留此前迁移时的目录记录，当前组织方式以本节及项目约定为准。
+
+生成一致性、Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。现有离线契约测试覆盖严格 JSON、空数组、零值、未知用量、部分结果、取消及并发隔离；本轮未调用真实模型或进行浏览器验收。
 
 ## 2026-10-15：HTTP 请求响应统一归属验证
 
@@ -79,7 +122,7 @@ Agent 的处理方法、请求响应转换、JSON 适配、业务错误映射及
 
 ## 2026-10-15：Proto 消息接入验证
 
-三个接口的请求、响应、步骤与用量已在 `apps/interfaces/http/proto/agent.proto` 定义并生成 Go 消息。Gin 路由、HTTP URL、公共响应和领域业务保持原有分工，领域层不依赖生成包。请求字段名从消息描述符提取，响应通过 API 私有格式适配保留现有 JSON；具体边界见 [Proto 使用说明](../../apps/interfaces/http/agent/README.md)。
+三个接口的请求、响应、步骤与用量已在 `apps/interfaces/http/proto/agent.proto` 定义并生成 Go 消息。Gin 路由、HTTP URL、公共响应和领域业务保持原有分工，领域层不依赖生成包。请求字段名从消息描述符提取，响应通过 API 私有格式适配保留现有 JSON；具体边界见 [Proto 使用说明](../../apps/interfaces/http/README.md)。
 
 `scripts/generate-proto --check`、Go 格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...` 和 `git diff --check` 均通过。编译器固定为 protoc 29.3，生成器与运行时共用现有 v1.36.12 依赖，未升级其他依赖。
 

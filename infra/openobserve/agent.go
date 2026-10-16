@@ -14,7 +14,7 @@ import (
 
 var _ agent.Observer = (*Telemetry)(nil)
 
-// StartRun 将领域执行事件适配为根 span，领域层无需依赖 OpenTelemetry。
+// StartRun 将领域执行事件适配为 span，沿用入口传入的父链路，领域层无需依赖 OpenTelemetry。
 func (t *Telemetry) StartRun(ctx context.Context, operation string) (context.Context, agent.RunObservation) {
 	ctx, span := t.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
 	return ctx, &runObservation{span: span, started: time.Now()}

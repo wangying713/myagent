@@ -20,14 +20,16 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 		var request typepb.Type
 		present, err := httpx.DecodeProtoJSON(c, &request)
 		if err != nil {
-			httpx.WriteRequestError(c, err, nil)
+			writeTestReqError(c, err, nil)
 			return
 		}
-		httpx.Write(c, http.StatusOK, struct {
+		if err := httpx.Write(c, http.StatusOK, struct {
 			Name    string          `json:"name"`
 			Oneofs  []string        `json:"oneofs"`
 			Present map[string]bool `json:"present"`
-		}{Name: request.GetName(), Oneofs: request.GetOneofs(), Present: present})
+		}{Name: request.GetName(), Oneofs: request.GetOneofs(), Present: present}); err != nil {
+			t.Error(err)
+		}
 	})
 	for _, tc := range []struct {
 		name, body, contentType, code string
@@ -63,7 +65,7 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 				t.Fatalf("输入 %s 实际 HTTP %d、正文 %s，预期 HTTP %d 且禁止缓存", tc.body, out.Code, out.Body.String(), tc.status)
 			}
 			if tc.code != "" {
-				var response httpx.Response[any]
+				var response testRsp[any]
 				if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || response.Error == nil || response.Error.Code != tc.code {
 					t.Fatalf("实际响应 %s，预期错误码 %s", out.Body.String(), tc.code)
 				}

@@ -10,16 +10,17 @@
 
 ## trace 与 span
 
-Trace 对应一次运行，span 对应一步；同一运行共享 trace ID，每个 span 有自己的 span ID，并通过父 ID 关联。
+Trace 对应一次 HTTP 请求，span 对应处理阶段；HTTP、领域运行、模型与工具共享 trace ID，每个 span 有自己的 span ID，并通过父 ID 关联。
 
 ```text
-agent.run
-├── chat deepseek-flash  # 模型提出乘法调用
-├── Tool call            # Go 校验与分发，返回 391
-└── chat deepseek-flash  # 带上真实结果，模型回答
+http.request
+└── agent.run
+    ├── chat deepseek-flash  # 模型提出乘法调用
+    ├── Tool call            # Go 校验与分发，返回 391
+    └── chat deepseek-flash  # 带上真实结果，模型回答
 ```
 
-正常聊天为 2 个 span，消息历史为 3 个，典型单工具循环为 4 个。模型与工具都是运行根节点的直接子节点。一般可按 `1 + model_calls + tool_calls` 核对实际数量，但收到模型响应前失败、或流程在发请求前被取消等情形要结合步骤判断。
+正常聊天为 3 个 span，消息历史为 4 个，典型单工具循环为 5 个。领域运行是 HTTP 根节点的子节点，模型与工具都是领域运行的直接子节点。一般可按 `2 + model_calls + tool_calls` 核对实际数量，但收到模型响应前失败、或流程在发请求前被取消等情形要结合步骤判断。
 
 Trace ID 关联观测，tool call ID 关联协议消息，不能互换。工具分发失败也需要留记录，并标记错误。
 
@@ -31,15 +32,16 @@ Trace ID 关联观测，tool call ID 关联协议消息，不能互换。工具�
 4. 展开模型 span，比较请求和响应；工具课程再核对工具名、调用 ID、参数与真实结果。
 5. 如果页面已完成但查不到记录，检查终端观测提示及配置，不能把模型成功当入库成功。
 
-当前没有将后台 HTTP 处理本身作为额外 span，也不自动记录 DNS、连接池或上报请求。没有重复发送 Logs 或 Metrics，不为每个字段建立独立 span。
+HTTP 根 span 在解码前建立，包含健康检查、路由和输入拒绝等请求；业务响应之外的 `traceID` 可关联实际链路。关闭观测时不伪造 trace ID。当前不自动记录 DNS、连接池或上报请求。没有重复发送 Logs 或 Metrics，不为每个字段建立独立 span。
 
 ## 当前实际属性
 
 | 属性 | 用途 |
 | --- | --- |
-| `app.lesson` | 根 span 的课程标识 |
-| `app.llm_calls` / `app.tool_calls` | 根 span 的模型与工具分发次数 |
-| `app.total_tokens` / `app.usage.complete` | 根 span 的已知累计用量与完整性 |
+| `http.route` | HTTP 入口注册的路由模板，不采集原始 URL |
+| `app.lesson` | 领域运行 span 的课程标识 |
+| `app.llm_calls` / `app.tool_calls` | 领域运行 span 的模型与工具分发次数 |
+| `app.total_tokens` / `app.usage.complete` | 领域运行 span 的已知累计用量与完整性 |
 | `app.request` / `app.response` | 模型或工具的实际请求/响应脱敏副本 |
 | `app.request.truncated` / `app.response.truncated` | 正文是否截断 |
 | `gen_ai.input.messages` / `gen_ai.output.messages` | 将同一正文包装为文本消息，供界面预览 |

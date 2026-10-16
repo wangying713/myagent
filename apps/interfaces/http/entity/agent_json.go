@@ -1,4 +1,4 @@
-// Package entity 定义 HTTP API 的请求、响应及共用数据类型，不承担业务处理或传输行为。
+// Package entity 定义手写的 HTTP 共用数据与 JSON 表现类型，不承担业务处理或传输行为。
 package entity
 
 // AgentExecutionResult 是三个 Agent 接口共用的 HTTP JSON 响应数据。
@@ -6,7 +6,6 @@ type AgentExecutionResult struct {
 	Lesson           string               `json:"lesson"`
 	Completed        bool                 `json:"completed"`
 	Answer           string               `json:"answer"`
-	TraceID          string               `json:"trace_id"`
 	TelemetryEnabled bool                 `json:"telemetry_enabled"`
 	ElapsedMS        int64                `json:"elapsed_ms"`
 	ModelCalls       int64                `json:"model_calls"`

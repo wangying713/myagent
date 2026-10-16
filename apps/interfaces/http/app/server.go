@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"saklay/ai/apps/config"
+	"saklay/ai/apps/interfaces/http/entity"
 )
 
 const httpShutdownTimeout = 10 * time.Second
@@ -117,7 +118,7 @@ func (t *requestTracker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		// 退出期间连接可能已关闭，写入失败不应延长退出或触发业务重试。
-		_, _ = io.WriteString(w, `{"data":null,"error":{"code":"service_unavailable","message":"服务正在退出，请稍后重试"}}`)
+		_, _ = io.WriteString(w, `{"code":"`+entity.CodeServiceUnavailable+`","data":null,"traceID":"","msg":"服务正在退出，请稍后重试"}`)
 		return
 	}
 	t.active++

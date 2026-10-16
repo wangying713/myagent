@@ -75,6 +75,8 @@ npm run build
 
 再在本目录执行 `npm start`，打开 `http://127.0.0.1:8000/agent-development`。登录后点击侧边栏一级菜单“Agent 开发”，页面提供三个独立运行按钮：普通聊天、消息历史和工具调用循环。保留默认问题即可直接运行，也可先编辑问题。消息历史一次完成两轮，每次点击都重新开始。
 
+Agent 接口使用 `code/data/traceID/msg` 外层，成功 code 为 `ok`，失败提示使用 `msg`；data 可为 null，已有部分结果仍予保留。Trace ID 从外层读取。
+
 下方展示当前课程的回答、耗时、调用数、用量、trace ID 和可展开的真实请求、响应与工具步骤。窄屏时三张卡片竖向排列。旧地址 `/demos/go-agent` 跳转到新页面，不重复显示菜单。
 
 `config/proxy.ts` 只将 `/api/agent/*` 和 `/api/health` 转发到 `http://127.0.0.1:8080`，保留其他官方 Mock。若改了 Go 监听端口，同步修改该代理目标。模型密钥和观测鉴权留在 Go 配置，前端不保存凭据。

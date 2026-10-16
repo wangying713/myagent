@@ -1,4 +1,4 @@
-// HTTP 入口组装配置、模型、观测和三课，运行期间共用连接，每次请求独立执行。
+// HTTP 入口处理启动参数、配置、退出信号和最终错误，服务由 app 运行。
 package main
 
 import (
@@ -9,21 +9,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"saklay/ai/apps/config"
-	"saklay/ai/domain/agent"
-	"saklay/ai/infra/deepseek"
-	"saklay/ai/infra/openobserve"
-
-	"github.com/gin-gonic/gin"
+	"saklay/ai/apps/interfaces/http/app"
 )
 
-const telemetryFlushTimeout = 5 * time.Second
-
 func main() {
-	// 框架运行模式由入口设置，避免路由构造修改全局状态。
-	gin.SetMode(gin.ReleaseMode)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := execute(ctx); err != nil {
@@ -42,33 +33,5 @@ func execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return run(ctx, cfg)
-}
-
-func run(ctx context.Context, cfg config.Settings) error {
-	telemetry, err := openobserve.New(ctx, cfg.Observe, nil, os.Stderr)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		flushCtx, cancel := context.WithTimeout(context.Background(), telemetryFlushTimeout)
-		defer cancel()
-		if telemetry.Close(flushCtx) != nil {
-			fmt.Fprintln(os.Stderr, "[观测] 退出刷新未完成，请按 trace ID 核查")
-		}
-	}()
-	client, err := deepseek.New(cfg.Model, telemetry, nil)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-	service, err := agent.NewService(client, telemetry, cfg.Limits)
-	if err != nil {
-		return err
-	}
-	handler, err := newRouter(service, cfg.HTTP.RunTimeout)
-	if err != nil {
-		return err
-	}
-	return runHTTP(ctx, handler, cfg.HTTP)
+	return app.Run(ctx, cfg)
 }

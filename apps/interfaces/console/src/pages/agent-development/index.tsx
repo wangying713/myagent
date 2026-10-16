@@ -16,7 +16,7 @@ import {
   Typography,
 } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import type { Lesson, RunResponse } from './data';
+import type { Lesson, RunRsp } from './data';
 import { lessons } from './data';
 import { runLesson } from './service';
 
@@ -56,7 +56,7 @@ export default function AgentDevelopment() {
     messages: [...lessons.messages.questions],
     agent: [...lessons.agent.questions],
   });
-  const [result, setResult] = useState<RunResponse>();
+  const [result, setResult] = useState<RunRsp>();
   const [notice, setNotice] = useState('');
   const [running, setRunning] = useState(false);
   const controller = useRef<AbortController | null>(null);
@@ -199,11 +199,21 @@ export default function AgentDevelopment() {
           />
         )}
         {notice && <Alert type="info" title={notice} showIcon />}
-        {result?.error && (
+        {result && result.code !== 'ok' && (
           <Alert
             type="error"
-            title={result.error.message}
-            description={`错误码：${result.error.code}。下方保留已完成的执行记录。`}
+            title={result.msg}
+            description={
+              <>
+                错误码：{result.code}。
+                {result.data
+                  ? '下方保留已完成的执行记录。'
+                  : '本次请求未产生执行结果。'}
+                {!result.data && result.traceID && (
+                  <Typography.Text copyable>{result.traceID}</Typography.Text>
+                )}
+              </>
+            }
             showIcon
           />
         )}
@@ -247,9 +257,9 @@ export default function AgentDevelopment() {
                     key: 'trace',
                     label: 'Trace ID',
                     span: 2,
-                    children: data.trace_id ? (
+                    children: result?.traceID ? (
                       <Typography.Text copyable>
-                        {data.trace_id}
+                        {result.traceID}
                       </Typography.Text>
                     ) : (
                       '观测已关闭'

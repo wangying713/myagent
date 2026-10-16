@@ -48,7 +48,7 @@
 在项目根目录运行：
 
 ```sh
-./scripts/go test ./domain/agent ./apps/interfaces/http/agent ./infra/openobserve
+./scripts/go test ./domain/agent ./apps/interfaces/http/app ./infra/openobserve
 ```
 
 重点读 `TestLoopBudgetsAndProtocolErrors`、`TestRequestDeadlineAndCallerCancellation`、`TestBudgetAndObservabilityFailureIsolation`。分别修改假模型的参数、用量和结束原因，确认失败不会变成成功，也不会执行未注册函数。

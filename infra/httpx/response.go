@@ -2,27 +2,18 @@ package httpx
 
 import (
 	"encoding/json"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Response[T any] struct {
-	Data  T      `json:"data"`
-	Error *Error `json:"error,omitempty"`
-}
-
-func WriteResult(c *gin.Context, status int, data any, failure *Error) {
-	Write(c, status, Response[any]{Data: data, Error: failure})
-}
-
-// Write 先完成编码再写响应头，避免发送半个成功响应，不重试业务请求。
-func Write(c *gin.Context, status int, value any) {
+// Write 先完成编码再写响应头，失败时返回错误，交由调用方生成其统一错误响应。
+// 编码失败不会写出任何响应头或正文，也不重试业务请求。
+func Write(c *gin.Context, status int, value any) error {
 	body, err := json.Marshal(value)
 	if err != nil {
-		status = http.StatusInternalServerError
-		body = []byte(`{"data":null,"error":{"code":"internal_error","message":"响应编码失败"}}`)
+		return err
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Data(status, "application/json; charset=utf-8", body)
+	return nil
 }

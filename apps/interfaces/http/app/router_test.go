@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/entity"
+	"saklay/ai/apps/interfaces/http/proto"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/deepseek"
-	"saklay/ai/infra/httpx"
 	"saklay/ai/infra/openobserve"
 
 	"github.com/gin-gonic/gin"
@@ -26,10 +26,9 @@ import (
 )
 
 // 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
-type Response = httpx.Response[struct {
+type Rsp = entity.Rsp[struct {
 	Completed   bool              `json:"completed"`
 	Answer      string            `json:"answer"`
-	TraceID     string            `json:"trace_id"`
 	ModelCalls  int               `json:"model_calls"`
 	ToolCalls   int               `json:"tool_calls"`
 	KnownTokens int               `json:"known_tokens"`
@@ -77,14 +76,14 @@ func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout ti
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(runner, timeout)
+	handler, err := newRouter(runner, timeout, telemetry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return handler, telemetry
 }
 
-func invoke(handler http.Handler, lesson, body string) (*httptest.ResponseRecorder, Response) {
+func invoke(handler http.Handler, lesson, body string) (*httptest.ResponseRecorder, Rsp) {
 	path := "/api/agent/" + lesson
 	if lesson == "agent" {
 		path = "/api/agent/run"
@@ -93,7 +92,7 @@ func invoke(handler http.Handler, lesson, body string) (*httptest.ResponseRecord
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
-	var response Response
+	var response Rsp
 	json.Unmarshal(w.Body.Bytes(), &response)
 	return w, response
 }
@@ -145,14 +144,14 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 				}
 			}, agent.DefaultLimits(), time.Second, exporter)
 			w, response := invoke(handler, lesson, `{}`)
-			wantModels, wantTools, wantSpans := 1, 0, 2
+			wantModels, wantTools, wantSpans := 1, 0, 3
 			if lesson == "messages" {
-				wantModels, wantSpans = 2, 3
+				wantModels, wantSpans = 2, 4
 			}
 			if lesson == "agent" {
-				wantModels, wantTools, wantSpans = 2, 1, 4
+				wantModels, wantTools, wantSpans = 2, 1, 5
 			}
-			if w.Code != 200 || response.Error != nil || !response.Data.Completed || response.Data.ModelCalls != wantModels || response.Data.ToolCalls != wantTools || response.Data.KnownTokens != wantModels*10 || len(response.Data.Steps) != wantSpans-1 {
+			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != wantModels || response.Data.ToolCalls != wantTools || response.Data.KnownTokens != wantModels*10 || len(response.Data.Steps) != wantSpans-2 {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
 			}
 			if err := telemetry.Flush(context.Background()); err != nil {
@@ -163,21 +162,27 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			if len(exporter.spans) != wantSpans {
 				t.Fatalf("实际 %d 个 span，预期 %d", len(exporter.spans), wantSpans)
 			}
-			var root sdktrace.ReadOnlySpan
+			var root, requestSpan sdktrace.ReadOnlySpan
 			for _, s := range exporter.spans {
 				if s.Name() == "agent.run" {
 					root = s
 				}
+				if s.Name() == "http.request" {
+					requestSpan = s
+				}
 			}
-			if root == nil {
-				t.Fatal("缺少运行根 span")
+			if root == nil || requestSpan == nil {
+				t.Fatal("缺少 HTTP 请求或领域运行 span")
+			}
+			if root.Parent().SpanID() != requestSpan.SpanContext().SpanID() || root.SpanContext().TraceID() != requestSpan.SpanContext().TraceID() {
+				t.Error("领域运行没有挂到本次 HTTP 请求链路")
 			}
 			for _, s := range exporter.spans {
-				if s.Name() != "agent.run" && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
+				if s.Name() != "agent.run" && s.Name() != "http.request" && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
 					t.Error("模型或工具没有挂到同次运行的根 span")
 				}
 			}
-			if response.Data.TraceID != root.SpanContext().TraceID().String() {
+			if response.TraceID != root.SpanContext().TraceID().String() {
 				t.Error("页面 trace ID 与实际记录不一致")
 			}
 		})
@@ -235,7 +240,7 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	}
 	for _, body := range []string{`{"question":"` + strings.Repeat("a", 40<<10) + `"}`, `{}` + strings.Repeat(" ", 40<<10)} {
 		w, response := invoke(handler, "chat", body)
-		if w.Code != 413 || response.Error == nil || response.Error.Code != "request_too_large" {
+		if w.Code != 413 || response.Code != "request_too_large" {
 			t.Errorf("超大请求实际 HTTP %d，响应 %s，预期 request_too_large", w.Code, w.Body.String())
 		}
 	}
@@ -293,12 +298,15 @@ func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
 				}
 			}
 			if tc.code != "" {
-				var response Response
-				if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || response.Error == nil || response.Error.Code != tc.code {
+				var response Rsp
+				if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || response.Code != tc.code {
 					t.Errorf("实际错误响应 %s，预期 %s", out.Body.String(), tc.code)
 				}
-			} else if tc.method == "GET" && out.Body.String() != `{"status":"ok"}` {
-				t.Errorf("实际健康响应 %s，预期 status=ok", out.Body.String())
+			} else if tc.method == "GET" {
+				var rsp entity.Rsp[map[string]string]
+				if err := json.Unmarshal(out.Body.Bytes(), &rsp); err != nil || rsp.Code != "ok" || rsp.Data["status"] != "ok" || rsp.TraceID == "" {
+					t.Errorf("实际健康响应 %s，预期统一外层及 status=ok", out.Body.String())
+				}
 			}
 		})
 	}
@@ -342,8 +350,8 @@ func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
 	request.Header.Set("X-API-Key", "header-secret")
 	out := httptest.NewRecorder()
 	handler.ServeHTTP(out, request)
-	var response Response
-	if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || out.Code != 500 || response.Error == nil || response.Error.Code != "internal_error" || response.Data.Completed {
+	var response Rsp
+	if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || out.Code != 500 || response.Code != "internal_error" || response.Data.Completed {
 		t.Fatalf("异常响应实际 %d %s，预期未完成的 internal_error", out.Code, out.Body.String())
 	}
 	if strings.Contains(out.Body.String(), "test-api-key") || strings.Contains(out.Body.String(), "header-secret") {
@@ -382,7 +390,7 @@ func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			handler, _ := setup(t, tc.handler, agent.DefaultLimits(), time.Second, &memoryExporter{})
 			w, response := invoke(handler, "chat", `{}`)
-			if w.Code != tc.status || response.Error == nil || response.Error.Code != tc.code || response.Data.Completed || len(response.Data.Steps) != 1 {
+			if w.Code != tc.status || response.Code != tc.code || response.Data.Completed || len(response.Data.Steps) != 1 {
 				t.Fatalf("失败响应 %d %s", w.Code, w.Body.String())
 			}
 			if bytes.Contains(w.Body.Bytes(), []byte("test-api-key")) || bytes.Contains(w.Body.Bytes(), []byte("hidden-value")) {
@@ -452,7 +460,7 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 	}
 	handler, telemetry := setup(t, model, agent.Limits{ModelCalls: 1, ToolCalls: 8, Tokens: 8000}, time.Second, &memoryExporter{fail: true})
 	w, response := invoke(handler, "messages", `{}`)
-	if w.Code != 409 || response.Error == nil || response.Error.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
+	if w.Code != 409 || response.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
 		t.Fatalf("预算未保留已完成第一轮：%s", w.Body.String())
 	}
 	if err := telemetry.Flush(context.Background()); err != nil {
@@ -481,7 +489,7 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, err := protojson.Marshal(&entity.ChatRequest{Question: &question})
+			body, err := protojson.Marshal(&proto.ChatReq{Question: &question})
 			if err != nil {
 				t.Errorf("编码聊天请求：%v", err)
 				return

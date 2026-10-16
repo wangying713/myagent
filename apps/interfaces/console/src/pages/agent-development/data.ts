@@ -21,7 +21,6 @@ export interface RunResult {
   lesson: Lesson;
   completed: boolean;
   answer: string;
-  trace_id: string;
   telemetry_enabled: boolean;
   elapsed_ms: number;
   model_calls: number;
@@ -31,10 +30,14 @@ export interface RunResult {
   steps: Step[];
 }
 
-export interface RunResponse {
-  data: RunResult;
-  error?: { code: string; message: string };
+export interface Rsp<T> {
+  code: string;
+  data: T;
+  traceID: string;
+  msg: string;
 }
+
+export type RunRsp = Rsp<RunResult | null>;
 
 export const lessons: Record<
   Lesson,

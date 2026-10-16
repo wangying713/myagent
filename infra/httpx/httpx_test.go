@@ -23,10 +23,10 @@ func catalogRouter() *gin.Engine {
 	router.POST("/catalog", func(c *gin.Context) {
 		var request catalogRequest
 		if err := httpx.DecodeJSON(c, &request, "name", "count"); err != nil {
-			httpx.WriteRequestError(c, err, nil)
+			writeTestReqError(c, err, nil)
 			return
 		}
-		httpx.WriteResult(c, http.StatusOK, request, nil)
+		writeTestRsp(c, http.StatusOK, request, nil)
 	})
 	return router
 }
@@ -60,7 +60,7 @@ func TestDecodeJSONContract(t *testing.T) {
 			request.Header.Set("Content-Type", tc.contentType)
 			out := httptest.NewRecorder()
 			router.ServeHTTP(out, request)
-			var response httpx.Response[catalogRequest]
+			var response testRsp[catalogRequest]
 			if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil {
 				t.Fatalf("响应不是合法 JSON：%s，错误 %v", out.Body.String(), err)
 			}
@@ -77,18 +77,36 @@ func TestDecodeJSONContract(t *testing.T) {
 	}
 }
 
-func TestResponseEncodingFailureDoesNotWritePartialSuccess(t *testing.T) {
-	router := gin.New()
-	router.GET("/bad", func(c *gin.Context) {
-		httpx.WriteResult(c, http.StatusOK, make(chan int), nil)
-	})
+func TestEncodingFailureDoesNotWritePartialSuccess(t *testing.T) {
 	out := httptest.NewRecorder()
-	router.ServeHTTP(out, httptest.NewRequest(http.MethodGet, "/bad", nil))
-	var response httpx.Response[any]
-	if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || out.Code != 500 || response.Error == nil || response.Error.Code != "internal_error" {
-		t.Fatalf("实际响应 %d %s，预期完整的 JSON 500 响应", out.Code, out.Body.String())
+	ctx, _ := gin.CreateTestContext(out)
+	if err := httpx.Write(ctx, http.StatusOK, make(chan int)); err == nil {
+		t.Fatal("不可编码的数据没有返回错误")
 	}
-	if out.Header().Get("Content-Type") != "application/json; charset=utf-8" || out.Header().Get("Cache-Control") != "no-store" {
-		t.Errorf("编码失败时响应头不符合契约：%v", out.Header())
+	if ctx.Writer.Written() || out.Body.Len() != 0 || out.Header().Get("Content-Type") != "" {
+		t.Fatalf("编码失败写出了部分响应：HTTP %d，正文 %s，头部 %v", out.Code, out.Body.String(), out.Header())
 	}
+	if err := httpx.Write(ctx, http.StatusInternalServerError, map[string]string{"code": "encoding_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	if out.Code != 500 || out.Body.String() != `{"code":"encoding_failed"}` || out.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("调用方无法完整回退响应：%d %s", out.Code, out.Body.String())
+	}
+}
+
+// 测试调用方自行定义外层，HTTP 工具不约束其字段布局。
+type testRsp[T any] struct {
+	Data  T            `json:"data"`
+	Error *httpx.Error `json:"error,omitempty"`
+}
+
+func writeTestRsp(c *gin.Context, status int, data any, failure *httpx.Error) {
+	if err := httpx.Write(c, status, testRsp[any]{Data: data, Error: failure}); err != nil {
+		panic("测试响应编码失败")
+	}
+}
+
+func writeTestReqError(c *gin.Context, err error, data any) {
+	status, failure := httpx.ClassifyReqError(err)
+	writeTestRsp(c, status, data, failure)
 }

@@ -19,12 +19,12 @@ fi
 compiler="$project_dir/.tools/protoc-29.3/bin/protoc"
 if [ ! -x "$compiler" ]; then
     if ! compiler=$(command -v protoc); then
-        echo "未找到 protoc，请按 apps/interfaces/http/agent/README.md 安装 29.3 版" >&2
+        echo "未找到 protoc，请按 apps/interfaces/http/README.md 安装 29.3 版" >&2
         exit 1
     fi
 fi
 if [ "$("$compiler" --version)" != "libprotoc 29.3" ]; then
-    echo "需要 protoc 29.3，请按 apps/interfaces/http/agent/README.md 配置工具" >&2
+    echo "需要 protoc 29.3，请按 apps/interfaces/http/README.md 配置工具" >&2
     exit 1
 fi
 
@@ -32,12 +32,12 @@ generator="$project_dir/.tools/protobuf/protoc-gen-go"
 mkdir -p "$project_dir/.tools/protobuf"
 ./scripts/go build -o "$generator" google.golang.org/protobuf/cmd/protoc-gen-go
 
-output_dir=$(mktemp -d "${TMPDIR:-/tmp}/sakelei-proto.XXXXXX")
+output_dir=$(mktemp -d "${TMPDIR:-/tmp}/saklay-proto.XXXXXX")
 trap 'rm -rf "$output_dir"' EXIT
 trap 'exit 1' HUP INT TERM
 schema=apps/interfaces/http/proto/agent.proto
-generated=apps/interfaces/http/entity/agent.pb.go
-# 按 go_package 生成到 entity，移除模块前缀后得到项目内相对路径。
+generated=apps/interfaces/http/proto/agent.pb.go
+# 按 go_package 生成到 proto，与协议源文件同目录。
 "$compiler" -I . --plugin="protoc-gen-go=$generator" \
     --go_out="$output_dir" --go_opt=module=saklay/ai "$schema"
 

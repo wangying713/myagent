@@ -34,7 +34,7 @@ func typeAdapter(t *testing.T, timeout time.Duration) *httpx.Adapter[*typeResult
 		default:
 			return http.StatusBadGateway, &httpx.Error{Code: "upstream_failed", Message: "上游调用失败"}
 		}
-	})
+	}, writeTestRsp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestAdaptKeepsResponseWithError(t *testing.T) {
 			}))
 			out := httptest.NewRecorder()
 			router.ServeHTTP(out, typeRequest(`{"name":"请求"}`))
-			var response httpx.Response[*typeResult]
+			var response testRsp[*typeResult]
 			if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil {
 				t.Fatal(err)
 			}
@@ -116,7 +116,7 @@ func TestAdaptPreparesRequestAfterSuccessfulDecode(t *testing.T) {
 	prepared, called = false, false
 	out = httptest.NewRecorder()
 	router.ServeHTTP(out, typeRequest(`{"unknown":true}`))
-	var response httpx.Response[*typeResult]
+	var response testRsp[*typeResult]
 	if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestAdaptDoesNotShareRequestOrResponse(t *testing.T) {
 				return
 			}
 			router.ServeHTTP(out, typeRequest(string(body)))
-			var response httpx.Response[*typeResult]
+			var response testRsp[*typeResult]
 			if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil || out.Code != 200 || response.Data == nil || response.Data.Name != name {
 				t.Errorf("请求 %q 实际响应 %d %s，预期结果相互独立", name, out.Code, out.Body.String())
 			}
@@ -215,13 +215,19 @@ func TestAdaptDoesNotShareRequestOrResponse(t *testing.T) {
 func TestNewAdapterRejectsInvalidConfig(t *testing.T) {
 	encode := func(response *typeResult) any { return response }
 	classify := func(error) (int, *httpx.Error) { return http.StatusOK, nil }
-	if _, err := httpx.NewAdapter(0, encode, classify); err == nil {
+	if _, err := httpx.NewAdapter(0, encode, classify, writeTestRsp); err == nil {
 		t.Error("零超时未被拒绝")
 	}
-	if _, err := httpx.NewAdapter[*typeResult](time.Second, nil, classify); err == nil {
+	if _, err := httpx.NewAdapter[*typeResult](time.Second, nil, classify, writeTestRsp); err == nil {
 		t.Error("缺少响应编码未被拒绝")
 	}
-	if _, err := httpx.NewAdapter(time.Second, encode, nil); err == nil {
+	if _, err := httpx.NewAdapter(time.Second, encode, nil, writeTestRsp); err == nil {
 		t.Error("缺少错误映射未被拒绝")
+	}
+}
+
+func TestNewAdapterRequiresWriter(t *testing.T) {
+	if _, err := httpx.NewAdapter(time.Second, func(rsp *typeResult) any { return rsp }, func(error) (int, *httpx.Error) { return 200, nil }, nil); err == nil {
+		t.Error("缺少响应写出函数未被拒绝")
 	}
 }

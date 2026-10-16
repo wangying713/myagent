@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: apps/interfaces/http/proto/agent.proto
 
-package entity
+package proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -21,28 +21,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ChatRequest 对应 POST /api/agent/chat；省略问题使用默认问题，空字符串无效。
-type ChatRequest struct {
+// ChatReq 对应 POST /api/agent/chat；省略问题使用默认问题，空字符串无效。
+type ChatReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      *string                `protobuf:"bytes,1,opt,name=question,proto3,oneof" json:"question,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ChatRequest) Reset() {
-	*x = ChatRequest{}
+func (x *ChatReq) Reset() {
+	*x = ChatReq{}
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatRequest) String() string {
+func (x *ChatReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatRequest) ProtoMessage() {}
+func (*ChatReq) ProtoMessage() {}
 
-func (x *ChatRequest) ProtoReflect() protoreflect.Message {
+func (x *ChatReq) ProtoReflect() protoreflect.Message {
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,41 +54,41 @@ func (x *ChatRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatRequest.ProtoReflect.Descriptor instead.
-func (*ChatRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatReq.ProtoReflect.Descriptor instead.
+func (*ChatReq) Descriptor() ([]byte, []int) {
 	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ChatRequest) GetQuestion() string {
+func (x *ChatReq) GetQuestion() string {
 	if x != nil && x.Question != nil {
 		return *x.Question
 	}
 	return ""
 }
 
-// MessagesRequest 对应 POST /api/agent/messages，一次执行固定两轮。
+// MessagesReq 对应 POST /api/agent/messages，一次执行固定两轮。
 // HTTP 层另行保留字段是否出现：省略使用默认问题，显式空数组无效。
-type MessagesRequest struct {
+type MessagesReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Questions     []string               `protobuf:"bytes,1,rep,name=questions,proto3" json:"questions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MessagesRequest) Reset() {
-	*x = MessagesRequest{}
+func (x *MessagesReq) Reset() {
+	*x = MessagesReq{}
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MessagesRequest) String() string {
+func (x *MessagesReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MessagesRequest) ProtoMessage() {}
+func (*MessagesReq) ProtoMessage() {}
 
-func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
+func (x *MessagesReq) ProtoReflect() protoreflect.Message {
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -100,40 +100,40 @@ func (x *MessagesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MessagesRequest.ProtoReflect.Descriptor instead.
-func (*MessagesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use MessagesReq.ProtoReflect.Descriptor instead.
+func (*MessagesReq) Descriptor() ([]byte, []int) {
 	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *MessagesRequest) GetQuestions() []string {
+func (x *MessagesReq) GetQuestions() []string {
 	if x != nil {
 		return x.Questions
 	}
 	return nil
 }
 
-// RunRequest 对应 POST /api/agent/run，只允许调用已注册的工具。
-type RunRequest struct {
+// RunReq 对应 POST /api/agent/run，只允许调用已注册的工具。
+type RunReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      *string                `protobuf:"bytes,1,opt,name=question,proto3,oneof" json:"question,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RunRequest) Reset() {
-	*x = RunRequest{}
+func (x *RunReq) Reset() {
+	*x = RunReq{}
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RunRequest) String() string {
+func (x *RunReq) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RunRequest) ProtoMessage() {}
+func (*RunReq) ProtoMessage() {}
 
-func (x *RunRequest) ProtoReflect() protoreflect.Message {
+func (x *RunReq) ProtoReflect() protoreflect.Message {
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -145,26 +145,24 @@ func (x *RunRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunRequest.ProtoReflect.Descriptor instead.
-func (*RunRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use RunReq.ProtoReflect.Descriptor instead.
+func (*RunReq) Descriptor() ([]byte, []int) {
 	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *RunRequest) GetQuestion() string {
+func (x *RunReq) GetQuestion() string {
 	if x != nil && x.Question != nil {
 		return *x.Question
 	}
 	return ""
 }
 
-// ExecutionResult 是三个接口的响应数据，公共 data/error 外层由 httpx 定义。
-// 现有 HTTP JSON 使用下划线字段名和数字整数，具体编码由 API 边界适配。
-type ExecutionResult struct {
+// ChatRsp 是普通聊天接口的业务响应，公共外层由 HTTP handler 包装。
+type ChatRsp struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Lesson           string                 `protobuf:"bytes,1,opt,name=lesson,proto3" json:"lesson,omitempty"`
 	Completed        bool                   `protobuf:"varint,2,opt,name=completed,proto3" json:"completed,omitempty"`
 	Answer           string                 `protobuf:"bytes,3,opt,name=answer,proto3" json:"answer,omitempty"`
-	TraceId          string                 `protobuf:"bytes,4,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
 	TelemetryEnabled bool                   `protobuf:"varint,5,opt,name=telemetry_enabled,json=telemetryEnabled,proto3" json:"telemetry_enabled,omitempty"`
 	ElapsedMs        int64                  `protobuf:"varint,6,opt,name=elapsed_ms,json=elapsedMs,proto3" json:"elapsed_ms,omitempty"`
 	ModelCalls       int64                  `protobuf:"varint,7,opt,name=model_calls,json=modelCalls,proto3" json:"model_calls,omitempty"`
@@ -176,20 +174,20 @@ type ExecutionResult struct {
 	sizeCache        protoimpl.SizeCache
 }
 
-func (x *ExecutionResult) Reset() {
-	*x = ExecutionResult{}
+func (x *ChatRsp) Reset() {
+	*x = ChatRsp{}
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ExecutionResult) String() string {
+func (x *ChatRsp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ExecutionResult) ProtoMessage() {}
+func (*ChatRsp) ProtoMessage() {}
 
-func (x *ExecutionResult) ProtoReflect() protoreflect.Message {
+func (x *ChatRsp) ProtoReflect() protoreflect.Message {
 	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -201,82 +199,309 @@ func (x *ExecutionResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExecutionResult.ProtoReflect.Descriptor instead.
-func (*ExecutionResult) Descriptor() ([]byte, []int) {
+// Deprecated: Use ChatRsp.ProtoReflect.Descriptor instead.
+func (*ChatRsp) Descriptor() ([]byte, []int) {
 	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ExecutionResult) GetLesson() string {
+func (x *ChatRsp) GetLesson() string {
 	if x != nil {
 		return x.Lesson
 	}
 	return ""
 }
 
-func (x *ExecutionResult) GetCompleted() bool {
+func (x *ChatRsp) GetCompleted() bool {
 	if x != nil {
 		return x.Completed
 	}
 	return false
 }
 
-func (x *ExecutionResult) GetAnswer() string {
+func (x *ChatRsp) GetAnswer() string {
 	if x != nil {
 		return x.Answer
 	}
 	return ""
 }
 
-func (x *ExecutionResult) GetTraceId() string {
-	if x != nil {
-		return x.TraceId
-	}
-	return ""
-}
-
-func (x *ExecutionResult) GetTelemetryEnabled() bool {
+func (x *ChatRsp) GetTelemetryEnabled() bool {
 	if x != nil {
 		return x.TelemetryEnabled
 	}
 	return false
 }
 
-func (x *ExecutionResult) GetElapsedMs() int64 {
+func (x *ChatRsp) GetElapsedMs() int64 {
 	if x != nil {
 		return x.ElapsedMs
 	}
 	return 0
 }
 
-func (x *ExecutionResult) GetModelCalls() int64 {
+func (x *ChatRsp) GetModelCalls() int64 {
 	if x != nil {
 		return x.ModelCalls
 	}
 	return 0
 }
 
-func (x *ExecutionResult) GetToolCalls() int64 {
+func (x *ChatRsp) GetToolCalls() int64 {
 	if x != nil {
 		return x.ToolCalls
 	}
 	return 0
 }
 
-func (x *ExecutionResult) GetKnownTokens() int64 {
+func (x *ChatRsp) GetKnownTokens() int64 {
 	if x != nil {
 		return x.KnownTokens
 	}
 	return 0
 }
 
-func (x *ExecutionResult) GetUsageComplete() bool {
+func (x *ChatRsp) GetUsageComplete() bool {
 	if x != nil {
 		return x.UsageComplete
 	}
 	return false
 }
 
-func (x *ExecutionResult) GetSteps() []*ExecutionStep {
+func (x *ChatRsp) GetSteps() []*ExecutionStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+// MessagesRsp 是消息历史接口的业务响应，公共外层由 HTTP handler 包装。
+type MessagesRsp struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Lesson           string                 `protobuf:"bytes,1,opt,name=lesson,proto3" json:"lesson,omitempty"`
+	Completed        bool                   `protobuf:"varint,2,opt,name=completed,proto3" json:"completed,omitempty"`
+	Answer           string                 `protobuf:"bytes,3,opt,name=answer,proto3" json:"answer,omitempty"`
+	TelemetryEnabled bool                   `protobuf:"varint,5,opt,name=telemetry_enabled,json=telemetryEnabled,proto3" json:"telemetry_enabled,omitempty"`
+	ElapsedMs        int64                  `protobuf:"varint,6,opt,name=elapsed_ms,json=elapsedMs,proto3" json:"elapsed_ms,omitempty"`
+	ModelCalls       int64                  `protobuf:"varint,7,opt,name=model_calls,json=modelCalls,proto3" json:"model_calls,omitempty"`
+	ToolCalls        int64                  `protobuf:"varint,8,opt,name=tool_calls,json=toolCalls,proto3" json:"tool_calls,omitempty"`
+	KnownTokens      int64                  `protobuf:"varint,9,opt,name=known_tokens,json=knownTokens,proto3" json:"known_tokens,omitempty"`
+	UsageComplete    bool                   `protobuf:"varint,10,opt,name=usage_complete,json=usageComplete,proto3" json:"usage_complete,omitempty"`
+	Steps            []*ExecutionStep       `protobuf:"bytes,11,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *MessagesRsp) Reset() {
+	*x = MessagesRsp{}
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MessagesRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MessagesRsp) ProtoMessage() {}
+
+func (x *MessagesRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MessagesRsp.ProtoReflect.Descriptor instead.
+func (*MessagesRsp) Descriptor() ([]byte, []int) {
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MessagesRsp) GetLesson() string {
+	if x != nil {
+		return x.Lesson
+	}
+	return ""
+}
+
+func (x *MessagesRsp) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *MessagesRsp) GetAnswer() string {
+	if x != nil {
+		return x.Answer
+	}
+	return ""
+}
+
+func (x *MessagesRsp) GetTelemetryEnabled() bool {
+	if x != nil {
+		return x.TelemetryEnabled
+	}
+	return false
+}
+
+func (x *MessagesRsp) GetElapsedMs() int64 {
+	if x != nil {
+		return x.ElapsedMs
+	}
+	return 0
+}
+
+func (x *MessagesRsp) GetModelCalls() int64 {
+	if x != nil {
+		return x.ModelCalls
+	}
+	return 0
+}
+
+func (x *MessagesRsp) GetToolCalls() int64 {
+	if x != nil {
+		return x.ToolCalls
+	}
+	return 0
+}
+
+func (x *MessagesRsp) GetKnownTokens() int64 {
+	if x != nil {
+		return x.KnownTokens
+	}
+	return 0
+}
+
+func (x *MessagesRsp) GetUsageComplete() bool {
+	if x != nil {
+		return x.UsageComplete
+	}
+	return false
+}
+
+func (x *MessagesRsp) GetSteps() []*ExecutionStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+// RunRsp 是受控工具循环接口的业务响应，公共外层由 HTTP handler 包装。
+type RunRsp struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Lesson           string                 `protobuf:"bytes,1,opt,name=lesson,proto3" json:"lesson,omitempty"`
+	Completed        bool                   `protobuf:"varint,2,opt,name=completed,proto3" json:"completed,omitempty"`
+	Answer           string                 `protobuf:"bytes,3,opt,name=answer,proto3" json:"answer,omitempty"`
+	TelemetryEnabled bool                   `protobuf:"varint,5,opt,name=telemetry_enabled,json=telemetryEnabled,proto3" json:"telemetry_enabled,omitempty"`
+	ElapsedMs        int64                  `protobuf:"varint,6,opt,name=elapsed_ms,json=elapsedMs,proto3" json:"elapsed_ms,omitempty"`
+	ModelCalls       int64                  `protobuf:"varint,7,opt,name=model_calls,json=modelCalls,proto3" json:"model_calls,omitempty"`
+	ToolCalls        int64                  `protobuf:"varint,8,opt,name=tool_calls,json=toolCalls,proto3" json:"tool_calls,omitempty"`
+	KnownTokens      int64                  `protobuf:"varint,9,opt,name=known_tokens,json=knownTokens,proto3" json:"known_tokens,omitempty"`
+	UsageComplete    bool                   `protobuf:"varint,10,opt,name=usage_complete,json=usageComplete,proto3" json:"usage_complete,omitempty"`
+	Steps            []*ExecutionStep       `protobuf:"bytes,11,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RunRsp) Reset() {
+	*x = RunRsp{}
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunRsp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunRsp) ProtoMessage() {}
+
+func (x *RunRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunRsp.ProtoReflect.Descriptor instead.
+func (*RunRsp) Descriptor() ([]byte, []int) {
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RunRsp) GetLesson() string {
+	if x != nil {
+		return x.Lesson
+	}
+	return ""
+}
+
+func (x *RunRsp) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *RunRsp) GetAnswer() string {
+	if x != nil {
+		return x.Answer
+	}
+	return ""
+}
+
+func (x *RunRsp) GetTelemetryEnabled() bool {
+	if x != nil {
+		return x.TelemetryEnabled
+	}
+	return false
+}
+
+func (x *RunRsp) GetElapsedMs() int64 {
+	if x != nil {
+		return x.ElapsedMs
+	}
+	return 0
+}
+
+func (x *RunRsp) GetModelCalls() int64 {
+	if x != nil {
+		return x.ModelCalls
+	}
+	return 0
+}
+
+func (x *RunRsp) GetToolCalls() int64 {
+	if x != nil {
+		return x.ToolCalls
+	}
+	return 0
+}
+
+func (x *RunRsp) GetKnownTokens() int64 {
+	if x != nil {
+		return x.KnownTokens
+	}
+	return 0
+}
+
+func (x *RunRsp) GetUsageComplete() bool {
+	if x != nil {
+		return x.UsageComplete
+	}
+	return false
+}
+
+func (x *RunRsp) GetSteps() []*ExecutionStep {
 	if x != nil {
 		return x.Steps
 	}
@@ -295,7 +520,7 @@ type Usage struct {
 
 func (x *Usage) Reset() {
 	*x = Usage{}
-	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +532,7 @@ func (x *Usage) String() string {
 func (*Usage) ProtoMessage() {}
 
 func (x *Usage) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[4]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +545,7 @@ func (x *Usage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Usage.ProtoReflect.Descriptor instead.
 func (*Usage) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{4}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Usage) GetPromptTokens() int64 {
@@ -361,7 +586,7 @@ type ExecutionStep struct {
 
 func (x *ExecutionStep) Reset() {
 	*x = ExecutionStep{}
-	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +598,7 @@ func (x *ExecutionStep) String() string {
 func (*ExecutionStep) ProtoMessage() {}
 
 func (x *ExecutionStep) ProtoReflect() protoreflect.Message {
-	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[5]
+	mi := &file_apps_interfaces_http_proto_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +611,7 @@ func (x *ExecutionStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionStep.ProtoReflect.Descriptor instead.
 func (*ExecutionStep) Descriptor() ([]byte, []int) {
-	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{5}
+	return file_apps_interfaces_http_proto_agent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExecutionStep) GetKind() string {
@@ -449,21 +674,19 @@ var File_apps_interfaces_http_proto_agent_proto protoreflect.FileDescriptor
 
 const file_apps_interfaces_http_proto_agent_proto_rawDesc = "" +
 	"\n" +
-	"&apps/interfaces/http/proto/agent.proto\x12\x15sakelei.http.agent.v1\";\n" +
-	"\vChatRequest\x12\x1f\n" +
+	"&apps/interfaces/http/proto/agent.proto\x12\x11saklay.http.agent\"7\n" +
+	"\aChatReq\x12\x1f\n" +
 	"\bquestion\x18\x01 \x01(\tH\x00R\bquestion\x88\x01\x01B\v\n" +
-	"\t_question\"/\n" +
-	"\x0fMessagesRequest\x12\x1c\n" +
-	"\tquestions\x18\x01 \x03(\tR\tquestions\":\n" +
-	"\n" +
-	"RunRequest\x12\x1f\n" +
+	"\t_question\"+\n" +
+	"\vMessagesReq\x12\x1c\n" +
+	"\tquestions\x18\x01 \x03(\tR\tquestions\"6\n" +
+	"\x06RunReq\x12\x1f\n" +
 	"\bquestion\x18\x01 \x01(\tH\x00R\bquestion\x88\x01\x01B\v\n" +
-	"\t_question\"\x8c\x03\n" +
-	"\x0fExecutionResult\x12\x16\n" +
+	"\t_question\"\xf5\x02\n" +
+	"\aChatRsp\x12\x16\n" +
 	"\x06lesson\x18\x01 \x01(\tR\x06lesson\x12\x1c\n" +
 	"\tcompleted\x18\x02 \x01(\bR\tcompleted\x12\x16\n" +
-	"\x06answer\x18\x03 \x01(\tR\x06answer\x12\x19\n" +
-	"\btrace_id\x18\x04 \x01(\tR\atraceId\x12+\n" +
+	"\x06answer\x18\x03 \x01(\tR\x06answer\x12+\n" +
 	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled\x12\x1d\n" +
 	"\n" +
 	"elapsed_ms\x18\x06 \x01(\x03R\telapsedMs\x12\x1f\n" +
@@ -473,15 +696,45 @@ const file_apps_interfaces_http_proto_agent_proto_rawDesc = "" +
 	"tool_calls\x18\b \x01(\x03R\ttoolCalls\x12!\n" +
 	"\fknown_tokens\x18\t \x01(\x03R\vknownTokens\x12%\n" +
 	"\x0eusage_complete\x18\n" +
-	" \x01(\bR\rusageComplete\x12:\n" +
-	"\x05steps\x18\v \x03(\v2$.sakelei.http.agent.v1.ExecutionStepR\x05steps\"\xc4\x01\n" +
+	" \x01(\bR\rusageComplete\x126\n" +
+	"\x05steps\x18\v \x03(\v2 .saklay.http.agent.ExecutionStepR\x05stepsJ\x04\b\x04\x10\x05R\btrace_id\"\xf9\x02\n" +
+	"\vMessagesRsp\x12\x16\n" +
+	"\x06lesson\x18\x01 \x01(\tR\x06lesson\x12\x1c\n" +
+	"\tcompleted\x18\x02 \x01(\bR\tcompleted\x12\x16\n" +
+	"\x06answer\x18\x03 \x01(\tR\x06answer\x12+\n" +
+	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled\x12\x1d\n" +
+	"\n" +
+	"elapsed_ms\x18\x06 \x01(\x03R\telapsedMs\x12\x1f\n" +
+	"\vmodel_calls\x18\a \x01(\x03R\n" +
+	"modelCalls\x12\x1d\n" +
+	"\n" +
+	"tool_calls\x18\b \x01(\x03R\ttoolCalls\x12!\n" +
+	"\fknown_tokens\x18\t \x01(\x03R\vknownTokens\x12%\n" +
+	"\x0eusage_complete\x18\n" +
+	" \x01(\bR\rusageComplete\x126\n" +
+	"\x05steps\x18\v \x03(\v2 .saklay.http.agent.ExecutionStepR\x05stepsJ\x04\b\x04\x10\x05R\btrace_id\"\xf4\x02\n" +
+	"\x06RunRsp\x12\x16\n" +
+	"\x06lesson\x18\x01 \x01(\tR\x06lesson\x12\x1c\n" +
+	"\tcompleted\x18\x02 \x01(\bR\tcompleted\x12\x16\n" +
+	"\x06answer\x18\x03 \x01(\tR\x06answer\x12+\n" +
+	"\x11telemetry_enabled\x18\x05 \x01(\bR\x10telemetryEnabled\x12\x1d\n" +
+	"\n" +
+	"elapsed_ms\x18\x06 \x01(\x03R\telapsedMs\x12\x1f\n" +
+	"\vmodel_calls\x18\a \x01(\x03R\n" +
+	"modelCalls\x12\x1d\n" +
+	"\n" +
+	"tool_calls\x18\b \x01(\x03R\ttoolCalls\x12!\n" +
+	"\fknown_tokens\x18\t \x01(\x03R\vknownTokens\x12%\n" +
+	"\x0eusage_complete\x18\n" +
+	" \x01(\bR\rusageComplete\x126\n" +
+	"\x05steps\x18\v \x03(\v2 .saklay.http.agent.ExecutionStepR\x05stepsJ\x04\b\x04\x10\x05R\btrace_id\"\xc4\x01\n" +
 	"\x05Usage\x12(\n" +
 	"\rprompt_tokens\x18\x01 \x01(\x03H\x00R\fpromptTokens\x88\x01\x01\x120\n" +
 	"\x11completion_tokens\x18\x02 \x01(\x03H\x01R\x10completionTokens\x88\x01\x01\x12&\n" +
 	"\ftotal_tokens\x18\x03 \x01(\x03H\x02R\vtotalTokens\x88\x01\x01B\x10\n" +
 	"\x0e_prompt_tokensB\x14\n" +
 	"\x12_completion_tokensB\x0f\n" +
-	"\r_total_tokens\"\xfb\x01\n" +
+	"\r_total_tokens\"\xf7\x01\n" +
 	"\rExecutionStep\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -489,9 +742,9 @@ const file_apps_interfaces_http_proto_agent_proto_rawDesc = "" +
 	"\bresponse\x18\x04 \x01(\tR\bresponse\x12\x1d\n" +
 	"\n" +
 	"elapsed_ms\x18\x05 \x01(\x03R\telapsedMs\x12#\n" +
-	"\rfinish_reason\x18\x06 \x01(\tR\ffinishReason\x122\n" +
-	"\x05usage\x18\a \x01(\v2\x1c.sakelei.http.agent.v1.UsageR\x05usage\x12\x14\n" +
-	"\x05error\x18\b \x01(\tR\x05errorB'Z%saklay/ai/apps/interfaces/http/entityb\x06proto3"
+	"\rfinish_reason\x18\x06 \x01(\tR\ffinishReason\x12.\n" +
+	"\x05usage\x18\a \x01(\v2\x18.saklay.http.agent.UsageR\x05usage\x12\x14\n" +
+	"\x05error\x18\b \x01(\tR\x05errorB&Z$saklay/ai/apps/interfaces/http/protob\x06proto3"
 
 var (
 	file_apps_interfaces_http_proto_agent_proto_rawDescOnce sync.Once
@@ -505,23 +758,27 @@ func file_apps_interfaces_http_proto_agent_proto_rawDescGZIP() []byte {
 	return file_apps_interfaces_http_proto_agent_proto_rawDescData
 }
 
-var file_apps_interfaces_http_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_apps_interfaces_http_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_apps_interfaces_http_proto_agent_proto_goTypes = []any{
-	(*ChatRequest)(nil),     // 0: sakelei.http.agent.v1.ChatRequest
-	(*MessagesRequest)(nil), // 1: sakelei.http.agent.v1.MessagesRequest
-	(*RunRequest)(nil),      // 2: sakelei.http.agent.v1.RunRequest
-	(*ExecutionResult)(nil), // 3: sakelei.http.agent.v1.ExecutionResult
-	(*Usage)(nil),           // 4: sakelei.http.agent.v1.Usage
-	(*ExecutionStep)(nil),   // 5: sakelei.http.agent.v1.ExecutionStep
+	(*ChatReq)(nil),       // 0: saklay.http.agent.ChatReq
+	(*MessagesReq)(nil),   // 1: saklay.http.agent.MessagesReq
+	(*RunReq)(nil),        // 2: saklay.http.agent.RunReq
+	(*ChatRsp)(nil),       // 3: saklay.http.agent.ChatRsp
+	(*MessagesRsp)(nil),   // 4: saklay.http.agent.MessagesRsp
+	(*RunRsp)(nil),        // 5: saklay.http.agent.RunRsp
+	(*Usage)(nil),         // 6: saklay.http.agent.Usage
+	(*ExecutionStep)(nil), // 7: saklay.http.agent.ExecutionStep
 }
 var file_apps_interfaces_http_proto_agent_proto_depIdxs = []int32{
-	5, // 0: sakelei.http.agent.v1.ExecutionResult.steps:type_name -> sakelei.http.agent.v1.ExecutionStep
-	4, // 1: sakelei.http.agent.v1.ExecutionStep.usage:type_name -> sakelei.http.agent.v1.Usage
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	7, // 0: saklay.http.agent.ChatRsp.steps:type_name -> saklay.http.agent.ExecutionStep
+	7, // 1: saklay.http.agent.MessagesRsp.steps:type_name -> saklay.http.agent.ExecutionStep
+	7, // 2: saklay.http.agent.RunRsp.steps:type_name -> saklay.http.agent.ExecutionStep
+	6, // 3: saklay.http.agent.ExecutionStep.usage:type_name -> saklay.http.agent.Usage
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_apps_interfaces_http_proto_agent_proto_init() }
@@ -531,14 +788,14 @@ func file_apps_interfaces_http_proto_agent_proto_init() {
 	}
 	file_apps_interfaces_http_proto_agent_proto_msgTypes[0].OneofWrappers = []any{}
 	file_apps_interfaces_http_proto_agent_proto_msgTypes[2].OneofWrappers = []any{}
-	file_apps_interfaces_http_proto_agent_proto_msgTypes[4].OneofWrappers = []any{}
+	file_apps_interfaces_http_proto_agent_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apps_interfaces_http_proto_agent_proto_rawDesc), len(file_apps_interfaces_http_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -3,6 +3,7 @@ package openobserve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -30,5 +31,36 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 	}
 	if !bytes.Equal(raw, original) {
 		t.Error("展示脱敏不应修改业务输入")
+	}
+}
+
+func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
+	telemetry, err := New(t.Context(), Config{ServiceName: "test", MaxChars: 4096}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"9007199254740993", "9223372036854775807", "0.123456789012345678901", "1e400"} {
+		t.Run(value, func(t *testing.T) {
+			arguments := `{"a":` + value + `,"secret":"hidden"}`
+			raw, err := json.Marshal(map[string]string{"arguments": arguments})
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := bytes.Clone(raw)
+			var payload map[string]string
+			if err := json.Unmarshal([]byte(telemetry.Safe(raw)), &payload); err != nil {
+				t.Fatal(err)
+			}
+			var nested map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(payload["arguments"]), &nested); err != nil {
+				t.Fatal(err)
+			}
+			if string(nested["a"]) != value || string(nested["secret"]) != `"[REDACTED]"` {
+				t.Errorf("实际展示 %s，预期保留数字 %s 并脱敏 secret", payload["arguments"], value)
+			}
+			if !bytes.Equal(raw, original) {
+				t.Error("展示处理修改了原始正文")
+			}
+		})
 	}
 }
