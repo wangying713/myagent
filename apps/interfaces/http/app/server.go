@@ -102,6 +102,8 @@ func serveError(err error) error {
 	return fmt.Errorf("HTTP 服务异常退出: %w", err)
 }
 
+// requestTracker 在停止接收请求后等待已有处理器返回。
+// mu 同时保护接收闸门、活跃计数及 done 的关闭，避免退出检查与新请求竞争。
 type requestTracker struct {
 	handler  http.Handler
 	mu       sync.Mutex
@@ -134,6 +136,7 @@ func (t *requestTracker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.handler.ServeHTTP(w, r)
 }
 
+// stop 关闭请求接收闸门，并返回已有处理器全部结束的通知通道；可重复调用。
 func (t *requestTracker) stop() <-chan struct{} {
 	t.mu.Lock()
 	defer t.mu.Unlock()

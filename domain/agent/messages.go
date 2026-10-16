@@ -3,15 +3,19 @@ package agent
 import "context"
 
 const (
-	FirstQuestion  = "我给一只虚构小猫取名叫豆包，请记住。"
+	// FirstQuestion 是历史消息示例中要求模型记住名字的第一轮问题。
+	FirstQuestion = "我给一只虚构小猫取名叫豆包，请记住。"
+	// SecondQuestion 是历史消息示例中检查上下文是否保留的第二轮问题。
 	SecondQuestion = "我给小猫取了什么名字？"
 )
 
+// MessagesInput 保存固定两轮的问题；Questions 为 nil 时使用默认示例，空切片无效。
 type MessagesInput struct {
 	Questions []string
 }
 
 // Messages 顺序执行两轮，第二轮携带第一轮实际返回的 assistant 消息。
+// 第二轮失败时仍返回第一轮已完成的回答、步骤和已知用量。
 func (s *Service) Messages(ctx context.Context, input MessagesInput) (result ExecutionResult, err error) {
 	result = s.newResult("messages")
 	if input.Questions == nil {

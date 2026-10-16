@@ -8,20 +8,20 @@ import (
 	"saklay/ai/domain/agent"
 )
 
-// agentAPI 为各接口准备领域输入，并显式组装各自的 Proto 响应。
-type agentAPI struct {
+// ImplAgent 为各接口准备领域输入，并显式组装各自的 Proto 响应。
+type ImplAgent struct {
 	service *agent.Service
 }
 
-func newAgentAPI(service *agent.Service) (*agentAPI, error) {
+func newImplAgent(service *agent.Service) (*ImplAgent, error) {
 	if service == nil {
 		return nil, errors.New("Agent API 业务依赖不能为空")
 	}
-	return &agentAPI{service: service}, nil
+	return &ImplAgent{service: service}, nil
 }
 
-// Chat 处理 POST /api/agent/chat。
-func (a *agentAPI) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
+// Chat 执行单轮聊天，省略问题时使用默认问题。 @alias=/api/agent/chat
+func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
 	question, err := agentQuestionInput(req.Question)
 	if err != nil {
 		return nil, err
@@ -31,29 +31,41 @@ func (a *agentAPI) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp
 		return nil, err
 	}
 	return &proto.ChatRsp{
-		Lesson: result.Operation, Completed: result.Completed, Answer: result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled, ElapsedMs: result.ElapsedMS,
-		ModelCalls: int64(result.ModelCalls), ToolCalls: int64(result.ToolCalls), KnownTokens: int64(result.KnownTokens),
-		UsageComplete: result.UsageComplete, Steps: agentSteps(result.Steps),
+		Lesson:           result.Operation,
+		Completed:        result.Completed,
+		Answer:           result.Answer,
+		TelemetryEnabled: result.TelemetryEnabled,
+		ElapsedMs:        result.ElapsedMS,
+		ModelCalls:       int64(result.ModelCalls),
+		ToolCalls:        int64(result.ToolCalls),
+		KnownTokens:      int64(result.KnownTokens),
+		UsageComplete:    result.UsageComplete,
+		Steps:            agentSteps(result.Steps),
 	}, err
 }
 
-// Messages 处理 POST /api/agent/messages，保留固定两轮的现有业务行为。
-func (a *agentAPI) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
+// Messages 执行两轮对话，第二轮携带第一轮实际返回的消息。 @alias=/api/agent/messages
+func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
 	result, err := a.service.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
 	return &proto.MessagesRsp{
-		Lesson: result.Operation, Completed: result.Completed, Answer: result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled, ElapsedMs: result.ElapsedMS,
-		ModelCalls: int64(result.ModelCalls), ToolCalls: int64(result.ToolCalls), KnownTokens: int64(result.KnownTokens),
-		UsageComplete: result.UsageComplete, Steps: agentSteps(result.Steps),
+		Lesson:           result.Operation,
+		Completed:        result.Completed,
+		Answer:           result.Answer,
+		TelemetryEnabled: result.TelemetryEnabled,
+		ElapsedMs:        result.ElapsedMS,
+		ModelCalls:       int64(result.ModelCalls),
+		ToolCalls:        int64(result.ToolCalls),
+		KnownTokens:      int64(result.KnownTokens),
+		UsageComplete:    result.UsageComplete,
+		Steps:            agentSteps(result.Steps),
 	}, err
 }
 
-// Run 处理 POST /api/agent/run。
-func (a *agentAPI) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, error) {
+// Run 执行受预算约束的工具调用循环。 @alias=/api/agent/run
+func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, error) {
 	question, err := agentQuestionInput(req.Question)
 	if err != nil {
 		return nil, err
@@ -63,15 +75,21 @@ func (a *agentAPI) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, e
 		return nil, err
 	}
 	return &proto.RunRsp{
-		Lesson: result.Operation, Completed: result.Completed, Answer: result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled, ElapsedMs: result.ElapsedMS,
-		ModelCalls: int64(result.ModelCalls), ToolCalls: int64(result.ToolCalls), KnownTokens: int64(result.KnownTokens),
-		UsageComplete: result.UsageComplete, Steps: agentSteps(result.Steps),
+		Lesson:           result.Operation,
+		Completed:        result.Completed,
+		Answer:           result.Answer,
+		TelemetryEnabled: result.TelemetryEnabled,
+		ElapsedMs:        result.ElapsedMS,
+		ModelCalls:       int64(result.ModelCalls),
+		ToolCalls:        int64(result.ToolCalls),
+		KnownTokens:      int64(result.KnownTokens),
+		UsageComplete:    result.UsageComplete,
+		Steps:            agentSteps(result.Steps),
 	}, err
 }
 
 // prepareAgentMessages 在 HTTP 解码后保留省略与显式空数组的区别。
-// repeated 字段本身没有存在性，不能把显式空数组变为默认问题。
+// Protobuf repeated 字段不保留存在性，显式空数组必须继续交给业务校验。
 func prepareAgentMessages(req *proto.MessagesReq, present map[string]bool) {
 	if present["questions"] && len(req.Questions) == 0 {
 		req.Questions = []string{}
@@ -85,7 +103,7 @@ func agentQuestionInput(value *string) (string, error) {
 	// 省略使用业务默认问题，显式空字符串仍应拒绝。
 	if *value == "" {
 		return "", agent.ErrInput
-	}
+	}form
 	return *value, nil
 }
 
@@ -105,8 +123,14 @@ func agentSteps(steps []agent.ExecutionStep) []*proto.ExecutionStep {
 			}
 		}
 		data = append(data, &proto.ExecutionStep{
-			Kind: step.Kind, Name: step.Name, Request: step.Request, Response: step.Response,
-			ElapsedMs: step.ElapsedMS, FinishReason: step.FinishReason, Usage: usage, Error: step.Error,
+			Kind:         step.Kind,
+			Name:         step.Name,
+			Request:      step.Request,
+			Response:     step.Response,
+			ElapsedMs:    step.ElapsedMS,
+			FinishReason: step.FinishReason,
+			Usage:        usage,
+			Error:        step.Error,
 		})
 	}
 	return data

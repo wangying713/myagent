@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// 领域测试不导入任何基础设施，观测与模型均为内存替身。
+// testObserver 使用内存句柄验证领域观测，测试不依赖基础设施。
 type testObserver struct {
 	runs  []*testRunObservation
 	tools []*testToolObservation

@@ -19,21 +19,27 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// Config 保存模型鉴权、服务地址、模型名及单次调用超时，由启动入口显式传入。
 type Config struct {
 	APIKey, BaseURL, Model string
 	Timeout                time.Duration
 }
 
+// Client 执行非流式模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
 	config    Config
 	http      *http.Client
 	telemetry *openobserve.Telemetry
 }
 
+// ModelError 保存模型服务的非 2xx 状态码，调用方可用 errors.As 识别。
 type ModelError struct{ Status int }
 
+// Error 返回状态码说明，不包含模型服务的响应正文。
 func (e *ModelError) Error() string { return fmt.Sprintf("模型服务返回 HTTP %d", e.Status) }
 
+// New 校验配置并创建客户端，client 为 nil 时使用独立的 HTTP Transport。
+// 传入 client 时复用其 Transport；调用方应在业务结束后调用 Client.Close。
 func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Client, error) {
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -55,8 +61,11 @@ func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Cl
 	return &Client{config: cfg, http: &copyClient, telemetry: telemetry}, nil
 }
 
+// Close 关闭 Transport 的空闲连接，不取消正在执行的请求。
 func (c *Client) Close() { c.http.CloseIdleConnections() }
 
+// Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
+// 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
 func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Response, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err

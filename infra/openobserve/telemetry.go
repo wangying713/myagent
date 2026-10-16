@@ -23,16 +23,21 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
+// Config 保存私有观测设置及展示正文的脱敏规则，由启动入口显式传入。
 type Config struct {
-	Enabled        bool
-	ServiceName    string
-	Endpoint       string
-	Headers        map[string]string
+	Enabled     bool
+	ServiceName string
+	Endpoint    string
+	Headers     map[string]string
+	// CaptureContent 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
 	CaptureContent bool
-	MaxChars       int
-	Secrets        []string
+	// MaxChars 限制展示正文的 Unicode 字符数，额外的截断标记不计入该上限。
+	MaxChars int
+	Secrets  []string
 }
 
+// Telemetry 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。
+// 调用方应在业务请求结束后调用 Close，完成有界刷新并释放观测资源。
 type Telemetry struct {
 	config   Config
 	tracer   trace.Tracer
@@ -61,7 +66,9 @@ func (e *reportingExporter) ExportSpans(ctx context.Context, spans []sdktrace.Re
 
 func (e *reportingExporter) Shutdown(ctx context.Context) error { return e.inner.Shutdown(ctx) }
 
-// New 的 exporter 可注入内存实现；生产环境省略时使用标准 OTLP/HTTP。
+// New 校验服务名和正文上限，创建私有观测组件；关闭观测时仍提供正文脱敏。
+// 启用观测且 exporter 为 nil 时使用标准 OTLP/HTTP，也可注入内存实现供离线测试。
+// 启用观测时接管导出器并在 Telemetry.Close 中关闭；warnings 为 nil 时不输出失败提示。
 func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnings io.Writer) (*Telemetry, error) {
 	if cfg.MaxChars < 256 || cfg.ServiceName == "" {
 		return nil, fmt.Errorf("观测服务名不能为空，正文上限至少为 256 字符")
@@ -97,17 +104,21 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 	return t, nil
 }
 
+// Start 沿用 ctx 的父链路创建 span；调用方负责结束返回的 span。
 func (t *Telemetry) Start(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
 	return t.tracer.Start(ctx, name, trace.WithAttributes(attrs...))
 }
 
+// StartClient 创建客户端 span；调用方负责结束返回的 span。
 func (t *Telemetry) StartClient(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
 	return t.tracer.Start(ctx, name, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
 }
 
+// Enabled 报告配置是否启用观测，不表示导出器可达或数据已入库。
 func (t *Telemetry) Enabled() bool { return t.config.Enabled }
 
-// Flush 不关闭 provider，便于服务验收；请求正常路径不等待观测入库。
+// Flush 在 ctx 允许的时间内刷新队列，保留 provider 供后续请求使用。
+// 上报失败通过 warnings 提示，返回 nil 不能证明观测数据已入库。
 func (t *Telemetry) Flush(ctx context.Context) error {
 	if t.provider == nil {
 		return nil
@@ -115,6 +126,7 @@ func (t *Telemetry) Flush(ctx context.Context) error {
 	return t.provider.ForceFlush(ctx)
 }
 
+// Close 在 ctx 允许的时间内关闭 provider 及导出器，并释放空闲 HTTP 连接。
 func (t *Telemetry) Close(ctx context.Context) error {
 	if t.client != nil {
 		defer t.client.CloseIdleConnections()
@@ -125,6 +137,7 @@ func (t *Telemetry) Close(ctx context.Context) error {
 	return t.provider.Shutdown(ctx)
 }
 
+// End 记录耗时和固定错误状态后结束 span，错误正文不会写入属性。
 func End(span trace.Span, started time.Time, err error) {
 	span.SetAttributes(attribute.Float64("app.elapsed_ms", float64(time.Since(started).Microseconds())/1000))
 	if err != nil {
@@ -138,6 +151,7 @@ var sensitiveKey = regexp.MustCompile(`(?i)authorization|api[_-]?key|password|se
 var authValue = regexp.MustCompile(`(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+|\bsk-[A-Za-z0-9_-]{8,}`)
 var jsonSecret = regexp.MustCompile(`(?i)("(?:authorization|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)"\s*:\s*)("(?:\\.|[^"\\])*"|[^,}\]\s]+)`)
 
+// Clean 遮盖已配置密钥及常见鉴权文本，返回展示副本，不限制正文长度。
 func (t *Telemetry) Clean(text string) string {
 	for _, secret := range t.secrets {
 		if secret != "" {
@@ -198,6 +212,7 @@ func (t *Telemetry) Safe(raw []byte) string {
 	return text
 }
 
+// Payload 在启用正文采集时记录脱敏、限长的正文和截断标记，不修改 raw。
 func (t *Telemetry) Payload(span trace.Span, key string, raw []byte) {
 	if !t.config.CaptureContent {
 		return

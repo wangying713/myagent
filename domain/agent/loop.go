@@ -8,16 +8,20 @@ import (
 
 // ChatClient 由模型的使用方定义，只要求当前业务需要的非流式能力。
 type ChatClient interface {
+	// Chat 执行一次模型请求，须响应 ctx 取消；失败时可同时返回用于记录的响应数据。
 	Chat(context.Context, Request) (Response, error)
 }
 
+// Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
 type Tools interface {
 	Definitions() []ToolDefinition
+	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
 	Dispatch(context.Context, ToolCall) (ToolResult, error)
 }
 
 // Run 顺序执行模型 → 工具 → 回填 → 模型，直到完成或达到预算。
 // 消息、用量和调用 ID 都属于本次运行，不保存在共享对象上。
+// model 和 tools 须非 nil 且响应上下文取消；工具拒绝的结果仍会回填给模型。
 func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt string, limits Limits) (string, error) {
 	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
 		return "", fmt.Errorf("运行预算必须为正数")

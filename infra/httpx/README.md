@@ -4,22 +4,17 @@
 
 - `DecodeJSON`：限制 32 KiB 正文，要求 `application/json` 和单个 JSON 对象，按调用方声明的字段精确校验顶层名称，拒绝顶层的未知字段、重复字段、大小写别名和显式 null；按目标请求类型验证值的类型。
 - `DecodeProtoJSON`：复用相同的正文与顶层检查，从 Proto 描述符提取原始字段名，再用官方 `protojson` 解码；返回实际出现的字段，供 API 保留 repeated 字段的省略与空数组区别。不认识具体 Agent 消息。
-- `NewAdapter` / `Adapt`：将 `(context.Context, *请求) (*响应, error)` 方法适配为 Gin 处理器，统一严格解码、超时、取消和响应写出。调用方注入具体数据编码、业务错误映射和响应写出函数，错误不会导致返回的数据被丢弃。
 - `Write`：先编码后写出，禁止缓存；编码失败返回 error，尚不写出任何响应头或正文，由调用方生成其统一 JSON 500。
 - `RequestError` / `ClassifyReqError`：内容类型、JSON 结构、正文上限等传输错误。业务错误的 HTTP 映射由具体 API 完成。
 
 请求字段是否必填、允许什么范围和数量，由业务契约决定。本包不定义 Agent、模型、工具或其他后台业务。
 
-HTTP 外层由应用的 `entity.Rsp[T]` 定义，`http/app/handler.go` 通过注入的写出函数包装 `code/data/traceID/msg`。本包既不定义应用响应外层，也不导入应用的 `entity`。
+HTTP 外层由应用的 `entity.Rsp[T]` 定义，`http/app/handler.go` 统一包装 `code/data/traceID/msg`。本包既不定义应用响应外层，也不导入应用的 `entity`。
 
-## 统一适配器
+## 与入口处理层的分工
 
-`NewAdapter(timeout, encode, classify, write)` 在启动时校验正数超时、编码回调、错误映射和写出回调，构造后可以供同类响应的多个接口共用。`encode` 接收 API 返回的响应并决定业务 data 的 JSON 表现；解析失败不调用 API 或编码回调，而是直接向写出函数传入 nil data。`classify` 接收 API 返回的错误，包括成功时的 nil，决定 HTTP 状态及公共错误。`write` 接收 Gin 上下文、HTTP 状态、业务 data 和错误，决定公共包装及编码回退。回调应保持配置不变，不共享请求状态，以支持并发调用。
+路由使用 `handle(implAgent.Chat)` 绑定业务方法；`handle` 位于 `apps/interfaces/http/app/handler.go`，负责请求分配、调用本包严格解码、字段准备、超时取消及响应处理。路由初始化只设置一次当前路由的超时，不分别创建 Adapter 或注入每个接口的回调。
 
-路由逐条使用 `Adapt(adapter, apiMethod)` 绑定具名方法。请求必须是生成的 Proto 消息指针，由适配器为每次请求单独分配；响应通过方法返回，不传入待填充的响应对象，也不复制生成消息的内部状态。
+总超时从成功解码及准备完成后开始，父上下文来自 HTTP 请求。处理函数同步调用 API，等待返回后写出响应并释放上下文，保留同时返回的部分结果与错误。HTTP 读取正文的超时仍由入口的 `http.Server` 管理。
 
-需要保留字段存在性时，可在路由上显式传入解码后准备函数：`Adapt(adapter, apiMethod, prepare)`。准备函数接收请求和实际出现的顶层字段，只在严格解码成功后执行；业务不需要从上下文取回这些参数。现有消息接口用它区分省略与显式空数组。
-
-总超时从成功解码及准备完成后开始，父上下文来自 HTTP 请求。适配器同步调用 API，等待方法返回后写出响应，不额外启动后台业务协程；方法需要沿调用链响应上下文取消。HTTP 读取正文的超时仍由入口的 `http.Server` 管理。
-
-`httpx_test.go` 使用与 Agent 无关的目录请求测试复用契约，`proto_test.go` 使用标准生成消息验证 Proto 解码，`adapter_test.go` 验证部分结果、错误、取消、超时、字段准备、上下文释放与并发隔离。响应如何适配现有 JSON 由 API 负责，不能把业务字段映射移入本包。领域层不应导入本包。
+`httpx_test.go` 使用与 Agent 无关的目录请求验证复用契约，`proto_test.go` 使用标准生成消息验证 Proto 解码。入口的 `app/handle_test.go`、`app/impl_agent_test.go` 与 `app/router_test.go` 验证响应兼容、请求准备、取消、超时、上下文释放及并发隔离。业务字段映射和响应外层留在入口；领域层不导入本包。

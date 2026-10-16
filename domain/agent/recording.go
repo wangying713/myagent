@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// recordingModel 累计单次运行的调用、用量和脱敏步骤，不可跨运行共享。
 type recordingModel struct {
 	inner    ChatClient
 	observer Observer
@@ -48,6 +49,7 @@ func (m *recordingModel) Chat(ctx context.Context, input Request) (Response, err
 	return response, err
 }
 
+// recordingTools 为单次运行记录工具结果，并保证已开始的观测在返回时结束。
 type recordingTools struct {
 	inner    Tools
 	observer Observer

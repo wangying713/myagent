@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// Error 保存可对外返回的稳定错误码和说明，由 HTTP 入口决定外层包装。
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -17,6 +18,7 @@ type RequestError struct {
 	Detail Error
 }
 
+// Error 返回传输错误的公开说明。
 func (e *RequestError) Error() string { return e.Detail.Message }
 
 func requestError(err error) *RequestError {
@@ -28,6 +30,7 @@ func requestError(err error) *RequestError {
 }
 
 // ClassifyReqError 将解码错误转换为 HTTP 状态和稳定的传输错误，不决定响应外层格式。
+// err 应为非 nil 解码错误，未分类的错误按无效输入处理。
 func ClassifyReqError(err error) (int, *Error) {
 	var failure *RequestError
 	if !errors.As(err, &failure) {

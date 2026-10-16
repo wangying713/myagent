@@ -17,7 +17,9 @@ import (
 
 const telemetryFlushTimeout = 5 * time.Second
 
-// Run 使用显式配置组装依赖，运行到服务停止，并按顺序释放资源。
+// Run 使用显式配置组装并运行 HTTP 应用，ctx 取消时执行有界退出和资源清理。
+// 正常停止返回 nil；依赖初始化、监听或 HTTP 清理失败时返回错误。
+// 观测刷新失败仅输出提示，不覆盖原有的退出结果。
 func Run(ctx context.Context, cfg config.Settings) error {
 	// 应用启动时设置运行模式，路由构造不修改框架全局状态。
 	gin.SetMode(gin.ReleaseMode)

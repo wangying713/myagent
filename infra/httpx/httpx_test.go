@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 使用与 Agent 无关的请求，验证本包可供其他后台模块复用。
+// catalogRequest 使用独立的目录请求验证 HTTP 工具可供其他后台模块复用。
 type catalogRequest struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
@@ -94,7 +94,7 @@ func TestEncodingFailureDoesNotWritePartialSuccess(t *testing.T) {
 	}
 }
 
-// 测试调用方自行定义外层，HTTP 工具不约束其字段布局。
+// testRsp 由测试调用方定义外层，验证 HTTP 工具不约束其字段布局。
 type testRsp[T any] struct {
 	Data  T            `json:"data"`
 	Error *httpx.Error `json:"error,omitempty"`

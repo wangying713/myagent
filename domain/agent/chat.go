@@ -2,8 +2,10 @@ package agent
 
 import "context"
 
+// ChatQuestion 是单轮聊天在未指定问题时使用的学习示例。
 const ChatQuestion = "用一句话解释什么是递归。"
 
+// ChatInput 保存单轮问题；Question 为空字符串时使用 ChatQuestion。
 type ChatInput struct {
 	Question string
 }

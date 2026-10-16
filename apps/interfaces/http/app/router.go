@@ -13,21 +13,12 @@ import (
 )
 
 func newRouter(service *agent.Service, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
-	agentAPI, err := newAgentAPI(service)
+	implAgent, err := newImplAgent(service)
 	if err != nil {
 		return nil, err
 	}
-	chatAdapter, err := httpx.NewAdapter(timeout, chatRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		return nil, err
-	}
-	messagesAdapter, err := httpx.NewAdapter(timeout, messagesRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		return nil, err
-	}
-	runAdapter, err := httpx.NewAdapter(timeout, runRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		return nil, err
+	if timeout <= 0 {
+		return nil, errors.New("HTTP 请求超时必须为正数")
 	}
 	if observer == nil {
 		return nil, errors.New("HTTP 观测依赖不能为空")
@@ -38,7 +29,7 @@ func newRouter(service *agent.Service, timeout time.Duration, observer httpObser
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return nil, err
 	}
-	router.Use(traceHTTP(observer))
+	router.Use(traceHTTP(observer), requestTimeout(timeout))
 	// 不输出请求头、panic 原文或堆栈，且不覆盖已经写出的响应。
 	router.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, _ any) {
 		c.Abort()
@@ -56,9 +47,9 @@ func newRouter(service *agent.Service, timeout time.Duration, observer httpObser
 	// 路由逐条声明完整地址，便于从 URL 直接定位具名处理方法。
 	router.GET("/api/health", health)
 	router.HEAD("/api/health", health)
-	router.POST("/api/agent/chat", httpx.Adapt(chatAdapter, agentAPI.Chat))
-	router.POST("/api/agent/messages", httpx.Adapt(messagesAdapter, agentAPI.Messages, prepareAgentMessages))
-	router.POST("/api/agent/run", httpx.Adapt(runAdapter, agentAPI.Run))
+	router.POST("/api/agent/chat", handle(implAgent.Chat))
+	router.POST("/api/agent/messages", handle(implAgent.Messages))
+	router.POST("/api/agent/run", handle(implAgent.Run))
 	return router, nil
 }
 

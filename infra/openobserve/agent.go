@@ -37,6 +37,7 @@ func (r *runObservation) End(result agent.ExecutionResult, err error) {
 	End(r.span, r.started, err)
 }
 
+// StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
 func (t *Telemetry) StartTool(ctx context.Context, call agent.ToolCall) (context.Context, agent.ToolObservation) {
 	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(call.Function.Name)), attribute.String("app.tool.call.id", t.Clean(call.ID)))
 	// ToolCall 仅含字符串字段，不存在 JSON 编码失败的值。

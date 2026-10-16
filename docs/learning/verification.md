@@ -27,7 +27,7 @@ npm run build
 | [领域业务测试](../../domain/agent/service_test.go) | 三个业务方法、默认问题、历史、部分结果、取消、脱敏与观测事件 |
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
-| [HTTP 适配器测试](../../infra/httpx/adapter_test.go) | 返回响应与错误、字段准备、超时取消、上下文释放与并发隔离 |
+| [HTTP 统一处理测试](../../apps/interfaces/http/app/handle_test.go) | 部分结果、路由超时隔离、上下文释放与未适配响应保护 |
 | [HTTP 包装测试](../../apps/interfaces/http/app/handler_test.go) | code/data/traceID/msg、无结果为 null、解码前链路及编码回退 |
 | [响应兼容测试](../../apps/interfaces/http/app/impl_agent_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
@@ -49,6 +49,12 @@ npm run build
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-16：单参数 HTTP 处理验证
+
+三条路由统一为 `handle(implAgent.Chat)`、`handle(implAgent.Messages)`、`handle(implAgent.Run)`，移除 `infra/httpx` 中的 Adapter 配置对象与多回调适配器。`app/handler.go` 直接分配请求、调用严格解码、准备消息字段、派生有界上下文并同步调用业务方法；超时在路由初始化时显式注入当前 Gin 请求，不使用全局配置，计时仍从解码及准备完成后开始。响应类型与 JSON 表现的对应关系集中在 HTTP 处理层，保留各接口独立的 Proto 响应、原有 JSON 数据形状、错误映射和部分结果。
+
+通用解析与写出继续位于 `infra/httpx`，原适配器测试中相关契约由入口的统一处理测试、响应兼容测试及路由集成测试覆盖。新增检查验证同一个 handle 在不同路由实例间使用独立超时、返回后释放上下文、部分结果与错误并存、缺少配置或未适配响应时返回统一错误；现有测试继续验证严格校验、显式空数组、取消、并发隔离和父子链路。Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、Proto 生成一致性及 `git diff --check` 均通过。本轮只运行离线测试。
 
 ## 2026-10-16：数值精度、协议命名与 HTTP 观测依赖验证
 

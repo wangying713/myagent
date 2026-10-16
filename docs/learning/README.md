@@ -50,7 +50,7 @@ npm start
 | [模型客户端](../../infra/deepseek/client.go) | 标准库 HTTP/JSON、请求超时、响应验证 |
 | [观测](../../infra/openobserve/telemetry.go) | 私有 provider、脱敏副本、OTLP/HTTP、生命周期 |
 | [路由](../../apps/interfaces/http/app/router.go)、[HTTP API](../../apps/interfaces/http/app/impl_agent.go) | 显式绑定 `(ctx, req) → (rsp, err)` 方法，参数与结果转换 |
-| [HTTP 适配器](../../infra/httpx/adapter.go)、[业务响应处理](../../apps/interfaces/http/app/handler.go) | 严格解码、超时、取消、部分结果与业务错误映射 |
+| [HTTP 统一处理](../../apps/interfaces/http/app/handler.go)、[严格解码](../../infra/httpx/proto.go) | 严格解码、超时、取消、部分结果与业务错误映射 |
 | [HTTP 共用数据](../../apps/interfaces/http/entity/README.md)、[Proto 请求响应](../../apps/interfaces/http/proto/agent.proto)、[响应转换](../../apps/interfaces/http/app/handler.go) | Proto 源文件与生成类型同目录，entity 保存手写共用数据；转换保留字段存在性与 HTTP JSON 契约 |
 | [通用 HTTP](../../infra/httpx/README.md) | 严格 JSON 解析、响应编码，不依赖业务 |
 | [启动入口](../../apps/interfaces/http/main.go)、[应用组装](../../apps/interfaces/http/app/run.go)、[HTTP 生命周期](../../apps/interfaces/http/app/server.go) | 配置和依赖组装、信号取消、等待请求结束与有界清理 |

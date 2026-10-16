@@ -12,24 +12,11 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/proto"
-	"saklay/ai/infra/httpx"
 
 	"github.com/gin-gonic/gin"
 )
 
 func TestResponseJSONCompatibility(t *testing.T) {
-	chatAdapter, err := httpx.NewAdapter(time.Second, chatRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	messagesAdapter, err := httpx.NewAdapter(time.Second, messagesRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runAdapter, err := httpx.NewAdapter(time.Second, runRspJSON, classifyAgentError, writeHTTPRsp)
-	if err != nil {
-		t.Fatal(err)
-	}
 	zero, total := int64(0), int64(12)
 	steps := []*proto.ExecutionStep{
 		{Kind: "model", Name: "模型", Request: "请求", Response: "回答", ElapsedMs: 11, FinishReason: "stop", Usage: &proto.Usage{PromptTokens: &zero, TotalTokens: &total}},
@@ -74,9 +61,10 @@ func TestResponseJSONCompatibility(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			router.POST("/chat", httpx.Adapt(chatAdapter, func(context.Context, *proto.ChatReq) (*proto.ChatRsp, error) { return tc.chat, nil }))
-			router.POST("/messages", httpx.Adapt(messagesAdapter, func(context.Context, *proto.MessagesReq) (*proto.MessagesRsp, error) { return tc.messages, nil }))
-			router.POST("/run", httpx.Adapt(runAdapter, func(context.Context, *proto.RunReq) (*proto.RunRsp, error) { return tc.run, nil }))
+			router.Use(requestTimeout(time.Second))
+			router.POST("/chat", handle(func(context.Context, *proto.ChatReq) (*proto.ChatRsp, error) { return tc.chat, nil }))
+			router.POST("/messages", handle(func(context.Context, *proto.MessagesReq) (*proto.MessagesRsp, error) { return tc.messages, nil }))
+			router.POST("/run", handle(func(context.Context, *proto.RunReq) (*proto.RunRsp, error) { return tc.run, nil }))
 			for _, path := range []string{"/chat", "/messages", "/run"} {
 				t.Run(path, func(t *testing.T) {
 					out := httptest.NewRecorder()

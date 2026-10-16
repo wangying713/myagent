@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/apps/interfaces/http/proto"
@@ -17,13 +18,84 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	pb "google.golang.org/protobuf/proto"
 )
+
+type requestTimeoutKey struct{}
+
+// requestTimeout 将当前 HTTP 实例的超时设置写入 Gin 请求作用域，此时尚不开始计时。
+func requestTimeout(timeout time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(requestTimeoutKey{}, timeout)
+		c.Next()
+	}
+}
+
+// protoRequest 限定可独立分配的 Protobuf 消息指针，避免在请求间复用消息状态。
+type protoRequest[Req any] interface {
+	*Req
+	pb.Message
+}
+
+// handle 将业务方法接入 Gin，须配合 requestTimeout 设置业务超时。
+// 解码及请求准备完成后开始计时，同步等待 API 返回并释放上下文；API 须响应上下文取消。
+// 响应与错误可以同时返回，已有结果会继续写入 HTTP data。
+func handle[Req, Rsp any, PReq protoRequest[Req]](api func(context.Context, PReq) (Rsp, error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		timeout := c.GetDuration(requestTimeoutKey{})
+		if timeout <= 0 {
+			writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{
+				Code:    entity.CodeInternalError,
+				Message: "服务处理异常，请稍后重试",
+			})
+			return
+		}
+		req := PReq(new(Req))
+		present, err := httpx.DecodeProtoJSON(c, req)
+		if err != nil {
+			status, failure := httpx.ClassifyReqError(err)
+			writeHTTPRsp(c, status, nil, failure)
+			return
+		}
+		if messages, ok := any(req).(*proto.MessagesReq); ok {
+			prepareAgentMessages(messages, present)
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+		rsp, err := api(ctx, req)
+		writeAPIResult(c, rsp, err)
+	}
+}
+
+// writeAPIResult 集中选择各接口的 HTTP JSON 表现，并保留错误同时返回的部分结果。
+func writeAPIResult(c *gin.Context, rsp any, err error) {
+	var data any
+	switch rsp := rsp.(type) {
+	case nil:
+	case *proto.ChatRsp:
+		data = chatRspJSON(rsp)
+	case *proto.MessagesRsp:
+		data = messagesRspJSON(rsp)
+	case *proto.RunRsp:
+		data = runRspJSON(rsp)
+	default:
+		// 新增协议须显式配置 HTTP 表现，避免标准 ProtoJSON 或生成标签改变契约。
+		writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{
+			Code:    entity.CodeInternalError,
+			Message: "响应编码失败",
+		})
+		return
+	}
+	status, failure := classifyAgentError(err)
+	writeHTTPRsp(c, status, data, failure)
+}
 
 // httpObserver 由入口显式注入，HTTP 处理不依赖具体的观测实现。
 type httpObserver interface {
 	TracerProvider() trace.TracerProvider
 }
 
+// traceHTTP 在解码前建立请求链路，显式使用私有观测配置并屏蔽敏感请求属性。
 func traceHTTP(observer httpObserver) gin.HandlerFunc {
 	return otelgin.Middleware("http",
 		otelgin.WithTracerProvider(observer.TracerProvider()),
@@ -47,7 +119,12 @@ func writeHTTPRsp(c *gin.Context, status int, data any, failure *httpx.Error) {
 	if span.IsRecording() {
 		traceID = span.SpanContext().TraceID().String()
 	}
-	rsp := entity.Rsp[any]{Code: entity.CodeOK, Data: data, TraceID: traceID, Msg: "成功"}
+	rsp := entity.Rsp[any]{
+		Code:    entity.CodeOK,
+		Data:    data,
+		TraceID: traceID,
+		Msg:     "成功",
+	}
 	if failure != nil {
 		rsp.Code, rsp.Msg = failure.Code, failure.Message
 	}
@@ -59,7 +136,10 @@ func writeHTTPRsp(c *gin.Context, status int, data any, failure *httpx.Error) {
 		span.SetStatus(codes.Error, "响应编码失败")
 		// 回退响应仅含固定字符串、nil 和已获取的 trace ID，保证可编码且不泄漏底层错误。
 		_ = httpx.Write(c, http.StatusInternalServerError, entity.Rsp[any]{
-			Code: entity.CodeInternalError, Data: nil, TraceID: traceID, Msg: "响应编码失败",
+			Code:    entity.CodeInternalError,
+			Data:    nil,
+			TraceID: traceID,
+			Msg:     "响应编码失败",
 		})
 	}
 }
@@ -70,10 +150,16 @@ func chatRspJSON(rsp *proto.ChatRsp) any {
 		return nil
 	}
 	return entity.AgentExecutionResult{
-		Lesson: rsp.GetLesson(), Completed: rsp.GetCompleted(), Answer: rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(), ElapsedMS: rsp.GetElapsedMs(),
-		ModelCalls: rsp.GetModelCalls(), ToolCalls: rsp.GetToolCalls(), KnownTokens: rsp.GetKnownTokens(),
-		UsageComplete: rsp.GetUsageComplete(), Steps: agentStepsJSON(rsp.GetSteps()),
+		Lesson:           rsp.GetLesson(),
+		Completed:        rsp.GetCompleted(),
+		Answer:           rsp.GetAnswer(),
+		TelemetryEnabled: rsp.GetTelemetryEnabled(),
+		ElapsedMS:        rsp.GetElapsedMs(),
+		ModelCalls:       rsp.GetModelCalls(),
+		ToolCalls:        rsp.GetToolCalls(),
+		KnownTokens:      rsp.GetKnownTokens(),
+		UsageComplete:    rsp.GetUsageComplete(),
+		Steps:            agentStepsJSON(rsp.GetSteps()),
 	}
 }
 
@@ -83,10 +169,16 @@ func messagesRspJSON(rsp *proto.MessagesRsp) any {
 		return nil
 	}
 	return entity.AgentExecutionResult{
-		Lesson: rsp.GetLesson(), Completed: rsp.GetCompleted(), Answer: rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(), ElapsedMS: rsp.GetElapsedMs(),
-		ModelCalls: rsp.GetModelCalls(), ToolCalls: rsp.GetToolCalls(), KnownTokens: rsp.GetKnownTokens(),
-		UsageComplete: rsp.GetUsageComplete(), Steps: agentStepsJSON(rsp.GetSteps()),
+		Lesson:           rsp.GetLesson(),
+		Completed:        rsp.GetCompleted(),
+		Answer:           rsp.GetAnswer(),
+		TelemetryEnabled: rsp.GetTelemetryEnabled(),
+		ElapsedMS:        rsp.GetElapsedMs(),
+		ModelCalls:       rsp.GetModelCalls(),
+		ToolCalls:        rsp.GetToolCalls(),
+		KnownTokens:      rsp.GetKnownTokens(),
+		UsageComplete:    rsp.GetUsageComplete(),
+		Steps:            agentStepsJSON(rsp.GetSteps()),
 	}
 }
 
@@ -96,10 +188,16 @@ func runRspJSON(rsp *proto.RunRsp) any {
 		return nil
 	}
 	return entity.AgentExecutionResult{
-		Lesson: rsp.GetLesson(), Completed: rsp.GetCompleted(), Answer: rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(), ElapsedMS: rsp.GetElapsedMs(),
-		ModelCalls: rsp.GetModelCalls(), ToolCalls: rsp.GetToolCalls(), KnownTokens: rsp.GetKnownTokens(),
-		UsageComplete: rsp.GetUsageComplete(), Steps: agentStepsJSON(rsp.GetSteps()),
+		Lesson:           rsp.GetLesson(),
+		Completed:        rsp.GetCompleted(),
+		Answer:           rsp.GetAnswer(),
+		TelemetryEnabled: rsp.GetTelemetryEnabled(),
+		ElapsedMS:        rsp.GetElapsedMs(),
+		ModelCalls:       rsp.GetModelCalls(),
+		ToolCalls:        rsp.GetToolCalls(),
+		KnownTokens:      rsp.GetKnownTokens(),
+		UsageComplete:    rsp.GetUsageComplete(),
+		Steps:            agentStepsJSON(rsp.GetSteps()),
 	}
 }
 
@@ -113,13 +211,20 @@ func agentStepsJSON(steps []*proto.ExecutionStep) []entity.AgentExecutionStep {
 		var usage *entity.AgentUsage
 		if step.GetUsage() != nil {
 			usage = &entity.AgentUsage{
-				PromptTokens: step.Usage.PromptTokens, CompletionTokens: step.Usage.CompletionTokens,
-				TotalTokens: step.Usage.TotalTokens,
+				PromptTokens:     step.Usage.PromptTokens,
+				CompletionTokens: step.Usage.CompletionTokens,
+				TotalTokens:      step.Usage.TotalTokens,
 			}
 		}
 		data = append(data, entity.AgentExecutionStep{
-			Kind: step.GetKind(), Name: step.GetName(), Request: step.GetRequest(), Response: step.GetResponse(),
-			ElapsedMS: step.GetElapsedMs(), FinishReason: step.GetFinishReason(), Usage: usage, Error: step.GetError(),
+			Kind:         step.GetKind(),
+			Name:         step.GetName(),
+			Request:      step.GetRequest(),
+			Response:     step.GetResponse(),
+			ElapsedMS:    step.GetElapsedMs(),
+			FinishReason: step.GetFinishReason(),
+			Usage:        usage,
+			Error:        step.GetError(),
 		})
 	}
 	return data

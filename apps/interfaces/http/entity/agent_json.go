@@ -2,6 +2,7 @@
 package entity
 
 // AgentExecutionResult 是三个 Agent 接口共用的 HTTP JSON 响应数据。
+// 整数输出为 JSON 数字；Steps 为 nil 和空切片时分别输出 null 和空数组。
 type AgentExecutionResult struct {
 	Lesson           string               `json:"lesson"`
 	Completed        bool                 `json:"completed"`

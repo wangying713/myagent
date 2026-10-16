@@ -25,7 +25,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
+// Rsp 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
 type Rsp = entity.Rsp[struct {
 	Completed   bool              `json:"completed"`
 	Answer      string            `json:"answer"`

@@ -1,6 +1,6 @@
 # HTTP 手写共用数据定义
 
-本目录只保存手写的 HTTP 公共外层与 JSON 表现类型。协议源文件和生成的请求响应类型放在 `http/proto`，`.proto` 与 `.pb.go` 同目录。业务处理方法、请求准备与 Proto 响应组装放在 `http/app` 下对应业务的 `impl_xxx.go`，HTTP JSON 适配和错误映射位于 `app/handler.go`，通用解析、超时和响应编码由 `infra/httpx` 提供。
+本目录只保存手写的 HTTP 公共外层与 JSON 表现类型。协议源文件和生成的请求响应类型放在 `http/proto`，`.proto` 与 `.pb.go` 同目录。业务处理方法、请求准备与 Proto 响应组装放在 `http/app` 下对应业务的 `impl_xxx.go`，HTTP JSON 适配和错误映射位于 `app/handler.go`，通用解析和响应编码由 `infra/httpx` 提供，超时与取消由 `app/handler.go` 管理。
 
 ```text
 http/proto/

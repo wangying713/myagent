@@ -16,6 +16,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Settings 保存校验后的启动设置，由入口显式传给各组件。
 type Settings struct {
 	Model   deepseek.Config
 	Observe openobserve.Config
@@ -23,12 +24,15 @@ type Settings struct {
 	Limits  agent.Limits
 }
 
-// HTTPSettings 保存 HTTP 进程启动设置，入口将请求超时显式传给 HTTP 适配器。
+// HTTPSettings 保存监听地址和业务执行超时；业务计时从请求解码及准备完成后开始。
 type HTTPSettings struct {
 	Address    string
 	RunTimeout time.Duration
 }
 
+// Load 读取显式指定的文件，并按 lookup、文件、默认值的优先级解析启动设置。
+// envFile 为空时不读文件；lookup 为 nil 时不读取进程环境，显式空值仍覆盖文件和默认值。
+// 返回错误时，调用方应丢弃同时返回的设置。
 func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) {
 	values := map[string]string{}
 	if envFile != "" {
