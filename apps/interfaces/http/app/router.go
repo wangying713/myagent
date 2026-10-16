@@ -29,7 +29,7 @@ func newRouter(service *agent.Service, timeout time.Duration, observer httpObser
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return nil, err
 	}
-	router.Use(traceHTTP(observer), requestTimeout(timeout))
+	router.Use(traceHTTP(observer), previewHTTP(observer), requestTimeout(timeout))
 	// 不输出请求头、panic 原文或堆栈，且不覆盖已经写出的响应。
 	router.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, _ any) {
 		c.Abort()

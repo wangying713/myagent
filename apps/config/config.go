@@ -55,7 +55,7 @@ func Load(envFile string, lookup func(string) (string, bool)) (Settings, error) 
 	}
 	settings := Settings{
 		Model:   deepseek.Config{APIKey: get("DEEPSEEK_API_KEY", ""), Model: get("DEEPSEEK_MODEL", "deepseek-flash"), BaseURL: get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")},
-		Observe: openobserve.Config{ServiceName: get("OTEL_SERVICE_NAME", "go-agent-demos"), Endpoint: get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces")},
+		Observe: openobserve.Config{ServiceName: get("OTEL_SERVICE_NAME", "agent"), Endpoint: get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces")},
 		HTTP:    HTTPSettings{Address: get("HTTP_ADDRESS", "127.0.0.1:8080")},
 	}
 	var err error

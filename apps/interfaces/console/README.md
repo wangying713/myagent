@@ -1,6 +1,6 @@
 # Ant Design Pro 官方完整版演示
 
-本目录安装 Ant Design Pro 官方 `v6.0.0`，保留官方页面、布局、登录和权限示例。欢迎、个人页、AI 助手和 Agent 开发保留独立入口，其他示例统一归档到“示例页面（Demos）”。“Agent 开发”调用本项目 Go 后台，其他官方示例继续使用 Mock。
+本目录安装 Ant Design Pro 官方 `v6.0.0`，保留官方页面、布局、登录和权限示例。欢迎、个人页、AI 助手、Agent 开发和 API 保留独立入口，其他示例统一归档到“示例页面（Demos）”。“Agent 开发”和“API”调用本项目 Go 后台，其他官方示例继续使用 Mock。
 
 ## 运行
 
@@ -35,6 +35,7 @@ npm start
 | 个人页 | `src/pages/account` | `/account/center`、`/account/settings` |
 | AI 助手 | `src/pages/chatbot` | `/chatbot` |
 | Agent 开发 | `src/pages/agent-development` | `/agent-development` |
+| API | `src/pages/api-explorer` | `/api-explorer` |
 | 示例页面（Demos） | `src/pages/demos` | `/demos/...` |
 
 登录页 `src/pages/user/login` 和全站兜底页 `src/pages/404.tsx` 保留在外面，不显示在侧边菜单。注册与注册结果作为示例放在 `demos/user`；异常页中的 404 示例放在 `demos/exception`。
@@ -64,6 +65,14 @@ npm run build
 构建前先停止开发服务，构建完成后重新执行 `npm start`，避免打包器缓存影响开发环境。
 
 当前完整体验使用 `npm start`，登录与列表等演示依赖本机 Mock；直接部署静态构建产物需要另外提供演示数据服务。后续接入真实后台另行处理。
+
+## API 接口调试
+
+点击“Agent 开发”下方的独立“API”菜单，或打开 `/api-explorer`。页面根据实际 Go 接口提供列表，包含健康检查 GET/HEAD，以及聊天、消息历史、Agent 运行三个 POST 接口。此页面按接口组织，不依赖课程演示页。
+
+选中接口后可编辑默认 JSON，点击“发送请求”调用同源后台代理；GET/HEAD 不发送请求体。每个接口的编辑草稿在页面内分别保留，支持恢复默认参数。4xx/5xx 仍展示实际 HTTP 状态和响应正文，Trace ID 可复制。响应使用原文显示和复制，不通过 JavaScript 数字重新编码。请求期间可取消，切换接口或离开页面也会取消旧请求；迟到响应不覆盖当前结果。
+
+接口定义与参数示例维护于 `src/pages/api-explorer/data.ts`，与 `apps/interfaces/http/app/router.go` 同步；后续新增后台接口时在列表中补充对应配置。此页不使用模板生成的 OpenAPI 示例或课程页面数据，也不保存模型密钥。
 
 ## Agent 接口联调
 

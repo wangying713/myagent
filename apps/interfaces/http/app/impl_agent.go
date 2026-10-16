@@ -103,7 +103,7 @@ func agentQuestionInput(value *string) (string, error) {
 	// 省略使用业务默认问题，显式空字符串仍应拒绝。
 	if *value == "" {
 		return "", agent.ErrInput
-	}form
+	}
 	return *value, nil
 }
 

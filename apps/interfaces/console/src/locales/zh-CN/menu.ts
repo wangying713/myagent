@@ -1,4 +1,5 @@
 export default {
+  'menu.api': 'API',
   'menu.agent-development': 'Agent 开发',
   'menu.demos': '示例页面（Demos）',
   'menu.demos.user': '注册示例',

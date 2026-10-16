@@ -61,6 +61,12 @@ export default [
     component: './agent-development',
   },
   {
+    path: '/api-explorer',
+    name: 'api',
+    icon: 'api',
+    component: './api-explorer',
+  },
+  {
     path: '/demos',
     name: 'demos',
     icon: 'appstore',

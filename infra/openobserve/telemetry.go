@@ -220,11 +220,11 @@ func (t *Telemetry) Payload(span trace.Span, key string, raw []byte) {
 	text := t.Safe(raw)
 	span.SetAttributes(attribute.String(key, text), attribute.Bool(key+".truncated", strings.HasSuffix(text, "…[TRUNCATED]")))
 	if key == "app.request" || key == "app.response" {
-		role, previewKey := "user", "gen_ai.input.messages"
+		previewKey := "gen_ai.input.messages"
 		if key == "app.response" {
-			role, previewKey = "assistant", "gen_ai.output.messages"
+			previewKey = "gen_ai.output.messages"
 		}
-		preview, _ := json.Marshal([]any{map[string]any{"role": role, "parts": []any{map[string]string{"type": "text", "content": text}}}})
-		span.SetAttributes(attribute.String(previewKey, string(preview)))
+		// 直接交给 OpenObserve 的 JSON 预览，不添加对话角色或消息包装。
+		span.SetAttributes(attribute.String(previewKey, text))
 	}
 }

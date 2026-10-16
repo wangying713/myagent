@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/apps/interfaces/http/proto"
@@ -93,16 +95,23 @@ func writeAPIResult(c *gin.Context, rsp any, err error) {
 // httpObserver 由入口显式注入，HTTP 处理不依赖具体的观测实现。
 type httpObserver interface {
 	TracerProvider() trace.TracerProvider
+	ContentLimit() int
+	Payload(trace.Span, string, []byte)
 }
 
 // traceHTTP 在解码前建立请求链路，显式使用私有观测配置并屏蔽敏感请求属性。
 func traceHTTP(observer httpObserver) gin.HandlerFunc {
 	return otelgin.Middleware("http",
 		otelgin.WithTracerProvider(observer.TracerProvider()),
+		otelgin.WithSpanNameFormatter(func(c *gin.Context) string {
+			if route := c.FullPath(); route != "" {
+				return route
+			}
+			return "[unmatched]"
+		}),
 		otelgin.WithMeterProvider(noop.NewMeterProvider()),
 		// 沿用当前服务内链路，不读取全局传播器或引入外部请求头中的链路。
 		otelgin.WithPropagators(propagation.NewCompositeTextMapPropagator()),
-		otelgin.WithSpanNameFormatter(func(*gin.Context) string { return "http.request" }),
 		// 保留路由模板，屏蔽 otelgin 默认采集的原始路径与请求头派生值。
 		otelgin.WithSpanStartOptions(trace.WithAttributes(
 			attribute.String("url.path", "[REDACTED]"),
@@ -110,6 +119,24 @@ func traceHTTP(observer httpObserver) gin.HandlerFunc {
 			attribute.String("client.address", "[REDACTED]"),
 		)),
 	)
+}
+
+// previewHTTP 在请求 span 结束前记录实际 HTTP 正文，复用观测组件的脱敏与预览适配。
+func previewHTTP(observer httpObserver) gin.HandlerFunc {
+	// 一个 Unicode 字符最多占四字节；有界读写副本不额外消耗请求正文。
+	limit := min(observer.ContentLimit(), math.MaxInt/utf8.UTFMax) * utf8.UTFMax
+	capture := httpx.CaptureBodies(limit, func(c *gin.Context, request, response []byte) {
+		span := trace.SpanFromContext(c.Request.Context())
+		observer.Payload(span, "app.request", request)
+		observer.Payload(span, "app.response", response)
+	})
+	return func(c *gin.Context) {
+		if !trace.SpanFromContext(c.Request.Context()).IsRecording() {
+			c.Next()
+			return
+		}
+		capture(c)
+	}
 }
 
 // writeHTTPRsp 统一包装业务结果与错误，业务失败时保留已有的部分结果。

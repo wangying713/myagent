@@ -4,6 +4,7 @@
 
 - `DecodeJSON`：限制 32 KiB 正文，要求 `application/json` 和单个 JSON 对象，按调用方声明的字段精确校验顶层名称，拒绝顶层的未知字段、重复字段、大小写别名和显式 null；按目标请求类型验证值的类型。
 - `DecodeProtoJSON`：复用相同的正文与顶层检查，从 Proto 描述符提取原始字段名，再用官方 `protojson` 解码；返回实际出现的字段，供 API 保留 repeated 字段的省略与空数组区别。不认识具体 Agent 消息。
+- `CaptureBodies`：旁路记录处理器实际读取的请求体与写出的响应体，副本有字节上限与截断标记；不提前读请求，不改变状态、正文或底层读写错误。调用方负责正文开关、脱敏与展示适配。
 - `Write`：先编码后写出，禁止缓存；编码失败返回 error，尚不写出任何响应头或正文，由调用方生成其统一 JSON 500。
 - `RequestError` / `ClassifyReqError`：内容类型、JSON 结构、正文上限等传输错误。业务错误的 HTTP 映射由具体 API 完成。
 

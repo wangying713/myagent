@@ -28,7 +28,8 @@ npm run build
 | [通用 HTTP 测试](../../infra/httpx/httpx_test.go) | 非 Agent 请求复用、严格 JSON、正文上限、响应编码失败 |
 | [Proto HTTP 测试](../../infra/httpx/proto_test.go) | 描述符字段名校验、严格解码、数组存在性与正文上限 |
 | [HTTP 统一处理测试](../../apps/interfaces/http/app/handle_test.go) | 部分结果、路由超时隔离、上下文释放与未适配响应保护 |
-| [HTTP 包装测试](../../apps/interfaces/http/app/handler_test.go) | code/data/traceID/msg、无结果为 null、解码前链路及编码回退 |
+| [HTTP 包装测试](../../apps/interfaces/http/app/handler_test.go) | code/data/traceID/msg、无结果为 null、解码前链路、URI 名称、HTTP 预览、正文开关、脱敏、截断及编码回退 |
+| [HTTP 正文旁路采集测试](../../infra/httpx/capture_test.go) | 读写副本有界、不预读请求、不改变实际正文、状态与请求体所有权 |
 | [响应兼容测试](../../apps/interfaces/http/app/impl_agent_test.go) | 下划线字段、数字整数、零值、未知用量与空步骤的 JSON 表现 |
 | [循环测试](../../domain/agent/loop_test.go) | 完整 assistant、多工具回填、非法参数、预算、ID 与取消 |
 | [HTTP 测试](../../apps/interfaces/http/app/router_test.go) | Gin 路由、健康检查、405/404、异常恢复、三课、父子 span、输入拒绝、部分失败、超时、观测故障隔离与并发历史隔离 |
@@ -49,6 +50,40 @@ npm run build
 同时检查编辑问题、切换课程、取消按钮和失败提示；取消后应能重新执行，旧请求不能覆盖新结果。模板登录只提供演示流程，不是 Go API 身份校验。
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
+
+## 2026-10-16：输入输出直接预览 JSON
+
+HTTP 预览改为直接展示实际读取的请求体和写出的响应体，移除额外 `body/method/uri/status` 外层。HTTP、模型和工具共用的预览适配直接传递脱敏限长后的正文，不再生成 `role/parts/content` 消息包装；实际 JSON 内自带的消息字段继续保留。HTTP 方法、路由和状态仍在 span 属性中。
+
+格式、vet、全量离线测试、竞态检查、协议生成检查、服务构建及差异检查通过，现有成功、错误回退、正文开关、脱敏、精度和截断契约继续通过。本机服务已重启。通过管理台代理提交 `{"question":""}`，按预期返回 HTTP 400，未调用真实模型；trace `e398fb97270347b38c5d9244cd457fab` 已入库。OpenObserve 页面及截图确认输入直接显示该 JSON，输出直接显示接口的 `code/data/traceID/msg`，没有额外 body 外层或“用户／助手”卡片。
+
+## 2026-10-16：模型 HTTP 名称简化为 URI
+
+按需求将模型 Client span 名称简化为 URI 路径，例如 `/v1/chat/completions`，避免与 OpenObserve 客户端行左侧的目标主机重复；`url.full` 继续保留完整地址，HTTP 方法、目标主机、模型名、预览与链路关系沿用原有上报。
+
+格式、vet、全量离线测试、竞态检查、协议生成检查、构建及差异检查通过。三课的离线模型替身验证 URI 名称与完整地址属性相符。本机服务已重启，健康检查通过；本轮未调用真实模型或进行新模型链路的入库复验。
+
+## 2026-10-16：模型 HTTP 完整地址展示
+
+模型 Client span 名称由 `chat 模型名` 改为实际请求完整地址，例如 `https://api.deepseek.com/v1/chat/completions`，同时记录 `url.full`。HTTP 方法、目标主机、模型名称、操作、请求响应预览及父子链路继续保留。
+
+格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、协议生成检查、服务构建及差异检查通过。离线 HTTP 替身验证三课中的 Client span 名称与完整地址一致，并保留目标主机、POST 方法、模型属性及原有链路关系。本机服务已重启，健康检查通过；本轮未调用真实模型，也未将旧链路视为新显示的验收证据。
+
+## 2026-10-16：HTTP URI 名称与请求响应预览
+
+随后按需求将默认、示例及本机的 `OTEL_SERVICE_NAME` 统一为 `agent` 并重启服务。新校验请求 trace `e175d42304cec00459b0fd98ee8ee20d` 已从 OpenObserve 查回，确认 `service_name=agent`；未调用真实模型。配置调整后格式、vet、全量测试、竞态检查、协议生成检查及构建通过。
+
+HTTP 根 span 名称只保留注册的 URI 路由模板，例如 `/api/agent/chat`；HTTP 方法继续保存在属性中，未匹配路由显示 `[unmatched]`。根 span 增加实际读写的 HTTP 请求与响应正文，复用内容开关、脱敏、字符上限及输入输出预览字段。请求头和查询字符串不采集，采集不会预读或改变业务正文。
+
+Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、`scripts/generate-proto --check`、服务构建及 `git diff --check` 均通过。离线测试覆盖成功、解码及领域输入拒绝、404/405、编码失败回退、数值精度、关闭正文、脱敏、截断、读写副本上限与不预读请求。
+
+本机服务已重启。通过管理台代理提交未知字段，接口按预期返回 HTTP 400，未调用真实模型。trace `73b0e6f1df39f960f321d38cf1c1d743` 已从 OpenObserve 查回，HTTP span 为 `bcbab9be55548338`，名称为 `/api/agent/chat`。浏览器确认“预览”位于“属性”前，并实际显示请求 `unknown: true`、方法、URI 及最终错误响应的 `code/data/traceID/msg` 和 HTTP 400；该错误标记来自有意提交的非法参数。本轮未发起真实模型成功请求，成功与部分失败响应由离线测试覆盖。
+
+## 2026-10-16：HTTP 入口名称及 traceID 查询验收
+
+移除固定的 HTTP span 名称配置，使用 otelgin 默认的“方法 + 注册路由模板”，例如 `POST /api/agent/chat`；未知路由仅保留方法，参数路径和查询参数仍不写入名称。测试按 Server span 识别 HTTP 入口，并逐个验证三课的入口名称、响应 traceID、父子关系、失败标记和元数据脱敏。Go 格式、`go vet ./...`、`go test ./...`、`go test -race ./...`、Proto 生成一致性及 `git diff --check` 均通过。
+
+使用现有本机观测配置按管理台显示的 traceID 精确查询，确认旧请求已完整入库但早于界面默认的“过去 15 分钟”；扩大到一天并使用 trace_id 字段筛选后，页面成功显示完整三层链路。随后重启后台，通过管理台代理发送一个会被严格校验拒绝的请求，返回 ID 与 OpenObserve 的实际记录一致，页面入口名称为 `POST /api/agent/chat`，HTTP 400 正确标记为失败。该验收未新增模型调用，未输出鉴权或模型正文。
 
 ## 2026-10-16：单参数 HTTP 处理验证
 

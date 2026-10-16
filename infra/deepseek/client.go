@@ -97,11 +97,11 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.telemetry.StartClient(ctx, "chat "+c.config.Model, attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", "deepseek"))
+	ctx, span := c.telemetry.StartClient(ctx, req.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", "deepseek"))
 	started := time.Now()
 	defer func() { openobserve.End(span, started, err) }()
 	c.telemetry.Payload(span, "app.request", raw)
-	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", req.URL.Hostname()))
+	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", req.URL.Hostname()), attribute.String("url.full", req.URL.String()))
 	resp, err := c.http.Do(req.WithContext(ctx))
 	if err != nil {
 		return result, fmt.Errorf("请求模型服务: %w", err)

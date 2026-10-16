@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -167,18 +169,35 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 				if s.Name() == "agent.run" {
 					root = s
 				}
-				if s.Name() == "http.request" {
+				if s.SpanKind() == trace.SpanKindServer {
 					requestSpan = s
 				}
 			}
 			if root == nil || requestSpan == nil {
 				t.Fatal("缺少 HTTP 请求或领域运行 span")
 			}
+			path := lesson
+			if path == "agent" {
+				path = "run"
+			}
+			if want := "/api/agent/" + path; requestSpan.Name() != want {
+				t.Errorf("实际入口名称 %q，预期 %q", requestSpan.Name(), want)
+			}
 			if root.Parent().SpanID() != requestSpan.SpanContext().SpanID() || root.SpanContext().TraceID() != requestSpan.SpanContext().TraceID() {
 				t.Error("领域运行没有挂到本次 HTTP 请求链路")
 			}
 			for _, s := range exporter.spans {
-				if s.Name() != "agent.run" && s.Name() != "http.request" && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
+				if s.SpanKind() == trace.SpanKindClient {
+					attrs := make(map[string]string)
+					for _, attr := range s.Attributes() {
+						attrs[string(attr.Key)] = attr.Value.AsString()
+					}
+					endpoint, err := url.Parse(attrs["url.full"])
+					if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || s.Name() != endpoint.EscapedPath() || attrs["server.address"] != endpoint.Hostname() || attrs["http.request.method"] != http.MethodPost || attrs["gen_ai.request.model"] != "test-model" {
+						t.Errorf("实际模型 span 名称 %q、属性 %v，预期只展示 URI，并保留完整地址、方法、目标主机及模型名", s.Name(), attrs)
+					}
+				}
+				if s.Name() != "agent.run" && s.SpanKind() != trace.SpanKindServer && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
 					t.Error("模型或工具没有挂到同次运行的根 span")
 				}
 			}
