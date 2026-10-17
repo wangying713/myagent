@@ -17,7 +17,7 @@ import {
 } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { Lesson, RunRsp } from './data';
-import { lessons } from './data';
+import { lessons, plannedLessons } from './data';
 import { runLesson } from './service';
 
 const LESSON_ORDER: Lesson[] = ['chat', 'messages', 'agent'];
@@ -115,7 +115,7 @@ export default function AgentDevelopment() {
   return (
     <PageContainer
       title="Agent 开发"
-      content="从普通聊天到工具调用循环，点击任一演示，查看 Go 接口的真实执行结果。"
+      content="前三节可运行，查看 Go 接口的真实执行结果；下方还有结构化输出、流式回答和多个工具协作的课程大纲。"
     >
       <Space orientation="vertical" size="large" style={{ width: '100%' }}>
         <Row gutter={[24, 24]}>
@@ -314,6 +314,43 @@ export default function AgentDevelopment() {
             </Card>
           )
         )}
+        <Card title="后续课程" extra={<Tag>待开发</Tag>}>
+          <Typography.Paragraph type="secondary">
+            先看课程大纲，后续按你安排的顺序开发。这三节暂未接入运行接口。
+          </Typography.Paragraph>
+          <Collapse
+            defaultActiveKey={['structured-output']}
+            items={plannedLessons.map((planned) => ({
+              key: planned.key,
+              label: planned.title,
+              children: (
+                <>
+                  <Typography.Paragraph>
+                    {planned.description}
+                  </Typography.Paragraph>
+                  <Typography.Paragraph>
+                    <Typography.Text strong>课堂案例：</Typography.Text>
+                    {planned.example}
+                  </Typography.Paragraph>
+                  <Typography.Text strong>学习步骤</Typography.Text>
+                  <ol>
+                    {planned.steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <Typography.Paragraph>
+                    <Typography.Text strong>动手练习：</Typography.Text>
+                    {planned.exercise}
+                  </Typography.Paragraph>
+                  <Typography.Paragraph style={{ marginBottom: 0 }}>
+                    <Typography.Text strong>学会的标准：</Typography.Text>
+                    {planned.completion}
+                  </Typography.Paragraph>
+                </>
+              ),
+            }))}
+          />
+        </Card>
       </Space>
     </PageContainer>
   );
