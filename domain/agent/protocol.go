@@ -9,44 +9,34 @@ import (
 )
 
 var (
-	// ErrInvalidResponse 表示模型消息、结束原因或工具调用协议不符合要求。
-	ErrInvalidResponse = errors.New("模型响应不完整或协议无效")
-	// ErrBudgetExceeded 表示继续执行将超出模型次数、工具次数或已知用量预算。
-	ErrBudgetExceeded = errors.New("达到运行预算，任务未完成")
+	ErrInvalidResponse = errors.New("模型响应不完整或协议无效") // 模型消息、结束原因或工具调用协议不符合要求。
+	ErrBudgetExceeded  = errors.New("达到运行预算，任务未完成") // 继续执行将超出模型次数、工具次数或已知用量预算。
 )
 
 const (
-	// RoleSystem 表示系统提示消息。
-	RoleSystem = "system"
-	// RoleUser 表示用户输入消息。
-	RoleUser = "user"
-	// RoleAssistant 表示模型返回的消息。
-	RoleAssistant = "assistant"
-	// RoleTool 表示回填给模型的工具执行结果。
-	RoleTool = "tool"
+	RoleSystem    = "system"    // 系统提示消息。
+	RoleUser      = "user"      // 用户输入消息。
+	RoleAssistant = "assistant" // 模型返回的消息。
+	RoleTool      = "tool"      // 回填给模型的工具执行结果。
 )
 
 const (
-	// FinishReasonStop 表示模型已完成回答。
-	FinishReasonStop = "stop"
-	// FinishReasonToolCalls 表示模型请求执行工具。
-	FinishReasonToolCalls = "tool_calls"
+	FinishReasonStop      = "stop"       // 模型已完成回答。
+	FinishReasonToolCalls = "tool_calls" // 模型请求执行工具。
 )
 
-// ToolTypeFunction 是当前支持的函数工具协议类型。
-const ToolTypeFunction = "function"
-
-// ToolChoiceAuto 允许模型在已注册工具中自行选择是否调用。
-const ToolChoiceAuto = "auto"
+const (
+	ToolTypeFunction = "function" // 当前支持的函数工具协议类型。
+	ToolChoiceAuto   = "auto"     // 允许模型在已注册工具中自行选择是否调用。
+)
 
 // Message 保留模型原始 assistant 消息，回传历史时不丢失扩展字段或 null。
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-	// Raw 保存完整的 assistant JSON；非空时优先用于编码。
-	Raw json.RawMessage `json:"-"`
+	Role       string          `json:"role"`
+	Content    string          `json:"content"`
+	ToolCalls  []ToolCall      `json:"tool_calls,omitempty"`
+	ToolCallID string          `json:"tool_call_id,omitempty"`
+	Raw        json.RawMessage `json:"-"` // 保存完整的 assistant JSON；非空时优先用于编码。
 }
 
 // MarshalJSON 优先回传 Raw，以保留扩展字段和 null；Raw 无效时返回 ErrInvalidResponse。

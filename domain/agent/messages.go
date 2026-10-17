@@ -3,12 +3,9 @@ package agent
 import "context"
 
 const (
-	// FirstQuestion 是历史消息示例中要求模型记住名字的第一轮问题。
-	FirstQuestion = "我给一只虚构小猫取名叫豆包，请记住。"
-	// SecondQuestion 是历史消息示例中检查上下文是否保留的第二轮问题。
-	SecondQuestion = "我给小猫取了什么名字？"
-	// MessagesPrompt 是两轮历史消息实际使用的系统提示词。
-	MessagesPrompt = "用简短中文回答。"
+	FirstQuestion  = "我给一只虚构小猫取名叫豆包，请记住。" // 历史消息示例中要求模型记住名字的第一轮问题。
+	SecondQuestion = "我给小猫取了什么名字？"        // 历史消息示例中检查上下文是否保留的第二轮问题。
+	MessagesPrompt = "用简短中文回答。"           // 两轮历史消息实际使用的系统提示词。
 )
 
 // MessagesInput 保存固定两轮的问题；Questions 为 nil 时使用默认示例，空切片无效。

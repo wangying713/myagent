@@ -3,10 +3,8 @@ package agent
 import "context"
 
 const (
-	// AgentQuestion 是工具调用示例的默认乘法问题。
-	AgentQuestion = "每盒有 17 支笔，买 23 盒，一共多少支？"
-	// AgentPrompt 约束模型通过工具计算乘法，并在工具失败时如实回答。
-	AgentPrompt = "你是计算助手。涉及乘法必须用工具；工具出错时不能捏造结果。用中文简短回答。"
+	AgentQuestion = "每盒有 17 支笔，买 23 盒，一共多少支？"               // 工具调用示例的默认乘法问题。
+	AgentPrompt   = "你是计算助手。涉及乘法必须用工具；工具出错时不能捏造结果。用中文简短回答。" // 约束模型通过工具计算乘法，并在工具失败时如实回答。
 )
 
 // RunInput 保存工具循环的问题；Question 为空字符串时使用 AgentQuestion。

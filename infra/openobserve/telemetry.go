@@ -25,15 +25,13 @@ import (
 
 // Config 保存私有观测设置及展示正文的脱敏规则，由启动入口显式传入。
 type Config struct {
-	Enabled     bool
-	ServiceName string
-	Endpoint    string
-	Headers     map[string]string
-	// CaptureContent 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
-	CaptureContent bool
-	// MaxChars 限制展示正文的 Unicode 字符数，额外的截断标记不计入该上限。
-	MaxChars int
-	Secrets  []string
+	Enabled        bool
+	ServiceName    string
+	Endpoint       string
+	Headers        map[string]string
+	CaptureContent bool // 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
+	MaxChars       int  // 限制展示正文的 Unicode 字符数，额外的截断标记不计入该上限。
+	Secrets        []string
 }
 
 // Telemetry 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。

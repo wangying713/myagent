@@ -8,27 +8,20 @@ import (
 	"unicode/utf8"
 )
 
-// ErrInput 表示问题内容或固定两轮消息的数量不符合业务要求。
-var ErrInput = errors.New("Agent 输入无效")
+var ErrInput = errors.New("Agent 输入无效") // 问题内容或固定两轮消息的数量不符合业务要求。
 
 const (
-	// OperationChat 标识单轮聊天，沿用接口与观测中的既有取值。
-	OperationChat = "chat"
-	// OperationMessages 标识固定两轮的消息历史调用。
-	OperationMessages = "messages"
-	// OperationRun 标识工具循环，保留既有协议值 agent。
-	OperationRun = "agent"
+	OperationChat     = "chat"     // 单轮聊天，沿用接口与观测中的既有取值。
+	OperationMessages = "messages" // 固定两轮的消息历史调用。
+	OperationRun      = "agent"    // 工具循环，保留既有协议值 agent。
 )
 
 const (
-	// StepKindModel 标识执行记录中的模型调用步骤。
-	StepKindModel = "model"
-	// StepKindTool 标识执行记录中的工具调用步骤。
-	StepKindTool = "tool"
+	StepKindModel = "model" // 执行记录中的模型调用步骤。
+	StepKindTool  = "tool"  // 执行记录中的工具调用步骤。
 )
 
-// MaxQuestionChars 是单个问题允许的最大 Unicode 字符数。
-const MaxQuestionChars = 4096
+const MaxQuestionChars = 4096 // 单个问题允许的最大 Unicode 字符数。
 
 // Observer 由业务使用方定义，具体观测实现由入口注入。
 // Safe 和 Clean 只处理展示副本，不能修改实际模型消息或工具结果。
@@ -37,10 +30,8 @@ type Observer interface {
 	Enabled() bool
 	Safe([]byte) string
 	Clean(string) string
-	// StartRun 接收实际运行输入的只读快照，须保留父上下文的取消和链路。
-	StartRun(context.Context, string, RunDetails) (context.Context, RunObservation)
-	// StartTool 返回工具观测及其上下文，须保留父上下文的取消和链路。
-	StartTool(context.Context, ToolCall) (context.Context, ToolObservation)
+	StartRun(context.Context, string, RunDetails) (context.Context, RunObservation) // 接收实际运行输入的只读快照，须保留父上下文的取消和链路。
+	StartTool(context.Context, ToolCall) (context.Context, ToolObservation)         // 返回工具观测及其上下文，须保留父上下文的取消和链路。
 }
 
 // RunDetails 保存可观测的运行输入，不保存客户端、上下文对象或凭据。
@@ -71,16 +62,13 @@ type ModelInfoProvider interface {
 
 // RunObservation 保存一次业务执行的观测句柄，由该次执行负责结束。
 type RunObservation interface {
-	// TraceID 返回本次执行的链路标识；没有链路时返回空字符串。
-	TraceID() string
-	// End 记录结果和错误并结束观测，每次 StartRun 对应一次调用。
-	End(ExecutionResult, error)
+	TraceID() string            // 返回本次执行的链路标识；没有链路时返回空字符串。
+	End(ExecutionResult, error) // 记录结果和错误并结束观测，每次 StartRun 对应一次调用。
 }
 
 // ToolObservation 保存一次工具调用的观测句柄，由该次调用负责结束。
 type ToolObservation interface {
-	// End 记录工具结果和错误并结束观测，每次 StartTool 对应一次调用。
-	End(ToolResult, error)
+	End(ToolResult, error) // 记录工具结果和错误并结束观测，每次 StartTool 对应一次调用。
 }
 
 // ExecutionResult 保存本次业务执行的结果，不承担 HTTP 序列化契约。

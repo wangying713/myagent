@@ -1,4 +1,5 @@
 {
+  "goImplementationLens.showReferences": false,
   "go.alternateTools": {
     "go": "${workspaceFolder}/.tools/go1.27.2/bin/go",
     "gopls": "${workspaceFolder}/.tools/gopls/bin/gopls"
