@@ -104,7 +104,15 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			telemetry, exporter := newRunTelemetry(t, true, 4096)
 			original := slices.Clone(tc.questions)
-			_, run := telemetry.StartRun(t.Context(), tc.operation, tc.questions)
+			_, run := telemetry.StartRun(t.Context(), tc.operation, agent.RunDetails{
+				Questions: tc.questions,
+				Prompt:    "提示 configured-secret",
+				Limits: agent.Limits{
+					ModelCalls: 2,
+					ToolCalls:  3,
+					Tokens:     100,
+				},
+			})
 			result := agent.ExecutionResult{
 				Completed:     tc.err == nil,
 				Answer:        "已有回答 configured-secret",
@@ -114,8 +122,24 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 			}
 			run.End(result, tc.err)
 			attrs, status := runAttributes(t, telemetry, exporter)
-			if attrs["gen_ai.input.messages"].AsString() != tc.wantInput {
-				t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), tc.wantInput)
+			var input map[string]any
+			if err := json.Unmarshal([]byte(tc.wantInput), &input); err != nil {
+				t.Fatal(err)
+			}
+			input["prompt"] = "提示 [REDACTED]"
+			input["model"] = nil
+			input["tools"] = []any{}
+			input["limits"] = map[string]int{
+				"model_calls": 2,
+				"tool_calls":  3,
+				"tokens":      100,
+			}
+			wantInput, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if attrs["gen_ai.input.messages"].AsString() != string(wantInput) {
+				t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), wantInput)
 			}
 			var output struct {
 				Completed bool   `json:"completed"` // 从预览中解码的业务完成状态。
@@ -169,7 +193,9 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 			false: "关闭正文采集",
 		}[capture], func(t *testing.T) {
 			telemetry, exporter := newRunTelemetry(t, capture, 256)
-			_, run := telemetry.StartRun(t.Context(), "chat", []string{strings.Repeat("输入", 200)})
+			_, run := telemetry.StartRun(t.Context(), "chat", agent.RunDetails{
+				Questions: []string{strings.Repeat("输入", 200)},
+			})
 			run.End(agent.ExecutionResult{
 				Completed: true,
 				Answer:    strings.Repeat("输出", 200),

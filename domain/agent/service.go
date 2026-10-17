@@ -29,13 +29,16 @@ const MaxQuestionChars = 4096
 // Safe 和 Clean 只处理展示副本，不能修改实际模型消息或工具结果。
 // 同一实例可被多个 Service 调用并发使用，实现须保证并发安全。
 type Observer interface {
+	// Enabled 报告是否启用链路观测，用于填写执行结果中的观测状态。
 	Enabled() bool
+	// Safe 返回脱敏、限长后的正文副本，用于保存模型和工具的执行记录。
 	Safe([]byte) string
+	// Clean 返回脱敏后的文本副本，用于处理回答、名称和错误说明。
 	Clean(string) string
 	// StartRun 接收实际运行输入的只读快照，须保留父上下文的取消和链路。
 	StartRun(context.Context, string, RunDetails) (context.Context, RunObservation)
 	// StartTool 返回工具观测及其上下文，须保留父上下文的取消和链路。
-	StartTool(context.Context, ToolCall) (context.Context, ToolObservation)
+	StartTool(ctx context.Context, req ToolCall) (context.Context, ToolObservation)
 }
 
 // RunDetails 保存可观测的运行输入，不保存客户端、上下文对象或凭据。
@@ -61,6 +64,7 @@ type ModelInfo struct {
 
 // ModelInfoProvider 是运行观测可选使用的模型描述能力，不改变聊天接口。
 type ModelInfoProvider interface {
+	// ModelInfo 返回用于观测展示的模型公开配置，不包含鉴权信息。
 	ModelInfo() ModelInfo
 }
 
@@ -125,17 +129,23 @@ func NewService(model ChatClient, observer Observer, limits Limits) (*Service, e
 	}, nil
 }
 
+// validateQuestion 拒绝纯空白或超过 MaxQuestionChars 个 Unicode 码点的问题。
+// 校验通过返回 nil，否则返回 ErrInput；原问题内容保持不变。
 func validateQuestion(question string) error {
+	// TrimSpace 只用于判断是否为空；按码点计数，使中文等多字节字符按一个字符计算。
 	if strings.TrimSpace(question) == "" || utf8.RuneCountInString(question) > MaxQuestionChars {
 		return ErrInput
 	}
 	return nil
 }
 
+// newResult 根据业务操作标识创建本次运行的初始结果，供后续调用累计状态和步骤。
 func (s *Service) newResult(operation string) ExecutionResult {
 	return ExecutionResult{
-		Operation:        operation,
-		UsageComplete:    true,
+		Operation: operation,
+		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
+		UsageComplete: true,
+		// 使用非 nil 空切片，使尚无步骤的结果在 HTTP JSON 中表现为 []。
 		Steps:            []ExecutionStep{},
 		TelemetryEnabled: s.observer.Enabled(),
 	}
@@ -143,39 +153,50 @@ func (s *Service) newResult(operation string) ExecutionResult {
 
 // execution 持有单次运行的可变结果与观测句柄，供该次业务调用独占使用。
 type execution struct {
-	service *Service         // 本次调用所属的业务服务。
-	result  *ExecutionResult // 本次调用独占的可变执行结果。
-	model   *recordingModel  // 为本次调用累计用量与步骤的模型包装器。
-	run     RunObservation   // 本次业务运行的观测句柄。
-	started time.Time        // 业务开始时间，用于统计总耗时。
+	observer Observer         // 用于给最终回答脱敏的观测接口。
+	result   *ExecutionResult // 本次调用独占的可变执行结果。
+	model    *recordingModel  // 为本次调用累计用量与步骤的模型包装器。
+	run      RunObservation   // 本次业务运行的观测句柄。
+	started  time.Time        // 业务开始时间，用于统计总耗时。
 }
 
+// begin 为这次问答做好准备：记下问题和调用限制，开始记录执行过程。
+// 后面把模型调用次数、用了多少 token、每一步做了什么都写进 result，最后由 end 收尾。
 func (s *Service) begin(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *execution) {
+	// 把允许调用模型、工具的次数和 token 上限也记下来。
 	input.Limits = s.limits
+	// 如果模型能提供自己的名称、地址等信息，就一起记下来。
 	if model, ok := s.model.(ModelInfoProvider); ok {
 		info := model.ModelInfo()
 		input.Model = &info
 	}
+	// 开始记录这次运行，并把查询记录用的 trace ID 放进结果。
+	// 后续沿用返回的 ctx，模型和工具的记录就能串到同一次运行下。
 	ctx, run := s.observer.StartRun(ctx, result.Operation, input)
 	result.TraceID = run.TraceID()
-	e := &execution{
-		service: s,
-		result:  result,
-		run:     run,
-		started: time.Now(),
-	}
-	e.model = &recordingModel{
-		inner:    s.model,
+	// 给这次运行准备一份单独的数据，并记下开始时间。
+	return ctx, &execution{
 		observer: s.observer,
 		result:   result,
-		limits:   s.limits,
+		run:      run,
+		started:  time.Now(),
+		// 给模型加上记账功能，每次调用都把用量和执行结果写进同一份 result。
+		model: &recordingModel{
+			inner:    s.model,
+			observer: s.observer,
+			result:   result,
+			limits:   s.limits,
+		},
 	}
-	return ctx, e
 }
 
+// end 根据最终错误收尾本次业务运行，更新结果后结束运行观测。
+// 调用方通过 defer 闭包传入最终 err，使成功返回和提前失败都会执行收尾。
 func (e *execution) end(err error) {
+	// 以整个业务流程的耗时和最终错误确定运行状态；失败时保留已有回答、步骤和用量。
 	e.result.ElapsedMS = time.Since(e.started).Milliseconds()
 	e.result.Completed = err == nil
-	e.result.Answer = e.service.observer.Clean(e.result.Answer)
+	// 返回结果与观测展示共用脱敏后的回答，先完成脱敏再交给观测接口。
+	e.result.Answer = e.observer.Clean(e.result.Answer)
 	e.run.End(*e.result, err)
 }

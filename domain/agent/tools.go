@@ -39,17 +39,17 @@ func (MultiplyTools) Definitions() []ToolDefinition {
 
 // Dispatch 只执行已注册的乘法工具，未知工具或无效参数以 OK=false 的结果返回。
 // ctx 已取消时返回上下文错误，不执行计算。
-func (t MultiplyTools) Dispatch(ctx context.Context, call ToolCall) (ToolResult, error) {
+func (t MultiplyTools) Dispatch(ctx context.Context, req ToolCall) (ToolResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ToolResult{}, err
 	}
-	if call.Type != ToolTypeFunction || call.Function.Name != ToolNameMultiply {
+	if req.Type != ToolTypeFunction || req.Function.Name != ToolNameMultiply {
 		return ToolResult{Error: "unknown_tool"}, nil
 	}
-	if !json.Valid([]byte(call.Function.Arguments)) {
+	if !json.Valid([]byte(req.Function.Arguments)) {
 		return ToolResult{Error: "invalid_json"}, nil
 	}
-	args, ok := multiplyArguments([]byte(call.Function.Arguments))
+	args, ok := multiplyArguments([]byte(req.Function.Arguments))
 	if !ok {
 		return ToolResult{Error: "invalid_arguments"}, nil
 	}
@@ -57,11 +57,11 @@ func (t MultiplyTools) Dispatch(ctx context.Context, call ToolCall) (ToolResult,
 }
 
 // multiply 计算两个数的乘积。涉及乘法时使用。
-func (MultiplyTools) multiply(ctx context.Context, args multiplyArgs) (ToolResult, error) {
+func (MultiplyTools) multiply(ctx context.Context, req multiplyArgs) (ToolResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ToolResult{}, err
 	}
-	value := args.A * args.B
+	value := req.A * req.B
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return ToolResult{Error: "tool_execution_failed"}, nil
 	}

@@ -197,14 +197,14 @@ func (r *runObservation) End(result agent.ExecutionResult, err error) {
 }
 
 // StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
-func (t *Telemetry) StartTool(ctx context.Context, call agent.ToolCall) (context.Context, agent.ToolObservation) {
-	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(call.Function.Name)), attribute.String("app.tool.call.id", t.Clean(call.ID)))
+func (t *Telemetry) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, agent.ToolObservation) {
+	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(req.Function.Name)), attribute.String("app.tool.call.id", t.Clean(req.ID)))
 	// 展示副本平铺工具调用并展开参数；previewJSON 只在参数为合法 JSON 时返回 RawMessage，因此不会编码失败。
 	request, _ := json.Marshal(toolInput{
-		ID:        call.ID,
-		Type:      call.Type,
-		Name:      call.Function.Name,
-		Arguments: previewJSON(call.Function.Arguments),
+		ID:        req.ID,
+		Type:      req.Type,
+		Name:      req.Function.Name,
+		Arguments: previewJSON(req.Function.Arguments),
 	})
 	t.Payload(span, "app.request", request)
 	return ctx, &toolObservation{

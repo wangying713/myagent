@@ -16,24 +16,24 @@ type MessagesInput struct {
 
 // Messages 顺序执行两轮，第二轮携带第一轮实际返回的 assistant 消息。
 // 第二轮失败时仍返回第一轮已完成的回答、步骤和已知用量。
-func (s *Service) Messages(ctx context.Context, input MessagesInput) (result ExecutionResult, err error) {
+func (s *Service) Messages(ctx context.Context, req MessagesInput) (result ExecutionResult, err error) {
 	result = s.newResult(OperationMessages)
-	if input.Questions == nil {
-		input.Questions = []string{
+	if req.Questions == nil {
+		req.Questions = []string{
 			FirstQuestion,
 			SecondQuestion,
 		}
 	}
-	if len(input.Questions) != 2 {
+	if len(req.Questions) != 2 {
 		return result, ErrInput
 	}
-	for _, question := range input.Questions {
+	for _, question := range req.Questions {
 		if err := validateQuestion(question); err != nil {
 			return result, err
 		}
 	}
 	ctx, execution := s.begin(ctx, &result, RunDetails{
-		Questions: input.Questions,
+		Questions: req.Questions,
 		Prompt:    MessagesPrompt,
 	})
 	defer func() {
@@ -45,7 +45,7 @@ func (s *Service) Messages(ctx context.Context, input MessagesInput) (result Exe
 			Content: MessagesPrompt,
 		},
 	}
-	for _, question := range input.Questions {
+	for _, question := range req.Questions {
 		messages = append(messages, Message{
 			Role:    RoleUser,
 			Content: question,

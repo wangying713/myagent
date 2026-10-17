@@ -10,45 +10,56 @@ import (
 type ChatClient interface {
 	// Chat 执行一次模型请求，须响应 ctx 取消。
 	// 失败时可同时返回用于记录的响应数据。
-	Chat(context.Context, Request) (Response, error)
+	Chat(ctx context.Context, req Request) (Response, error)
 }
 
 // Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
 type Tools interface {
 	Definitions() []ToolDefinition
 	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
-	Dispatch(context.Context, ToolCall) (ToolResult, error)
+	Dispatch(ctx context.Context, req ToolCall) (ToolResult, error)
 }
 
-// Run 顺序执行模型 → 工具 → 回填 → 模型，直到完成或达到预算。
-// 消息、用量和调用 ID 都属于本次运行，不保存在共享对象上。
-// model 和 tools 须非 nil 且响应上下文取消；工具拒绝的结果仍会回填给模型。
-func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt string, limits Limits) (string, error) {
+// LoopInput 放这次工具循环要用的模型、工具、问题和调用限制。
+type LoopInput struct {
+	Model    ChatClient // 这次使用的模型，不能为 nil。
+	Tools    Tools      // 模型可以调用的工具，不能为 nil。
+	Question string     // 用户要问的问题。
+	Prompt   string     // 告诉模型该怎么回答的系统提示词。
+	Limits   Limits     // 最多调用几次模型、工具，以及能用多少 token；都必须大于 0。
+}
+
+// Run 先问模型，需要工具时就执行工具，再把工具结果交给模型，直到得到回答或用完额度。
+// 每次运行单独保存消息和用量。工具拒绝执行时，也会把拒绝原因告诉模型。
+// 模型和工具收到 ctx 的取消通知后，要能停止执行。
+func Run(ctx context.Context, req LoopInput) (string, error) {
+	limits := req.Limits
 	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
 		return "", fmt.Errorf("运行预算必须为正数")
 	}
 	messages := []Message{
 		{
 			Role:    RoleSystem,
-			Content: prompt,
+			Content: req.Prompt,
 		},
 		{
 			Role:    RoleUser,
-			Content: question,
+			Content: req.Question,
 		},
 	}
-	toolCalls, tokens := 0, 0
+	toolCalls := 0
+	remainingTokens := limits.Tokens
 	seen := make(map[string]bool)
 	for round := 0; round < limits.ModelCalls; round++ {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		if tokens >= limits.Tokens {
+		if remainingTokens == 0 {
 			return "", ErrBudgetExceeded
 		}
-		response, err := model.Chat(ctx, Request{
+		response, err := req.Model.Chat(ctx, Request{
 			Messages:   messages,
-			Tools:      tools.Definitions(),
+			Tools:      req.Tools.Definitions(),
 			ToolChoice: ToolChoiceAuto,
 		})
 		if err != nil {
@@ -58,12 +69,8 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 			return "", err
 		}
 		if used, known := response.Usage.Total(); known {
-			// 单次调用允许越过软预算，但下一次调用必须停止。
-			if used >= limits.Tokens-tokens {
-				tokens = limits.Tokens
-			} else {
-				tokens += used
-			}
+			// 这次可以用超，但剩余额度归零后就不能再调用模型。
+			remainingTokens -= min(used, remainingTokens)
 		}
 		messages = append(messages, response.Message)
 		if response.FinishReason == FinishReasonStop {
@@ -73,32 +80,48 @@ func Run(ctx context.Context, model ChatClient, tools Tools, question, prompt st
 		if len(calls) > limits.ToolCalls-toolCalls {
 			return "", ErrBudgetExceeded
 		}
-		// 整轮先检查 ID，避免部分工具已经执行才发现同轮协议错误。
-		for _, call := range calls {
-			if call.ID == "" || seen[call.ID] {
-				return "", ErrInvalidResponse
-			}
-			seen[call.ID] = true
+		if err := validateToolCalls(calls, seen); err != nil {
+			return "", err
 		}
 		for _, call := range calls {
-			if err := ctx.Err(); err != nil {
-				return "", err
-			}
-			output, err := tools.Dispatch(ctx, call)
+			message, err := runTool(ctx, req.Tools, call)
 			if err != nil {
 				return "", err
 			}
 			toolCalls++
-			body, err := json.Marshal(output)
-			if err != nil {
-				return "", fmt.Errorf("编码工具结果: %w", err)
-			}
-			messages = append(messages, Message{
-				Role:       RoleTool,
-				ToolCallID: call.ID,
-				Content:    string(body),
-			})
+			messages = append(messages, message)
 		}
 	}
 	return "", ErrBudgetExceeded
+}
+
+// validateToolCalls 先检查这一轮所有工具的 ID，再开始执行，避免执行到一半才发现 ID 有问题。
+func validateToolCalls(calls []ToolCall, seen map[string]bool) error {
+	for _, call := range calls {
+		if call.ID == "" || seen[call.ID] {
+			return ErrInvalidResponse
+		}
+		seen[call.ID] = true
+	}
+	return nil
+}
+
+// runTool 执行一个工具，把结果整理成模型能继续读取的消息。
+func runTool(ctx context.Context, tools Tools, req ToolCall) (Message, error) {
+	if err := ctx.Err(); err != nil {
+		return Message{}, err
+	}
+	output, err := tools.Dispatch(ctx, req)
+	if err != nil {
+		return Message{}, err
+	}
+	body, err := json.Marshal(output)
+	if err != nil {
+		return Message{}, fmt.Errorf("编码工具结果: %w", err)
+	}
+	return Message{
+		Role:       RoleTool,
+		ToolCallID: req.ID,
+		Content:    string(body),
+	}, nil
 }

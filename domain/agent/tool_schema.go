@@ -9,10 +9,15 @@ import (
 
 // toolParameterSchema 只承载当前工具参数需要的 JSON Schema 字段。
 type toolParameterSchema struct {
-	Type                 string                         `json:"type"`                           // JSON Schema 数据类型。
-	Properties           map[string]toolParameterSchema `json:"properties,omitempty"`           // 对象属性名及其参数约束。
-	Required             []string                       `json:"required,omitempty"`             // 必须提供的参数名称列表。
-	AdditionalProperties *bool                          `json:"additionalProperties,omitempty"` // 是否允许额外字段，nil 表示不声明此约束。
+	Type                 string                   `json:"type"`                 // JSON Schema 数据类型，当前为 object。
+	Properties           map[string]toolParameter `json:"properties,omitempty"` // 每个参数的名称与类型。
+	Required             []string                 `json:"required,omitempty"`   // 必须提供的参数名称列表。
+	AdditionalProperties bool                     `json:"additionalProperties"` // 是否允许额外字段，当前固定为 false。
+}
+
+// toolParameter 描述一个简单参数，只需要声明它的类型。
+type toolParameter struct {
+	Type string `json:"type"` // 参数类型，例如 string、integer 或 number。
 }
 
 // mustToolParameters 用于代码中确定的参数类型；定义错误属于编程错误，立即中断。
@@ -32,11 +37,10 @@ func toolParameters(t reflect.Type) (json.RawMessage, error) {
 	if t.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("工具参数 %s 必须是结构体", t)
 	}
-	additionalProperties := false
 	schema := toolParameterSchema{
 		Type:                 "object",
-		Properties:           make(map[string]toolParameterSchema),
-		AdditionalProperties: &additionalProperties,
+		Properties:           make(map[string]toolParameter),
+		AdditionalProperties: false,
 	}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -54,7 +58,7 @@ func toolParameters(t reflect.Type) (json.RawMessage, error) {
 		if field.Type.PkgPath() != "" {
 			return nil, fmt.Errorf("工具参数字段 %s.%s 不支持具名类型 %s", t, field.Name, field.Type)
 		}
-		var property toolParameterSchema
+		var property toolParameter
 		switch field.Type.Kind() {
 		case reflect.String:
 			property.Type = "string"

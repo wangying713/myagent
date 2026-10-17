@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -52,12 +51,10 @@ type reportingExporter struct {
 	inner    sdktrace.SpanExporter // 实际接收并导出 span 的导出器。
 	warnings io.Writer             // 观测失败提示的输出目标。
 	warnOnce sync.Once             // 保证导出失败提示只输出一次。
-	failed   atomic.Int64          // 导出失败的 span 累计数量，支持并发更新。
 }
 
 func (e *reportingExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
 	if err := e.inner.ExportSpans(ctx, spans); err != nil {
-		e.failed.Add(int64(len(spans)))
 		e.warnOnce.Do(func() {
 			fmt.Fprintln(e.warnings, "[观测] OpenObserve 上报失败，模型结果不受影响；请按 trace ID 核查服务配置")
 		})

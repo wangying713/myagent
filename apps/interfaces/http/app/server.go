@@ -87,11 +87,6 @@ func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, 
 	select {
 	case <-drained:
 		return result
-	default:
-	}
-	select {
-	case <-drained:
-		return result
 	case <-shutdownCtx.Done():
 		pending := requests.pending()
 		if pending == 0 {

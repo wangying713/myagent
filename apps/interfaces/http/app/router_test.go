@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -57,7 +58,13 @@ func (e *memoryExporter) Shutdown(context.Context) error {
 	return nil
 }
 
-func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout time.Duration, exporter *memoryExporter) (*gin.Engine, *openobserve.Telemetry) {
+// routerTestConfig 放测试服务使用的调用限制和请求超时时间。
+type routerTestConfig struct {
+	Limits  agent.Limits  // 模型、工具和 token 的使用上限。
+	Timeout time.Duration // 单次请求允许执行的最长时间。
+}
+
+func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter *memoryExporter) (*gin.Engine, *openobserve.Telemetry) {
 	t.Helper()
 	upstream := httptest.NewServer(model)
 	t.Cleanup(upstream.Close)
@@ -88,11 +95,11 @@ func setup(t *testing.T, model http.HandlerFunc, limits agent.Limits, timeout ti
 		t.Fatal(err)
 	}
 	t.Cleanup(client.Close)
-	runner, err := agent.NewService(client, telemetry, limits)
+	runner, err := agent.NewService(client, telemetry, cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(runner, timeout, telemetry)
+	handler, err := newRouter(runner, cfg.Timeout, telemetry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +207,10 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 						"content": "一共 391 支笔。",
 					}, "stop")
 				}
-			}, agent.DefaultLimits(), time.Second, exporter)
+			}, routerTestConfig{
+				Limits:  agent.DefaultLimits(),
+				Timeout: time.Second,
+			}, exporter)
 			w, response := invoke(handler, lesson, `{}`)
 			wantModels, wantTools, wantSpans := 1, 0, 3
 			if lesson == "messages" {
@@ -246,30 +256,83 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			for _, attr := range root.Attributes() {
 				runAttrs[string(attr.Key)] = attr.Value.AsString()
 			}
-			input := map[string]any{"question": agent.ChatQuestion}
+			input := map[string]any{
+				"question": agent.ChatQuestion,
+				"prompt":   agent.ChatPrompt,
+				"limits": map[string]int{
+					"model_calls": 5,
+					"tool_calls":  8,
+					"tokens":      8000,
+				},
+				"tools": []agent.ToolDefinition{},
+			}
 			if lesson == "messages" {
-				input = map[string]any{
-					"questions": []string{
-						agent.FirstQuestion,
-						agent.SecondQuestion,
-					},
+				delete(input, "question")
+				input["questions"] = []string{
+					agent.FirstQuestion,
+					agent.SecondQuestion,
 				}
+				input["prompt"] = agent.MessagesPrompt
 			} else if lesson == "agent" {
 				input["question"] = agent.AgentQuestion
+				input["prompt"] = agent.AgentPrompt
+				input["tools"] = (agent.MultiplyTools{}).Definitions()
+				input["tool_choice"] = "auto"
 			}
-			wantInput, err := json.Marshal(input)
-			if err != nil {
+			var actualInput map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(runAttrs["gen_ai.input.messages"]), &actualInput); err != nil {
 				t.Fatal(err)
 			}
-			wantOutput, err := json.Marshal(map[string]any{
-				"completed": response.Data.Completed,
-				"answer":    response.Data.Answer,
-			})
-			if err != nil {
+			for key, value := range input {
+				want, err := json.Marshal(value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var actual any
+				if err := json.Unmarshal(actualInput[key], &actual); err != nil {
+					t.Fatalf("输入预览缺少有效字段 %s：%v", key, err)
+				}
+				var expected any
+				if err := json.Unmarshal(want, &expected); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(actual, expected) {
+					t.Errorf("输入预览字段 %s 实际为 %s，预期 %s", key, actualInput[key], want)
+				}
+			}
+			var model struct {
+				Name     string `json:"name"`       // 运行预览记录的模型名称。
+				Endpoint string `json:"endpoint"`   // 模型请求地址。
+				Timeout  int64  `json:"timeout_ms"` // 单次模型调用超时，单位为毫秒。
+			}
+			if err := json.Unmarshal(actualInput["model"], &model); err != nil {
 				t.Fatal(err)
 			}
-			if runAttrs["gen_ai.input.messages"] != string(wantInput) || runAttrs["gen_ai.output.messages"] != string(wantOutput) {
-				t.Errorf("实际运行预览输入=%s、输出=%s，预期输入=%s、输出=%s", runAttrs["gen_ai.input.messages"], runAttrs["gen_ai.output.messages"], wantInput, wantOutput)
+			endpoint, err := url.Parse(model.Endpoint)
+			if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || model.Name != "test-model" || model.Timeout != 1000 {
+				t.Errorf("运行预览中的模型信息不正确：%+v", model)
+			}
+			var deadline string
+			if err := json.Unmarshal(actualInput["deadline"], &deadline); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := time.Parse(time.RFC3339Nano, deadline); err != nil {
+				t.Errorf("运行预览的截止时间无效：%q", deadline)
+			}
+			var output struct {
+				Operation  string            `json:"operation"`    // 本次业务操作。
+				Completed  bool              `json:"completed"`    // 是否已经完成。
+				Answer     string            `json:"answer"`       // 最终回答。
+				ModelCalls int               `json:"model_calls"`  // 实际模型调用次数。
+				ToolCalls  int               `json:"tool_calls"`   // 实际工具调用次数。
+				Tokens     int               `json:"known_tokens"` // 已知 token 用量。
+				Steps      []json.RawMessage `json:"steps"`        // 每一步的执行记录。
+			}
+			if err := json.Unmarshal([]byte(runAttrs["gen_ai.output.messages"]), &output); err != nil {
+				t.Fatal(err)
+			}
+			if output.Operation != lesson || output.Completed != response.Data.Completed || output.Answer != response.Data.Answer || output.ModelCalls != wantModels || output.ToolCalls != wantTools || output.Tokens != wantModels*10 || len(output.Steps) != wantSpans-2 {
+				t.Errorf("运行输出预览与实际结果不一致：%+v", output)
 			}
 			for _, s := range exporter.spans {
 				if s.SpanKind() == trace.SpanKindClient {
@@ -340,7 +403,10 @@ func TestCustomQuestionsReachModel(t *testing.T) {
 					"role":    "assistant",
 					"content": last.Content,
 				}, "stop")
-			}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+			}, routerTestConfig{
+				Limits:  agent.DefaultLimits(),
+				Timeout: time.Second,
+			}, &memoryExporter{})
 			out, response := invoke(handler, tc.lesson, tc.body)
 			if out.Code != 200 || !response.Data.Completed || response.Data.Answer != tc.questions[len(tc.questions)-1] || int(calls.Load()) != len(tc.questions) {
 				t.Errorf("实际 HTTP %d、响应 %s、调用 %d 次，预期使用自定义问题完成 %d 次调用", out.Code, out.Body.String(), calls.Load(), len(tc.questions))
@@ -353,7 +419,10 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 	var calls atomic.Int32
 	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, &memoryExporter{})
 	for _, lesson := range []string{
 		"chat",
 		"agent",
@@ -419,7 +488,10 @@ func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
 	var calls atomic.Int32
 	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, &memoryExporter{})
 	for _, tc := range []struct {
 		method, path, code, allow string // HTTP 方法、路径、预期响应码及 Allow 头。
 		status                    int    // 预期 HTTP 状态码。
@@ -552,7 +624,10 @@ func TestContentTypeValidation(t *testing.T) {
 			"role":    "assistant",
 			"content": "正常回答",
 		}, "stop")
-	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, &memoryExporter{})
 	for _, contentType := range []string{
 		"",
 		"text/plain",
@@ -578,7 +653,10 @@ func TestContentTypeValidation(t *testing.T) {
 func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
 	handler, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Error("异常路由不应请求模型")
-	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, &memoryExporter{})
 	handler.GET("/panic", func(c *gin.Context) {
 		panic("test-api-key")
 	})
@@ -653,7 +731,10 @@ func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			handler, _ := setup(t, tc.handler, agent.DefaultLimits(), time.Second, &memoryExporter{})
+			handler, _ := setup(t, tc.handler, routerTestConfig{
+				Limits:  agent.DefaultLimits(),
+				Timeout: time.Second,
+			}, &memoryExporter{})
 			w, response := invoke(handler, "chat", `{}`)
 			if w.Code != tc.status || response.Code != tc.code || response.Data.Completed || len(response.Data.Steps) != 1 {
 				t.Fatalf("失败响应 %d %s", w.Code, w.Body.String())
@@ -687,7 +768,10 @@ func TestRequestDeadlineAndCallerCancellation(t *testing.T) {
 				case <-release:
 				}
 				close(finished)
-			}, agent.DefaultLimits(), timeout, &memoryExporter{})
+			}, routerTestConfig{
+				Limits:  agent.DefaultLimits(),
+				Timeout: timeout,
+			}, &memoryExporter{})
 			t.Cleanup(func() {
 				close(release)
 			})
@@ -737,11 +821,14 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 			"content": "记住了豆包。",
 		}, "stop")
 	}
-	handler, telemetry := setup(t, model, agent.Limits{
-		ModelCalls: 1,
-		ToolCalls:  8,
-		Tokens:     8000,
-	}, time.Second, &memoryExporter{fail: true})
+	handler, telemetry := setup(t, model, routerTestConfig{
+		Limits: agent.Limits{
+			ModelCalls: 1,
+			ToolCalls:  8,
+			Tokens:     8000,
+		},
+		Timeout: time.Second,
+	}, &memoryExporter{fail: true})
 	w, response := invoke(handler, "messages", `{}`)
 	if w.Code != 409 || response.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
 		t.Fatalf("预算未保留已完成第一轮：%s", w.Body.String())
@@ -769,7 +856,10 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 			"role":    "assistant",
 			"content": input.Messages[1].Content,
 		}, "stop")
-	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, &memoryExporter{})
 	var wg sync.WaitGroup
 	for _, question := range []string{
 		"甲的独立问题",

@@ -318,7 +318,10 @@ func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 		case <-r.Context().Done():
 		case <-release:
 		}
-	}, agent.DefaultLimits(), 5*time.Second, exporter)
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: 5 * time.Second,
+	}, exporter)
 	t.Cleanup(func() {
 		close(release)
 	})

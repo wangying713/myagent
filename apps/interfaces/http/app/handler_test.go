@@ -28,7 +28,10 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 			"role":    "assistant",
 			"content": "回答",
 		}, "stop")
-	}, agent.DefaultLimits(), time.Second, exporter)
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, exporter)
 	handler.GET("/bad-json", func(c *gin.Context) {
 		writeHTTPRsp(c, http.StatusOK, make(chan int), nil)
 	})
@@ -325,7 +328,10 @@ func TestHTTPTraceDoesNotCaptureRawRequestMetadata(t *testing.T) {
 	exporter := &memoryExporter{}
 	handler, telemetry := setup(t, func(http.ResponseWriter, *http.Request) {
 		t.Error("元数据检查不应调用模型")
-	}, agent.DefaultLimits(), time.Second, exporter)
+	}, routerTestConfig{
+		Limits:  agent.DefaultLimits(),
+		Timeout: time.Second,
+	}, exporter)
 	handler.GET("/metadata/:id", func(c *gin.Context) {
 		if c.Param("id") != "path-secret" || c.Query("token") != "query-secret" || c.Request.Header.Get("User-Agent") != "agent-secret" {
 			t.Error("观测中间件修改了处理方法收到的请求")

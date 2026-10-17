@@ -4,21 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 )
 
 type modelFunc func(context.Context, Request) (Response, error)
 
-func (f modelFunc) Chat(ctx context.Context, r Request) (Response, error) {
-	return f(ctx, r)
+func (f modelFunc) Chat(ctx context.Context, req Request) (Response, error) {
+	return f(ctx, req)
 }
 
 func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0
-	model := modelFunc(func(ctx context.Context, r Request) (Response, error) {
+	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
 		if calls == 1 {
+			if len(req.Messages) != 2 || req.Messages[0].Role != RoleSystem || req.Messages[0].Content != "计算助手" || req.Messages[1].Role != RoleUser || req.Messages[1].Content != "问题" {
+				t.Fatalf("首轮消息未保留提示词和问题：%+v", req.Messages)
+			}
 			raw := json.RawMessage(`{"role":"assistant","content":null,"extra":"保留原始扩展","tool_calls":[{"id":"one","type":"function","function":{"name":"multiply","arguments":"{\"a\":17,\"b\":23}"}},{"id":"two","type":"function","function":{"name":"multiply","arguments":"{\"a\":2,\"b\":3}"}}]}`)
 			var message Message
 			if err := json.Unmarshal(raw, &message); err != nil {
@@ -30,10 +34,10 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 				FinishReason: "tool_calls",
 			}, nil
 		}
-		if len(r.Messages) != 5 || r.Messages[3].ToolCallID != "one" || r.Messages[4].ToolCallID != "two" {
-			t.Fatalf("工具回填与 ID 不匹配：%+v", r.Messages)
+		if len(req.Messages) != 5 || req.Messages[3].ToolCallID != "one" || req.Messages[4].ToolCallID != "two" {
+			t.Fatalf("工具回填与 ID 不匹配：%+v", req.Messages)
 		}
-		body, err := json.Marshal(r.Messages[2])
+		body, err := json.Marshal(req.Messages[2])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +49,7 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 			6,
 		} {
 			var out ToolResult
-			if err := json.Unmarshal([]byte(r.Messages[i+3].Content), &out); err != nil {
+			if err := json.Unmarshal([]byte(req.Messages[i+3].Content), &out); err != nil {
 				t.Fatal(err)
 			}
 			if !out.OK || out.Result != want {
@@ -60,7 +64,13 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 			FinishReason: "stop",
 		}, nil
 	})
-	answer, err := Run(context.Background(), model, MultiplyTools{}, "问题", "计算助手", DefaultLimits())
+	answer, err := Run(context.Background(), LoopInput{
+		Model:    model,
+		Tools:    MultiplyTools{},
+		Question: "问题",
+		Prompt:   "计算助手",
+		Limits:   DefaultLimits(),
+	})
 	if err != nil || answer != "391 和 6" || calls != 2 {
 		t.Fatalf("运行结果 %q/%v，调用 %d 次", answer, err, calls)
 	}
@@ -201,6 +211,17 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 			ErrBudgetExceeded,
 		},
 		{
+			"token 超额仍停止下一轮",
+			Limits{
+				5,
+				8,
+				10,
+			},
+			[]string{"one"},
+			math.MaxInt,
+			ErrBudgetExceeded,
+		},
+		{
 			"重复 ID",
 			DefaultLimits(),
 			[]string{
@@ -242,7 +263,13 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 					Usage:        Usage{TotalTokens: &tc.tokens},
 				}, nil
 			})
-			_, err := Run(context.Background(), model, MultiplyTools{}, "问题", "提示", tc.limits)
+			_, err := Run(context.Background(), LoopInput{
+				Model:    model,
+				Tools:    MultiplyTools{},
+				Question: "问题",
+				Prompt:   "提示",
+				Limits:   tc.limits,
+			})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("实际错误 %v，预期 %v", err, tc.want)
 			}
@@ -253,11 +280,96 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := Run(ctx, modelFunc(func(context.Context, Request) (Response, error) {
+	model := modelFunc(func(context.Context, Request) (Response, error) {
 		t.Fatal("取消后不应调用模型")
 		return Response{}, nil
-	}), MultiplyTools{}, "问题", "提示", DefaultLimits())
+	})
+	_, err := Run(ctx, LoopInput{
+		Model:    model,
+		Tools:    MultiplyTools{},
+		Question: "问题",
+		Prompt:   "提示",
+		Limits:   DefaultLimits(),
+	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
+	}
+}
+
+func TestLoopChecksWholeToolBatchBeforeExecution(t *testing.T) {
+	for _, tc := range []struct {
+		name  string   // 要检查的整轮工具请求问题。
+		ids   []string // 模型提出的工具调用 ID。
+		limit int      // 本次最多能执行的工具次数。
+		want  error    // 执行前应返回的错误。
+	}{
+		{
+			name: "后一个 ID 为空",
+			ids: []string{
+				"one",
+				"",
+			},
+			limit: 2,
+			want:  ErrInvalidResponse,
+		},
+		{
+			name: "同轮 ID 重复",
+			ids: []string{
+				"one",
+				"one",
+			},
+			limit: 2,
+			want:  ErrInvalidResponse,
+		},
+		{
+			name: "整轮工具数量超限",
+			ids: []string{
+				"one",
+				"two",
+			},
+			limit: 1,
+			want:  ErrBudgetExceeded,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := modelFunc(func(context.Context, Request) (Response, error) {
+				var calls []ToolCall
+				for _, id := range tc.ids {
+					calls = append(calls, ToolCall{
+						ID:   id,
+						Type: ToolTypeFunction,
+						Function: FunctionCall{
+							Name:      ToolNameMultiply,
+							Arguments: `{"a":2,"b":3}`,
+						},
+					})
+				}
+				return Response{
+					Message: Message{
+						Role:      RoleAssistant,
+						ToolCalls: calls,
+					},
+					FinishReason: FinishReasonToolCalls,
+				}, nil
+			})
+			result := &ExecutionResult{}
+			observer := &testObserver{}
+			limits := DefaultLimits()
+			limits.ToolCalls = tc.limit
+			_, err := Run(t.Context(), LoopInput{
+				Model: model,
+				Tools: &recordingTools{
+					tools:    MultiplyTools{},
+					observer: observer,
+					result:   result,
+				},
+				Question: "计算乘法",
+				Prompt:   "计算助手",
+				Limits:   limits,
+			})
+			if !errors.Is(err, tc.want) || result.ToolCalls != 0 || len(observer.tools) != 0 {
+				t.Fatalf("实际错误 %v，执行了 %d 次工具；预期错误 %v 且不执行任何工具", err, result.ToolCalls, tc.want)
+			}
+		})
 	}
 }

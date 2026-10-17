@@ -99,24 +99,24 @@ func (c *Client) ModelInfo() agent.ModelInfo {
 
 // Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
 // 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
-func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Response, err error) {
+func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Response, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	if input.Stream {
+	if req.Stream {
 		return result, errors.New("这三个 demo 不支持流式请求")
 	}
-	input.Model = c.config.Model
-	input.Thinking.Type = defaultThinkingType
-	input.MaxTokens = defaultMaxTokens
-	input.Stream = false
-	if len(input.Tools) == 0 {
-		input.ToolChoice = ""
+	req.Model = c.config.Model
+	req.Thinking.Type = defaultThinkingType
+	req.MaxTokens = defaultMaxTokens
+	req.Stream = false
+	if len(req.Tools) == 0 {
+		req.ToolChoice = ""
 	}
-	if len(input.Messages) == 0 {
+	if len(req.Messages) == 0 {
 		return result, errors.New("消息不能为空")
 	}
-	raw, err := json.Marshal(input)
+	raw, err := json.Marshal(req)
 	if err != nil {
 		return result, fmt.Errorf("编码模型请求: %w", err)
 	}
@@ -124,20 +124,20 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 	endpoint := strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
 		return result, errors.New("无法创建模型请求")
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.telemetry.StartClient(ctx, req.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
+	ctx, span := c.telemetry.StartClient(ctx, httpReq.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
 	started := time.Now()
 	defer func() {
 		openobserve.End(span, started, err)
 	}()
 	c.telemetry.Payload(span, "app.request", raw)
-	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", req.URL.Hostname()), attribute.String("url.full", req.URL.String()))
-	resp, err := c.http.Do(req.WithContext(ctx))
+	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", httpReq.URL.Hostname()), attribute.String("url.full", httpReq.URL.String()))
+	resp, err := c.http.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return result, fmt.Errorf("请求模型服务: %w", err)
 	}

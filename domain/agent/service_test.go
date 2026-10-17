@@ -69,9 +69,9 @@ func newTestService(t *testing.T, model ChatClient, observer *testObserver, limi
 
 func TestServiceChatRecordsSafeCopy(t *testing.T) {
 	observer := &testObserver{}
-	model := modelFunc(func(ctx context.Context, request Request) (Response, error) {
-		if len(request.Messages) != 2 || request.Messages[1].Content != ChatQuestion {
-			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", request.Messages)
+	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+		if len(req.Messages) != 2 || req.Messages[1].Content != ChatQuestion {
+			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", req.Messages)
 		}
 		return Response{
 			Message: Message{
@@ -101,12 +101,12 @@ func TestServiceMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 			true:  "预算停止",
 		}[limited], func(t *testing.T) {
 			calls := 0
-			model := modelFunc(func(ctx context.Context, request Request) (Response, error) {
+			model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 				calls++
 				answer := "记住了豆包。"
 				if calls == 2 {
-					if len(request.Messages) != 4 || request.Messages[2].Content != "记住了豆包。" || request.Messages[3].Content != SecondQuestion {
-						t.Fatalf("第二轮丢失真实历史：%+v", request.Messages)
+					if len(req.Messages) != 4 || req.Messages[2].Content != "记住了豆包。" || req.Messages[3].Content != SecondQuestion {
+						t.Fatalf("第二轮丢失真实历史：%+v", req.Messages)
 					}
 					answer = "豆包"
 				}
@@ -140,7 +140,7 @@ func TestServiceMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 
 func TestServiceRunRecordsTool(t *testing.T) {
 	calls := 0
-	model := modelFunc(func(ctx context.Context, request Request) (Response, error) {
+	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
 		if calls == 1 {
 			return Response{
@@ -160,8 +160,8 @@ func TestServiceRunRecordsTool(t *testing.T) {
 				FinishReason: "tool_calls",
 			}, nil
 		}
-		if len(request.Messages) != 4 || request.Messages[3].ToolCallID != "one" || !strings.Contains(request.Messages[3].Content, "391") {
-			t.Fatalf("未回填工具结果：%+v", request.Messages)
+		if len(req.Messages) != 4 || req.Messages[3].ToolCallID != "one" || !strings.Contains(req.Messages[3].Content, "391") {
+			t.Fatalf("未回填工具结果：%+v", req.Messages)
 		}
 		return Response{
 			Message: Message{
