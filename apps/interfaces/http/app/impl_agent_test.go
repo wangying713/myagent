@@ -41,11 +41,11 @@ func TestResponseJSONCompatibility(t *testing.T) {
 		},
 	}
 	for _, tc := range []struct {
-		name     string
-		chat     *proto.ChatRsp
-		messages *proto.MessagesRsp
-		run      *proto.RunRsp
-		want     string
+		name     string             // 用例名称。
+		chat     *proto.ChatRsp     // 聊天接口的模拟 Proto 响应。
+		messages *proto.MessagesRsp // 消息历史接口的模拟 Proto 响应。
+		run      *proto.RunRsp      // 工具循环接口的模拟 Proto 响应。
+		want     string             // 预期 HTTP JSON 响应正文。
 	}{
 		{
 			name: "空响应",

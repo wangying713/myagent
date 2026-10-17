@@ -67,7 +67,9 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 }
 
 func TestToolsRejectInvalidArguments(t *testing.T) {
-	for _, tc := range []struct{ args, code string }{
+	for _, tc := range []struct {
+		args, code string // 工具参数 JSON 与预期拒绝码。
+	}{
 		{
 			`{"a":17,"b":23}`,
 			"",
@@ -156,11 +158,11 @@ func TestMultiplyStopsOnCancellation(t *testing.T) {
 
 func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		limits Limits
-		ids    []string
-		tokens int
-		want   error
+		name   string   // 用例名称。
+		limits Limits   // 本用例采用的运行预算。
+		ids    []string // 模拟模型提出的工具调用 ID 列表。
+		tokens int      // 模拟模型报告的单次 token 用量。
+		want   error    // 预期返回的预算或协议错误。
 	}{
 		{
 			"模型预算",

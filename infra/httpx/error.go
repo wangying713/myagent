@@ -8,14 +8,14 @@ import (
 
 // Error 保存可对外返回的稳定错误码和说明，由 HTTP 入口决定外层包装。
 type Error struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string `json:"code"`    // 稳定的传输错误码。
+	Message string `json:"message"` // 可以公开返回的中文错误说明。
 }
 
 // RequestError 只描述传输层失败，不承载领域错误。
 type RequestError struct {
-	Status int
-	Detail Error
+	Status int   // 接口适配使用的 HTTP 错误状态码。
+	Detail Error // 稳定的传输错误码与公开说明。
 }
 
 // Error 返回传输错误的公开说明。

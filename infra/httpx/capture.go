@@ -37,10 +37,11 @@ func CaptureBodies(limit int, record func(c *gin.Context, request, response []by
 	}
 }
 
+// bodyCapture 保存正文的有界副本及截断状态。
 type bodyCapture struct {
-	body      bytes.Buffer
-	limit     int
-	truncated bool
+	body      bytes.Buffer // 已采集的正文副本。
+	limit     int          // 正文副本的最大字节数，不含截断标记。
+	truncated bool         // 是否存在未保留的正文内容。
 }
 
 func (b *bodyCapture) append(raw []byte) {
@@ -62,9 +63,10 @@ func (b *bodyCapture) bytes() []byte {
 	return b.body.Bytes()
 }
 
+// captureReader 随实际读取采集请求体，沿用底层关闭行为。
 type captureReader struct {
-	io.ReadCloser
-	capture *bodyCapture
+	io.ReadCloser              // 原始请求体，保留读取与关闭行为。
+	capture       *bodyCapture // 随实际读取累计的请求正文副本。
 }
 
 func (r *captureReader) Read(p []byte) (int, error) {
@@ -73,9 +75,10 @@ func (r *captureReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// captureWriter 随实际成功写出采集响应体，保留 Gin 写入接口。
 type captureWriter struct {
-	gin.ResponseWriter
-	capture *bodyCapture
+	gin.ResponseWriter              // 原始响应写入器，保留 Gin 响应能力。
+	capture            *bodyCapture // 仅记录实际成功写出的响应正文。
 }
 
 func (w *captureWriter) Write(p []byte) (int, error) {

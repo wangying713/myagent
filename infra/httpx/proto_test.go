@@ -24,9 +24,9 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 			return
 		}
 		if err := httpx.Write(c, http.StatusOK, struct {
-			Name    string          `json:"name"`
-			Oneofs  []string        `json:"oneofs"`
-			Present map[string]bool `json:"present"`
+			Name    string          `json:"name"`    // 用于验证解码结果的 Proto 类型名称。
+			Oneofs  []string        `json:"oneofs"`  // 用于验证数组字段解码结果的 oneof 名称列表。
+			Present map[string]bool `json:"present"` // 请求中实际出现的顶层字段集合。
 		}{
 			Name:    request.GetName(),
 			Oneofs:  request.GetOneofs(),
@@ -36,8 +36,8 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 		}
 	})
 	for _, tc := range []struct {
-		name, body, contentType, code string
-		status                        int
+		name, body, contentType, code string // 用例名称、请求体、内容类型与预期错误码。
+		status                        int    // 预期 HTTP 状态码。
 	}{
 		{
 			name:        "正常字段",
@@ -191,9 +191,9 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 				return
 			}
 			var response struct {
-				Name    string          `json:"name"`
-				Oneofs  []string        `json:"oneofs"`
-				Present map[string]bool `json:"present"`
+				Name    string          `json:"name"`    // 用于验证解码结果的 Proto 类型名称。
+				Oneofs  []string        `json:"oneofs"`  // 用于验证数组字段解码结果的 oneof 名称列表。
+				Present map[string]bool `json:"present"` // 请求中实际出现的顶层字段集合。
 			}
 			if err := json.Unmarshal(out.Body.Bytes(), &response); err != nil {
 				t.Fatal(err)

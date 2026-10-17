@@ -9,8 +9,8 @@ import (
 
 // testObserver 使用内存句柄验证领域观测，测试不依赖基础设施。
 type testObserver struct {
-	runs  []*testRunObservation
-	tools []*testToolObservation
+	runs  []*testRunObservation  // 测试期间创建的业务运行观测句柄。
+	tools []*testToolObservation // 测试期间创建的工具调用观测句柄。
 }
 
 func (*testObserver) Enabled() bool {
@@ -33,10 +33,11 @@ func (o *testObserver) StartTool(ctx context.Context, _ ToolCall) (context.Conte
 	return ctx, tool
 }
 
+// testRunObservation 记录业务观测的结束参数与调用状态。
 type testRunObservation struct {
-	result ExecutionResult
-	err    error
-	ended  bool
+	result ExecutionResult // 结束观测时收到的业务结果。
+	err    error           // 结束观测时收到的业务错误。
+	ended  bool            // 是否已调用结束方法。
 }
 
 func (*testRunObservation) TraceID() string {
@@ -46,10 +47,11 @@ func (r *testRunObservation) End(result ExecutionResult, err error) {
 	r.result, r.err, r.ended = result, err, true
 }
 
+// testToolObservation 记录工具观测的结束参数与调用状态。
 type testToolObservation struct {
-	output ToolResult
-	err    error
-	ended  bool
+	output ToolResult // 结束观测时收到的工具结果。
+	err    error      // 结束观测时收到的执行错误。
+	ended  bool       // 是否已调用结束方法。
 }
 
 func (t *testToolObservation) End(output ToolResult, err error) {

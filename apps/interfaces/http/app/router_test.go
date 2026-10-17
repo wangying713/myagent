@@ -29,18 +29,19 @@ import (
 
 // Rsp 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
 type Rsp = entity.Rsp[struct {
-	Completed   bool              `json:"completed"`
-	Answer      string            `json:"answer"`
-	ModelCalls  int               `json:"model_calls"`
-	ToolCalls   int               `json:"tool_calls"`
-	KnownTokens int               `json:"known_tokens"`
-	Steps       []json.RawMessage `json:"steps"`
+	Completed   bool              `json:"completed"`    // 本次业务是否成功完成。
+	Answer      string            `json:"answer"`       // 脱敏后的回答，失败时保留已有内容。
+	ModelCalls  int               `json:"model_calls"`  // 已发起的模型调用次数。
+	ToolCalls   int               `json:"tool_calls"`   // 已发起的工具调用次数。
+	KnownTokens int               `json:"known_tokens"` // 可确认的累计 token 用量。
+	Steps       []json.RawMessage `json:"steps"`        // 按执行顺序保存的模型与工具调用记录。
 }]
 
+// memoryExporter 保存测试 span 并可模拟导出失败。
 type memoryExporter struct {
-	mu    sync.Mutex
-	spans []sdktrace.ReadOnlySpan
-	fail  bool
+	mu    sync.Mutex              // 保护并发写入及读取 span 列表的互斥锁。
+	spans []sdktrace.ReadOnlySpan // 测试期间收到的已结束 span。
+	fail  bool                    // 是否模拟导出失败。
 }
 
 func (e *memoryExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
@@ -294,8 +295,8 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 
 func TestCustomQuestionsReachModel(t *testing.T) {
 	for _, tc := range []struct {
-		lesson, body string
-		questions    []string
+		lesson, body string   // 请求的业务操作与 JSON 正文。
+		questions    []string // 预期传递给模型的问题列表。
 	}{
 		{
 			lesson:    "chat",
@@ -420,8 +421,8 @@ func TestRoutingAndHealthDoNotCallModel(t *testing.T) {
 		calls.Add(1)
 	}, agent.DefaultLimits(), time.Second, &memoryExporter{})
 	for _, tc := range []struct {
-		method, path, code, allow string
-		status                    int
+		method, path, code, allow string // HTTP 方法、路径、预期响应码及 Allow 头。
+		status                    int    // 预期 HTTP 状态码。
 	}{
 		{
 			method: "GET",
@@ -610,9 +611,9 @@ func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
 
 func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 	for _, tc := range []struct {
-		name, code string
-		status     int
-		handler    http.HandlerFunc
+		name, code string           // 用例名称与预期响应码。
+		status     int              // 预期 HTTP 状态码。
+		handler    http.HandlerFunc // 用于模拟模型服务异常的 HTTP 处理器。
 	}{
 		{
 			"服务错误",

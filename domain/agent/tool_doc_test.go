@@ -7,9 +7,9 @@ import (
 
 func TestToolDescriptionReadsMethodDocumentation(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		source string
-		want   string
+		name   string // 用例名称。
+		source string // 供文档提取器解析的 Go 源码样本。
+		want   string // 预期提取出的工具描述。
 	}{
 		{
 			name: "值接收者",
@@ -80,8 +80,8 @@ func (Tools) multiply() {}
 
 func TestToolDescriptionRejectsInvalidDocumentation(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		source string
+		name   string // 用例名称。
+		source string // 供文档提取器解析的 Go 源码样本。
 	}{
 		{
 			name:   "无效源码",

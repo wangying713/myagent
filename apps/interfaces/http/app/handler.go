@@ -24,6 +24,7 @@ import (
 	pb "google.golang.org/protobuf/proto"
 )
 
+// requestTimeoutKey 隔离 Gin 请求作用域中的业务超时配置。
 type requestTimeoutKey struct{}
 
 // requestTimeout 将当前 HTTP 实例的超时设置写入 Gin 请求作用域，此时尚不开始计时。

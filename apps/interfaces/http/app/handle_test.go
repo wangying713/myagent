@@ -18,10 +18,10 @@ import (
 
 func TestHandleKeepsResponseWithError(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		rsp    *proto.ChatRsp
-		err    error
-		status int
+		name   string         // 用例名称。
+		rsp    *proto.ChatRsp // 模拟 API 返回的完整或部分结果。
+		err    error          // 模拟 API 同时返回的错误。
+		status int            // 预期 HTTP 状态码。
 	}{
 		{
 			name:   "成功",
@@ -79,9 +79,9 @@ func TestHandleUsesRouterTimeoutAndReleasesContext(t *testing.T) {
 	short.POST("/api/agent/chat", api)
 	long.POST("/api/agent/chat", api)
 	for _, tc := range []struct {
-		name    string
-		router  *gin.Engine
-		timeout time.Duration
+		name    string        // 用例名称。
+		router  *gin.Engine   // 应用当前超时配置的测试路由。
+		timeout time.Duration // 预期传入业务方法的超时时长。
 	}{
 		{
 			name:    "短超时",

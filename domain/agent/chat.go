@@ -2,13 +2,15 @@ package agent
 
 import "context"
 
-const ChatQuestion = "用一句话解释什么是递归。" // 单轮聊天在未指定问题时使用的学习示例。
+// ChatQuestion 是单轮聊天在未指定问题时使用的学习示例。
+const ChatQuestion = "用一句话解释什么是递归。"
 
-const ChatPrompt = "你是一个简洁的中文助手。" // 单轮聊天实际使用的系统提示词。
+// ChatPrompt 是单轮聊天实际使用的系统提示词。
+const ChatPrompt = "你是一个简洁的中文助手。"
 
 // ChatInput 保存单轮问题；Question 为空字符串时使用 ChatQuestion。
 type ChatInput struct {
-	Question string
+	Question string // 单轮聊天问题，空字符串使用默认示例。
 }
 
 // Chat 发送一次模型请求；未提供问题时使用默认问题。

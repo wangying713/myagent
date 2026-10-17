@@ -9,10 +9,10 @@ import (
 
 // toolParameterSchema 只承载当前工具参数需要的 JSON Schema 字段。
 type toolParameterSchema struct {
-	Type                 string                         `json:"type"`
-	Properties           map[string]toolParameterSchema `json:"properties,omitempty"`
-	Required             []string                       `json:"required,omitempty"`
-	AdditionalProperties *bool                          `json:"additionalProperties,omitempty"`
+	Type                 string                         `json:"type"`                           // JSON Schema 数据类型。
+	Properties           map[string]toolParameterSchema `json:"properties,omitempty"`           // 对象属性名及其参数约束。
+	Required             []string                       `json:"required,omitempty"`             // 必须提供的参数名称列表。
+	AdditionalProperties *bool                          `json:"additionalProperties,omitempty"` // 是否允许额外字段，nil 表示不声明此约束。
 }
 
 // mustToolParameters 用于代码中确定的参数类型；定义错误属于编程错误，立即中断。

@@ -8,18 +8,20 @@ import (
 	"math"
 )
 
-const ToolNameMultiply = "multiply" // 乘法工具在声明和调用校验中共用的协议名称。
+// ToolNameMultiply 是乘法工具在声明和调用校验中共用的协议名称。
+const ToolNameMultiply = "multiply"
 
 // MultiplyTools 是当前唯一可用的工具集；不会执行模型生成的函数或文本。
 type MultiplyTools struct{}
 
 // multiplyArgs 同时定义乘法工具的参数类型和执行时使用的数据。
 type multiplyArgs struct {
-	A float64 `json:"a"`
-	B float64 `json:"b"`
+	A float64 `json:"a"` // 参与乘法的第一个有限数值。
+	B float64 `json:"b"` // 参与乘法的第二个有限数值。
 }
 
-var multiplyToolDescription = mustToolDescription[MultiplyTools](multiplyToolSource, ToolNameMultiply) // 在包初始化时从同一次构建嵌入的源码读取，此后只读。
+// multiplyToolDescription 在包初始化时从同一次构建嵌入的源码读取，此后只读。
+var multiplyToolDescription = mustToolDescription[MultiplyTools](multiplyToolSource, ToolNameMultiply)
 
 // Definitions 返回乘法工具及其 JSON 参数约束，每次调用独立构建定义。
 func (MultiplyTools) Definitions() []ToolDefinition {

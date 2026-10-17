@@ -15,11 +15,12 @@ import (
 	"saklay/ai/domain/agent"
 )
 
+// httpRun 保存测试 HTTP 服务的生命周期状态。
 type httpRun struct {
-	server *http.Server
-	cancel context.CancelFunc
-	done   chan struct{}
-	err    error
+	server *http.Server       // 当前测试启动的 HTTP 服务器。
+	cancel context.CancelFunc // 触发服务停止的取消函数。
+	done   chan struct{}      // 服务生命周期函数返回后关闭的通知通道。
+	err    error              // 服务退出结果，在 done 关闭后读取。
 }
 
 func listenForTest(t *testing.T) net.Listener {
@@ -66,9 +67,10 @@ func waitHTTPForTest(t *testing.T, run *httpRun) error {
 	}
 }
 
+// httpCall 保存异步测试请求的完成通知与错误。
 type httpCall struct {
-	done chan struct{}
-	err  error
+	done chan struct{} // 请求执行结束后关闭的通知通道。
+	err  error         // 请求执行错误，在 done 关闭后读取。
 }
 
 func requestForTest(t *testing.T, listener net.Listener, path, body string) *httpCall {
@@ -115,9 +117,10 @@ func waitSignal(t *testing.T, done <-chan struct{}, operation string) {
 	}
 }
 
+// failedAcceptListener 将监听失败替换为指定错误，验证服务退出行为。
 type failedAcceptListener struct {
-	net.Listener
-	failure error
+	net.Listener       // 实际接收连接的底层监听器。
+	failure      error // 底层接收失败时替换返回的测试错误。
 }
 
 func (l *failedAcceptListener) Accept() (net.Conn, error) {

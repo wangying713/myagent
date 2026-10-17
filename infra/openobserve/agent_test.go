@@ -74,9 +74,9 @@ func toolAttributes(t *testing.T, telemetry *Telemetry, exporter *tracetest.InMe
 
 func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 	for _, tc := range []struct {
-		name, operation, wantInput string
-		questions                  []string
-		err                        error
+		name, operation, wantInput string   // 用例名称、业务操作标识与预期输入预览。
+		questions                  []string // 传给运行观测的问题列表。
+		err                        error    // 模拟业务执行结束时的错误。
 	}{
 		{
 			name:      "单轮问题",
@@ -118,8 +118,8 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 				t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), tc.wantInput)
 			}
 			var output struct {
-				Completed bool   `json:"completed"`
-				Answer    string `json:"answer"`
+				Completed bool   `json:"completed"` // 从预览中解码的业务完成状态。
+				Answer    string `json:"answer"`    // 从预览中解码的脱敏回答。
 			}
 			if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"].AsString()), &output); err != nil {
 				t.Fatal(err)
@@ -232,11 +232,11 @@ func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
 
 func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		arguments string
-		maxChars  int
-		want      string
-		truncated bool
+		name      string // 用例名称。
+		arguments string // 需要展开、脱敏或截断的工具参数 JSON。
+		maxChars  int    // 展示正文的最大 Unicode 字符数。
+		want      string // 预期的脱敏或截断结果。
+		truncated bool   // 预期正文是否发生截断。
 	}{
 		{
 			name:      "参数展开后仍按字段脱敏",

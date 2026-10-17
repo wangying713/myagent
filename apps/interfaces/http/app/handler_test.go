@@ -33,9 +33,9 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 		writeHTTPRsp(c, http.StatusOK, make(chan int), nil)
 	})
 	for _, tc := range []struct {
-		name, method, path, body, code string
-		status                         int
-		hasData                        bool
+		name, method, path, body, code string // 用例名称、HTTP 方法、路径、请求体及预期响应码。
+		status                         int    // 预期 HTTP 状态码。
+		hasData                        bool   // 预期响应是否包含业务数据。
 	}{
 		{
 			name:    "成功",
@@ -192,7 +192,9 @@ func checkHTTPPreview(t *testing.T, span sdktrace.ReadOnlySpan, body string, out
 	if response := attrs["app.response"].AsString(); response != string(wantResponse) {
 		t.Errorf("实际响应预览 %s，预期 HTTP %d、正文 %s", attrs["app.response"].AsString(), out.Code, out.Body.String())
 	}
-	for _, tc := range []struct{ key, payload string }{
+	for _, tc := range []struct {
+		key, payload string // 需要对照的语义属性名与正文属性名。
+	}{
 		{
 			key:     "gen_ai.input.messages",
 			payload: "app.request",

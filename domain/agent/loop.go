@@ -8,13 +8,16 @@ import (
 
 // ChatClient 由模型的使用方定义，只要求当前业务需要的非流式能力。
 type ChatClient interface {
-	Chat(context.Context, Request) (Response, error) // 执行一次模型请求，须响应 ctx 取消；失败时可同时返回用于记录的响应数据。
+	// Chat 执行一次模型请求，须响应 ctx 取消。
+	// 失败时可同时返回用于记录的响应数据。
+	Chat(context.Context, Request) (Response, error)
 }
 
 // Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
 type Tools interface {
 	Definitions() []ToolDefinition
-	Dispatch(context.Context, ToolCall) (ToolResult, error) // 返回工具结果；上下文取消等执行错误通过 error 返回。
+	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
+	Dispatch(context.Context, ToolCall) (ToolResult, error)
 }
 
 // Run 顺序执行模型 → 工具 → 回填 → 模型，直到完成或达到预算。

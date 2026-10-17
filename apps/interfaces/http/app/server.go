@@ -112,11 +112,11 @@ func serveError(err error) error {
 // requestTracker 在停止接收请求后等待已有处理器返回。
 // mu 同时保护接收闸门、活跃计数及 done 的关闭，避免退出检查与新请求竞争。
 type requestTracker struct {
-	handler  http.Handler
-	mu       sync.Mutex
-	active   int
-	stopping bool
-	done     chan struct{}
+	handler  http.Handler  // 实际处理请求的 HTTP 路由。
+	mu       sync.Mutex    // 保护活跃计数、停止闸门与完成通知的互斥锁。
+	active   int           // 已经进入处理器且尚未返回的请求数。
+	stopping bool          // 是否已关闭新请求的接收闸门。
+	done     chan struct{} // 停止接收且活跃请求归零时关闭的通知通道。
 }
 
 func (t *requestTracker) ServeHTTP(w http.ResponseWriter, r *http.Request) {

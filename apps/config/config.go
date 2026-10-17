@@ -18,16 +18,16 @@ import (
 
 // Settings 保存校验后的启动设置，由入口显式传给各组件。
 type Settings struct {
-	Model   deepseek.Config
-	Observe openobserve.Config
-	HTTP    HTTPSettings
-	Limits  agent.Limits
+	Model   deepseek.Config    // 模型客户端配置。
+	Observe openobserve.Config // 链路观测与正文采集配置。
+	HTTP    HTTPSettings       // HTTP 监听与业务超时配置。
+	Limits  agent.Limits       // 每次业务运行的调用与用量预算。
 }
 
 // HTTPSettings 保存监听地址和业务执行超时；业务计时从请求解码及准备完成后开始。
 type HTTPSettings struct {
-	Address    string
-	RunTimeout time.Duration
+	Address    string        // HTTP 服务监听地址，格式为 host:port。
+	RunTimeout time.Duration // 请求解码和准备完成后的业务执行超时。
 }
 
 // Load 读取显式指定的文件，并按 lookup、文件、默认值的优先级解析启动设置。

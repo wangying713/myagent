@@ -10,7 +10,7 @@ import (
 
 // ImplAgent 为各接口准备领域输入，并显式组装各自的 Proto 响应。
 type ImplAgent struct {
-	service *agent.Service
+	service *agent.Service // 由入口注入的 Agent 领域服务。
 }
 
 func newImplAgent(service *agent.Service) (*ImplAgent, error) {

@@ -10,6 +10,7 @@ const (
 
 // MessagesInput 保存固定两轮的问题；Questions 为 nil 时使用默认示例，空切片无效。
 type MessagesInput struct {
+	// Questions 是按顺序执行的两轮问题；nil 使用默认示例，空切片无效。
 	Questions []string
 }
 

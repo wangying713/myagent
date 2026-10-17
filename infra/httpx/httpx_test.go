@@ -14,8 +14,8 @@ import (
 
 // catalogRequest 使用独立的目录请求验证 HTTP 工具可供其他后台模块复用。
 type catalogRequest struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
+	Name  string `json:"name"`  // 测试目录名称。
+	Count int    `json:"count"` // 测试目录的条目数量。
 }
 
 func catalogRouter() *gin.Engine {
@@ -34,8 +34,8 @@ func catalogRouter() *gin.Engine {
 func TestDecodeJSONContract(t *testing.T) {
 	router := catalogRouter()
 	for _, tc := range []struct {
-		name, body, contentType, code string
-		status                        int
+		name, body, contentType, code string // 用例名称、请求体、内容类型与预期错误码。
+		status                        int    // 预期 HTTP 状态码。
 	}{
 		{
 			name:        "正常类型",
@@ -194,8 +194,8 @@ func TestEncodingFailureDoesNotWritePartialSuccess(t *testing.T) {
 
 // testRsp 由测试调用方定义外层，验证 HTTP 工具不约束其字段布局。
 type testRsp[T any] struct {
-	Data  T            `json:"data"`
-	Error *httpx.Error `json:"error,omitempty"`
+	Data  T            `json:"data"`            // 测试接口返回的业务数据。
+	Error *httpx.Error `json:"error,omitempty"` // 测试接口返回的传输错误，成功时为 nil。
 }
 
 func writeTestRsp(c *gin.Context, status int, data any, failure *httpx.Error) {

@@ -43,26 +43,27 @@ func TestMultiplyToolsDefinitionsPreserveSchema(t *testing.T) {
 }
 
 func TestToolParametersMapScalarFields(t *testing.T) {
+	// args 覆盖工具参数 Schema 支持和忽略的标量字段。
 	type args struct {
-		Text    string  `json:"text"`
-		Enabled bool    `json:"enabled"`
-		Count   int64   `json:"count"`
-		Size    uint32  `json:"size"`
-		Ratio   float32 `json:"ratio"`
-		Hidden  string  `json:"-"`
-		private string
+		Text    string  `json:"text"`    // 验证字符串参数映射。
+		Enabled bool    `json:"enabled"` // 验证布尔参数映射。
+		Count   int64   `json:"count"`   // 验证有符号整数参数映射。
+		Size    uint32  `json:"size"`    // 验证无符号整数参数映射。
+		Ratio   float32 `json:"ratio"`   // 验证浮点参数映射。
+		Hidden  string  `json:"-"`       // 验证 json:"-" 字段被跳过。
+		private string  // 验证未导出字段被跳过。
 	}
 	parameters, err := toolParameters(reflect.TypeFor[args]())
 	if err != nil {
 		t.Fatalf("映射标量参数: %v", err)
 	}
 	var got struct {
-		Type       string `json:"type"`
+		Type       string `json:"type"` // JSON Schema 声明的数据类型。
 		Properties map[string]struct {
-			Type string `json:"type"`
-		} `json:"properties"`
-		Required             []string `json:"required"`
-		AdditionalProperties *bool    `json:"additionalProperties"`
+			Type string `json:"type"` // JSON Schema 声明的数据类型。
+		} `json:"properties"` // 参数名称与对应的数据类型声明。
+		Required             []string `json:"required"`             // 必须提供的参数名称列表。
+		AdditionalProperties *bool    `json:"additionalProperties"` // 是否允许未声明的额外字段。
 	}
 	if err := json.Unmarshal(parameters, &got); err != nil {
 		t.Fatalf("解码标量参数 Schema: %v", err)
@@ -99,8 +100,8 @@ func TestToolParametersMapScalarFields(t *testing.T) {
 
 func TestToolParametersRejectUnsupportedDefinitions(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		typeOf reflect.Type
+		name   string       // 用例名称。
+		typeOf reflect.Type // 用于验证参数定义是否合法的 Go 类型。
 	}{
 		{
 			name:   "非结构体",
@@ -109,13 +110,13 @@ func TestToolParametersRejectUnsupportedDefinitions(t *testing.T) {
 		{
 			name: "缺少 json 名称",
 			typeOf: reflect.TypeFor[struct {
-				Value float64
+				Value float64 // 验证缺少显式 json 名称的字段会被拒绝。
 			}](),
 		},
 		{
 			name: "可选标签",
 			typeOf: reflect.TypeFor[struct {
-				Value float64 `json:"value,omitempty"`
+				Value float64 `json:"value,omitempty"` // 验证不支持的可选标签会被拒绝。
 			}](),
 		},
 		{
@@ -136,25 +137,25 @@ func TestToolParametersRejectUnsupportedDefinitions(t *testing.T) {
 		{
 			name: "JSON 数字不能按底层字符串映射",
 			typeOf: reflect.TypeFor[struct {
-				Value json.Number `json:"value"`
+				Value json.Number `json:"value"` // 验证具名类型不能按底层字符串直接映射。
 			}](),
 		},
 		{
 			name: "嵌入字段",
 			typeOf: reflect.TypeFor[struct {
-				MultiplyTools `json:"tools"`
+				MultiplyTools `json:"tools"` // 用于验证嵌入字段会被拒绝。
 			}](),
 		},
 		{
 			name: "嵌套对象",
 			typeOf: reflect.TypeFor[struct {
-				Value multiplyArgs `json:"value"`
+				Value multiplyArgs `json:"value"` // 验证嵌套对象参数会被拒绝。
 			}](),
 		},
 		{
 			name: "可空指针",
 			typeOf: reflect.TypeFor[struct {
-				Value *float64 `json:"value"`
+				Value *float64 `json:"value"` // 验证可空指针参数会被拒绝。
 			}](),
 		},
 	} {

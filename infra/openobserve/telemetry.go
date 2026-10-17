@@ -25,31 +25,34 @@ import (
 
 // Config 保存私有观测设置及展示正文的脱敏规则，由启动入口显式传入。
 type Config struct {
-	Enabled        bool
-	ServiceName    string
-	Endpoint       string
-	Headers        map[string]string
-	CaptureContent bool // 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
-	MaxChars       int  // 限制展示正文的 Unicode 字符数，额外的截断标记不计入该上限。
-	Secrets        []string
+	Enabled     bool              // 是否创建并上报链路观测数据。
+	ServiceName string            // 链路数据中的服务名称。
+	Endpoint    string            // OTLP HTTP Traces 上报地址。
+	Headers     map[string]string // OTLP 上报请求头，可包含鉴权信息。
+	// CaptureContent 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
+	CaptureContent bool
+	// MaxChars 限制展示正文的 Unicode 字符数，额外的截断标记不计入该上限。
+	MaxChars int
+	Secrets  []string // 展示正文时需要遮盖的额外敏感值。
 }
 
 // Telemetry 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。
 // 调用方应在业务请求结束后调用 Close，完成有界刷新并释放观测资源。
 type Telemetry struct {
-	config   Config
-	tracer   trace.Tracer
-	provider *sdktrace.TracerProvider
-	secrets  []string
-	client   *http.Client
+	config   Config                   // 构造时保存的私有观测配置。
+	tracer   trace.Tracer             // 为业务、模型与工具创建 span 的追踪器。
+	provider *sdktrace.TracerProvider // 私有追踪提供方，关闭观测时为 nil。
+	secrets  []string                 // 已整理的脱敏词，优先匹配较长内容。
+	// client 保存内部创建的 OTLP HTTP 客户端，未创建时为 nil。
+	client *http.Client
 }
 
 // reportingExporter 隔离观测失败；只输出固定提示，不输出 exporter 的底层正文。
 type reportingExporter struct {
-	inner    sdktrace.SpanExporter
-	warnings io.Writer
-	warnOnce sync.Once
-	failed   atomic.Int64
+	inner    sdktrace.SpanExporter // 实际接收并导出 span 的导出器。
+	warnings io.Writer             // 观测失败提示的输出目标。
+	warnOnce sync.Once             // 保证导出失败提示只输出一次。
+	failed   atomic.Int64          // 导出失败的 span 累计数量，支持并发更新。
 }
 
 func (e *reportingExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {

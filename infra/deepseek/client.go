@@ -21,8 +21,10 @@ import (
 
 // Config 保存模型鉴权、服务地址、模型名及单次调用超时，由启动入口显式传入。
 type Config struct {
-	APIKey, BaseURL, Model string
-	Timeout                time.Duration
+	APIKey  string        // 模型服务鉴权密钥。
+	BaseURL string        // 模型 API 基础地址。
+	Model   string        // 请求使用的模型名称。
+	Timeout time.Duration // 单次模型调用的超时时长。
 }
 
 const (
@@ -33,13 +35,15 @@ const (
 
 // Client 执行非流式模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
-	config    Config
-	http      *http.Client
-	telemetry *openobserve.Telemetry
+	config    Config                 // 构造时保存的模型服务配置。
+	http      *http.Client           // 发送模型请求的 HTTP 客户端。
+	telemetry *openobserve.Telemetry // 记录调用链路及脱敏正文的观测组件。
 }
 
 // ModelError 保存模型服务的非 2xx 状态码，调用方可用 errors.As 识别。
-type ModelError struct{ Status int }
+type ModelError struct {
+	Status int // 模型服务返回的非 2xx HTTP 状态码。
+}
 
 // Error 返回状态码说明，不包含模型服务的响应正文。
 func (e *ModelError) Error() string {
@@ -152,11 +156,11 @@ func (c *Client) Chat(ctx context.Context, input agent.Request) (result agent.Re
 		return result, &ModelError{Status: resp.StatusCode}
 	}
 	var decoded struct {
-		Usage   agent.Usage `json:"usage"`
+		Usage   agent.Usage `json:"usage"` // 模型响应中的 token 用量。
 		Choices []struct {
-			Message      json.RawMessage `json:"message"`
-			FinishReason string          `json:"finish_reason"`
-		} `json:"choices"`
+			Message      json.RawMessage `json:"message"`       // 保留扩展字段与 null 的原始 assistant JSON。
+			FinishReason string          `json:"finish_reason"` // 当前候选结果的模型结束原因。
+		} `json:"choices"` // 模型返回的候选结果，当前要求恰好一项。
 	}
 	if json.Unmarshal(result.Raw, &decoded) != nil || len(decoded.Choices) != 1 {
 		return result, agent.ErrInvalidResponse
