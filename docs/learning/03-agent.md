@@ -6,11 +6,15 @@
 
 本课计算“每盒 17 支笔，买 23 盒，一共多少支”，默认提示要求乘法调用工具。确定性的乘法工具便于核对 391；目标是看见实际协议，不只是让回答里出现数字。
 
-阅读顺序：[工具](../../domain/agent/tools.go) 的 `Definitions` 和 `Dispatch` → [业务入口](../../domain/agent/run.go) → [执行记录](../../domain/agent/recording.go) 的工具包装 → [循环](../../domain/agent/loop.go) 的 `Run` → [协议](../../domain/agent/protocol.go)。本项目手写工具描述和校验，未引入 Python 装饰器或 Agent 框架。
+阅读顺序：[工具](../../domain/agent/tools.go) 的 `Definitions`、`Dispatch` 和 `multiply` → [业务入口](../../domain/agent/run.go) → [执行记录](../../domain/agent/recording.go) 的工具包装 → [循环](../../domain/agent/loop.go) 的 `Run` → [协议](../../domain/agent/protocol.go)。本项目从方法注释读取工具描述、从参数类型映射 Schema，执行校验仍由代码显式完成。
 
 ## 描述与调用
 
 `MultiplyTools.Definitions` 描述唯一工具 `multiply`，要求 `a`、`b` 为数值，禁止额外字段。描述供模型选择；真正能否执行仍由 `Dispatch` 校验。
+
+工具描述只维护在 `MultiplyTools.multiply` 的文档注释中。[注释读取](../../domain/agent/tool_doc.go)通过 `go:embed` 将 `tools.go` 原样嵌入程序，在包初始化时用 `go/parser` 解析一次，按接收者类型和方法名定位注释，去掉开头的方法标识符后作为 `Description` 复用。运行时不读取磁盘源码，也不执行嵌入的源码；修改注释后正常重新编译即可生效。缺少目标方法或注释正文会在初始化时明确报错。
+
+参数由 `multiplyArgs` 定义，[Schema 映射](../../domain/agent/tool_schema.go)根据字段类型和 `json` 标签声明参数名称、类型、全部必填及禁止额外字段的约束。`Definitions` 每次返回独立的参数 JSON，调用方的修改不会影响后续请求。
 
 模型可能返回以下 assistant 消息，并以 `tool_calls` 结束本轮：
 

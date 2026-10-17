@@ -142,6 +142,18 @@ func TestToolsRejectInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestMultiplyStopsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	out, err := (MultiplyTools{}).multiply(ctx, multiplyArgs{
+		A: 17,
+		B: 23,
+	})
+	if !errors.Is(err, context.Canceled) || out.OK || out.Result != nil {
+		t.Fatalf("取消后的乘法结果为 %+v/%v，预期返回取消错误且无计算结果", out, err)
+	}
+}
+
 func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
