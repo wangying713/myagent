@@ -128,6 +128,14 @@ type runStep struct {
 	Error        string       `json:"error,omitempty"`
 }
 
+// toolInput 是工具调用的观测展示形态，平铺名称和调用 ID 并展开参数，不承担领域协议契约。
+type toolInput struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	Arguments any    `json:"arguments"`
+}
+
 // previewJSON 保留有效 JSON 的层级与数值；截断、空值和无效 JSON 保留原文。
 func previewJSON(text string) any {
 	if json.Valid([]byte(text)) {
@@ -182,8 +190,13 @@ func (r *runObservation) End(result agent.ExecutionResult, err error) {
 // StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
 func (t *Telemetry) StartTool(ctx context.Context, call agent.ToolCall) (context.Context, agent.ToolObservation) {
 	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(call.Function.Name)), attribute.String("app.tool.call.id", t.Clean(call.ID)))
-	// ToolCall 仅含字符串字段，不存在 JSON 编码失败的值。
-	request, _ := json.Marshal(call)
+	// 展示副本平铺工具调用并展开参数；previewJSON 只在参数为合法 JSON 时返回 RawMessage，因此不会编码失败。
+	request, _ := json.Marshal(toolInput{
+		ID:        call.ID,
+		Type:      call.Type,
+		Name:      call.Function.Name,
+		Arguments: previewJSON(call.Function.Arguments),
+	})
 	t.Payload(span, "app.request", request)
 	return ctx, &toolObservation{
 		telemetry: t,

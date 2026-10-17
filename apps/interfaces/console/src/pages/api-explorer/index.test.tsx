@@ -39,10 +39,9 @@ it('切换接口取消旧请求、保留参数草稿，迟到响应不会覆盖�
   fireEvent.click(screen.getByRole('button', { name: /GET.*健康检查/ }));
   expect(oldSignal.aborted).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: /发送请求/ }));
-  await screen.findByText('{\n  "data": {\n    "status": "ok"\n  }\n}', {
-    selector: 'pre',
-    normalizer: (text) => text,
-  });
+  expect((await screen.findByTestId('response-json')).textContent).toBe(
+    '{\n  "data": {\n    "status": "ok"\n  }\n}',
+  );
   await act(async () => {
     finishOld?.({
       status: 200,
@@ -56,4 +55,24 @@ it('切换接口取消旧请求、保留参数草稿，迟到响应不会覆盖�
   expect(
     (screen.getByLabelText('请求参数（JSON）') as HTMLTextAreaElement).value,
   ).toBe('{"question":"修改后的问题"}');
+});
+
+it('默认展开响应里嵌套的 JSON 字符串，切换后回到原文', async () => {
+  mockSend.mockResolvedValueOnce({
+    status: 200,
+    body: String.raw`{"data":{"request":"{\"a\":17}"}}`,
+    traceID: '',
+    elapsedMS: 1,
+  });
+  render(React.createElement(ApiExplorer));
+  fireEvent.click(screen.getByRole('button', { name: /发送请求/ }));
+  expect((await screen.findByTestId('response-json')).textContent).toBe(
+    '{\n  "data": {\n    "request": {\n      "a": 17\n    }\n  }\n}',
+  );
+  fireEvent.click(
+    screen.getByRole('switch', { name: '展开响应中嵌套的 JSON 字符串' }),
+  );
+  expect(screen.getByTestId('response-json').textContent).toBe(
+    '{\n  "data": {\n    "request": "{\\"a\\":17}"\n  }\n}',
+  );
 });

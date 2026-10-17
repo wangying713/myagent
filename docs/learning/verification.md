@@ -52,6 +52,12 @@ npm run build
 
 每次复制 trace ID 查询 OpenObserve，核对同一 trace、父子关系、实际正文、状态与用量。数量按真实调用轨迹检查，不能只查到一条就认为完整入库。只有查询到相应记录，才判定该次观测验收通过。
 
+## 2026-10-16：管理台响应正文展开嵌套字符串
+
+API 页的响应结果默认展开字符串里嵌套的对象和数组，并用项目已有的 `highlight.js` 着色。`formatResponseJSON` 增加可选的 `expandNested`：仍按原有走法只调整空白并保留数值精度和转义，遇到字符串标记时只还原定界用的引号和反斜杠，再按同一规则递归格式化；内容不是完整对象或数组时保持原样，嵌套层数上限为 6。响应正文改为 `<pre><code>` 结构，正文经 `hljs.highlight(..., {language:'json'})` 转义并着色后写入；卡片内新增“展开嵌套／原文”开关，`复制响应 JSON` 仍给出原始正文；`steps[].request` 这类被转义的协议正文不再是一整行不可读文本。
+
+前端检查通过：修改文件的 Biome 格式与规则检查、`npm run tsc`、`jest src/pages/api-explorer` 共 3 个套件 26 个用例（新增展开、转义与大整数保留、默认不展开、非对象或无效内容不展开、层数上限、开关切换）。着色把正文拆进多个 `span`，按文本匹配的断言改为读取响应元素的 `data-testid` 与 `textContent`。浏览器实际发送工具循环请求（HTTP 200，trace `f35e6dfae2e698cddf43976b5726b12c`），确认 `steps[].request` 的 `messages`、`tools` 和工具步骤的 `arguments` 已展开并着色，切回“原文”后恢复原有转义文本。本轮未执行 `npm run build`，前端开发服务未重启。
+
 ## 2026-10-16：agent.run 输入输出预览
 
 领域运行显式传入补齐默认值并通过校验的问题，`infra/openobserve` 将聊天和工具循环的 `question`、历史消息的两轮 `questions` 适配为输入预览，将 `completed/answer` 适配为输出预览。失败仍保留已有回答，不记录底层错误正文；正文开关、脱敏和截断规则保持一致。

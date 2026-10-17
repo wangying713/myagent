@@ -10,14 +10,26 @@ import {
   Input,
   Row,
   Space,
+  Switch,
   Tag,
   Typography,
 } from 'antd';
+import hljs from 'highlight.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { ApiResult, ProjectApi } from './data';
 import { projectApis } from './data';
 import { formatResponseJSON } from './format';
 import { sendApi, validateBody } from './service';
+
+import 'highlight.js/styles/github.css';
+
+/** highlight.js 会转义正文里的 HTML，着色结果可直接作为内联 HTML 使用。 */
+function highlightJSON(text: string): string {
+  return hljs.highlight(text, {
+    language: 'json',
+    ignoreIllegals: true,
+  }).value;
+}
 
 export default function ApiExplorer() {
   const [api, setApi] = useState(projectApis[0]);
@@ -29,6 +41,7 @@ export default function ApiExplorer() {
   const [result, setResult] = useState<ApiResult>();
   const [notice, setNotice] = useState('');
   const [running, setRunning] = useState(false);
+  const [expandNested, setExpandNested] = useState(true);
   const controller = useRef<AbortController | null>(null);
   const body = drafts[api.id];
 
@@ -241,9 +254,18 @@ export default function ApiExplorer() {
                   )}
                   {result.body ? (
                     <>
-                      <Typography.Text copyable={{ text: result.body }}>
-                        复制响应 JSON
-                      </Typography.Text>
+                      <Space size="middle">
+                        <Typography.Text copyable={{ text: result.body }}>
+                          复制响应 JSON
+                        </Typography.Text>
+                        <Switch
+                          checked={expandNested}
+                          checkedChildren="展开嵌套"
+                          unCheckedChildren="原文"
+                          aria-label="展开响应中嵌套的 JSON 字符串"
+                          onChange={setExpandNested}
+                        />
+                      </Space>
                       <pre
                         style={{
                           margin: 0,
@@ -254,7 +276,17 @@ export default function ApiExplorer() {
                           fontFamily: 'monospace',
                         }}
                       >
-                        {formatResponseJSON(result.body)}
+                        <code
+                          className="hljs language-json"
+                          data-testid="response-json"
+                          style={{ background: 'transparent', padding: 0 }}
+                          // biome-ignore lint/security/noDangerouslySetInnerHtml: 正文经 highlight.js 转义后写入
+                          dangerouslySetInnerHTML={{
+                            __html: highlightJSON(
+                              formatResponseJSON(result.body, { expandNested }),
+                            ),
+                          }}
+                        />
                       </pre>
                     </>
                   ) : (

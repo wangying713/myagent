@@ -46,3 +46,62 @@ it.each([
 ])('保留空容器和顶层值：%s', (body) => {
   expect(formatResponseJSON(` \n ${body}\t `)).toBe(body);
 });
+
+it('展开字符串里嵌套的对象和数组', () => {
+  const body = String.raw`{"data":{"request":"{\"max_tokens\":512,\"tools\":[{\"type\":\"function\"}]}"}}`;
+  expect(formatResponseJSON(body, { expandNested: true })).toBe(`{
+  "data": {
+    "request": {
+      "max_tokens": 512,
+      "tools": [
+        {
+          "type": "function"
+        }
+      ]
+    }
+  }
+}`);
+});
+
+it('嵌套字符串里的转义、大整数和再次嵌套保持原样', () => {
+  const body = String.raw`{"content":"{\"id\":9007199254740993,\"note\":\"第一行\n第二行\",\"inner\":\"{\\\"ok\\\":true}\"}"}`;
+  expect(formatResponseJSON(body, { expandNested: true })).toBe(`{
+  "content": {
+    "id": 9007199254740993,
+    "note": "第一行\\n第二行",
+    "inner": {
+      "ok": true
+    }
+  }
+}`);
+});
+
+it('默认保留嵌套字符串的转义', () => {
+  const body = String.raw`{"request":"{\"a\":17}"}`;
+  const formatted = `{
+  "request": "{\\"a\\":17}"
+}`;
+  expect(formatResponseJSON(body)).toBe(formatted);
+  expect(formatResponseJSON(body, { expandNested: false })).toBe(formatted);
+});
+
+it.each([
+  '{"answer":"一共 391 支笔。"}',
+  '{"count":"391"}',
+  '{"text":"[未闭合"}',
+  String.raw`{"text":"{\"a\":1,}"}`,
+])('不展开非对象或无效的嵌套内容：%s', (body) => {
+  expect(formatResponseJSON(body, { expandNested: true })).toBe(
+    formatResponseJSON(body),
+  );
+});
+
+it('嵌套层数超过上限后保留转义', () => {
+  let body = String.raw`{"leaf":"{\"value\":1}"}`;
+  for (let level = 0; level < 6; level += 1) {
+    body = JSON.stringify({ nested: body });
+  }
+  const formatted = formatResponseJSON(body, { expandNested: true });
+  expect(formatted.match(/"nested": \{/g)).toHaveLength(6);
+  expect(formatted).not.toContain('"value": 1');
+});

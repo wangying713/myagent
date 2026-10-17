@@ -61,7 +61,7 @@ HTTP 预览直接展示实际请求 JSON 和响应 JSON，不增加 `body/method
 
 `agent.run` 也提供输入、输出预览。输入是补齐默认值并通过校验后的业务问题：聊天和工具循环为 `{"question":"实际问题"}`，历史消息为 `{"questions":["第一轮问题","第二轮问题"]}`。输出为 `{"completed":true,"answer":"最终回答"}`；失败时 `completed` 为 false，仍保留已有回答，不写入底层错误正文。调用次数、用量和耗时继续保存在属性中，具体模型消息和工具协议查看各自子 span。运行预览复用同一组 `app.request/app.response` 与 `gen_ai.input.messages/gen_ai.output.messages` 字段，遵守相同的正文开关、脱敏与限长设置；旧 trace 不会补写，需要运行新请求后查看。
 
-工具输入当前是完整 tool call JSON，参数仍是 JSON 字符串；工具输出为实际 `ok/result` 或 `ok/error`。工具同样使用 `app.request` / `app.response`，没有旧版的 `app.tool.request` / `app.tool.response`。
+工具输入是平铺后的调用展示：`{"arguments":{"a":17,"b":23},"id":"call_...","name":"multiply","type":"function"}`，去掉 `function` 包装并把参数展开为实际 JSON，参数不是合法 JSON 时回退为原文，与工具 `parameters` 的处理一致；工具输出为实际 `ok/result` 或 `ok/error`。工具同样使用 `app.request` / `app.response`，没有旧版的 `app.tool.request` / `app.tool.response`。展示副本由统一脱敏重排，字段顺序按字母序，与运行预览一致；`agent.run` 步骤记录的是发往模型的协议原文（保留 `function` 包装且参数为 JSON 字符串），用途是核对实际请求，两者形态不同属预期。
 
 SQL 字段名与界面呈现以本机平台实际 schema 为准，不把界面布局当协议要求。若正文超限，副本包含 `[TRUNCATED]`；不能把被截断的 JSON 直接重放为请求。
 
