@@ -113,7 +113,7 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 					Tokens:     100,
 				},
 			})
-			result := agent.ExecutionResult{
+			result := agent.Result{
 				Completed:     tc.err == nil,
 				Answer:        "已有回答 configured-secret",
 				ModelCalls:    1,
@@ -196,7 +196,7 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 			_, run := telemetry.StartRun(t.Context(), "chat", agent.RunDetails{
 				Questions: []string{strings.Repeat("输入", 200)},
 			})
-			run.End(agent.ExecutionResult{
+			run.End(agent.Result{
 				Completed: true,
 				Answer:    strings.Repeat("输出", 200),
 			}, nil)

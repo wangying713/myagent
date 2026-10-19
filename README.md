@@ -61,7 +61,7 @@ docs/
   learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-学习从 [中文学习指南](docs/learning/README.md) 开始，13 章包含当前演示的操作和边界；章节大纲保留进一步学习方向。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+学习从 [中文学习指南](docs/learning/README.md) 开始，13 章包含当前演示的操作和边界；章节大纲保留进一步学习方向。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/client_chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`chat.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 

@@ -23,7 +23,7 @@ type Observer interface {
 
 // RunDetails 保存可观测的运行输入，不保存客户端、上下文对象或凭据。
 type RunDetails struct {
-	Questions  []string         // 已补齐默认值并通过校验的问题列表。
+	Questions  []string         // 已补齐默认值的问题列表，prepareRun 校验通过后交给观测。
 	Prompt     string           // 本次业务使用的系统提示词。
 	Tools      []ToolDefinition // 本次运行可用的工具定义。
 	ToolChoice string           // 模型选择工具的策略。
@@ -53,7 +53,7 @@ type RunObservation interface {
 	// TraceID 返回本次执行的链路标识；没有链路时返回空字符串。
 	TraceID() string
 	// End 记录结果和错误并结束观测，每次 StartRun 对应一次调用。
-	End(ExecutionResult, error)
+	End(Result, error)
 }
 
 // ToolObservation 保存一次工具调用的观测句柄，由该次调用负责结束。

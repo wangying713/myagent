@@ -8,26 +8,35 @@ import (
 // agentRun 保存这一次 Agent 运行的模型、结果和开始时间，负责结束时收尾。
 // 每次运行单独创建，调用结束后不再复用。
 type agentRun struct {
-	observer Observer         // 隐藏最终回答中的敏感内容。
-	result   *ExecutionResult // 保存这次运行的回答、步骤和统计。
-	modelCli *recordingModel  // 每次请求模型时，记录调用次数、用量和步骤。
-	run      RunObservation   // 这次运行的链路记录，结束时一并收尾。
-	started  time.Time        // 记下开始时间，用来计算总耗时。
+	observer Observer        // 隐藏最终回答中的敏感内容。
+	result   *Result         // 保存这次运行的回答、步骤和统计。
+	modelCli *recordingModel // 每次请求模型时，记录调用次数、用量和步骤。
+	run      RunObservation  // 这次运行的链路记录，结束时一并收尾。
+	started  time.Time       // 记下开始时间，用来计算总耗时。
 }
 
-// startRun 为这次问答做好准备：记下问题和调用限制，开始记录执行过程。
-// 后面把模型调用次数、用了多少 token、每一步做了什么都写进 result，最后由 end 收尾。
-func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *agentRun) {
+// prepareRun 检查问题，创建运行记录，并准备能记录调用次数和用量的模型客户端。
+// 模型请求由调用方随后发起，执行结束后由 end 收尾。
+func (c *Client) prepareRun(ctx context.Context, result *Result, req RunDetails) (context.Context, *agentRun, error) {
+	// 统一在这里检查，调用方补好默认问题即可，避免新增入口时漏掉校验。
+	if len(req.Questions) == 0 {
+		return ctx, nil, ErrInput
+	}
+	for _, question := range req.Questions {
+		if err := validateQuestion(question); err != nil {
+			return ctx, nil, err
+		}
+	}
 	// 把允许调用模型、工具的次数和 token 上限也记下来。
-	input.Limits = c.limits
+	req.Limits = c.limits
 	// 如果模型能提供自己的名称、地址等信息，就一起记下来。
 	if modelCli, ok := c.modelCli.(ModelInfoProvider); ok {
 		info := modelCli.ModelInfo()
-		input.Model = &info
+		req.Model = &info
 	}
 	// 开始记录这次运行，并把查询记录用的 trace ID 放进结果。
 	// 后续沿用返回的 ctx，模型和工具的记录就能串到同一次运行下。
-	ctx, run := c.observer.StartRun(ctx, result.Operation, input)
+	ctx, run := c.observer.StartRun(ctx, result.Operation, req)
 	result.TraceID = run.TraceID()
 	// 给这次运行准备一份单独的数据，并记下开始时间。
 	return ctx, &agentRun{
@@ -42,7 +51,7 @@ func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input Ru
 			result:   result,
 			limits:   c.limits,
 		},
-	}
+	}, nil
 }
 
 // end 根据最终错误收尾本次业务运行，更新结果后结束运行观测。

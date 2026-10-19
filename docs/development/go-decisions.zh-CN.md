@@ -109,8 +109,8 @@ type Message struct {
 - 同一行声明的多个字段可以共用能明确对应各字段的说明；含义不同、需要分别解释时拆成独立字段声明，保持字段顺序与类型不变。
 
 ```go
-// ExecutionResult 保存本次业务执行的结果。
-type ExecutionResult struct {
+// Result 保存本次业务执行的结果。
+type Result struct {
 	Completed bool  // 本次业务是否成功完成。
 	ElapsedMS int64 // 本次运行耗时，单位为毫秒。
 }
@@ -129,8 +129,8 @@ type ExecutionResult struct {
 例如工具循环把模型、工具、问题、提示词和调用限制放在一起，调用时只传 `ctx` 和这份输入：
 
 ```go
-// LoopInput 放这次工具循环要用的模型、工具、问题和调用限制。
-type LoopInput struct {
+// ChatReq 保存本次对话使用的模型、工具、问题和调用限制。
+type ChatReq struct {
 	ModelCli ChatClient // 这次使用的模型客户端，不能为 nil。
 	Tools    Tools      // 模型可以调用的工具，不能为 nil。
 	Question string     // 用户要问的问题。
@@ -138,18 +138,18 @@ type LoopInput struct {
 	Limits   Limits     // 模型、工具和 token 的使用上限。
 }
 
-// Run 根据输入调用模型和工具，返回最终回答。
-func Run(ctx context.Context, req LoopInput) (string, error)
+// Chat 根据输入调用模型和工具，返回最终回答。
+func Chat(ctx context.Context, req ChatReq) (string, error)
 ```
 
 这是本项目为方便阅读设定的数量限制，不是 Google Go 的通用要求；分组思路见 [函数参数与可选配置](google-go-best-practices.zh-CN.md#六函数参数与可选配置)。
 
 ## 请求参数命名
 
-- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `Run(ctx context.Context, req LoopInput)`、`Chat(ctx context.Context, req Request)`。
+- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `Chat(ctx context.Context, req ChatReq)`、`Chat(ctx context.Context, req Request)`。
 - `ctx` 仍单独作为首参；另有模型、工具等依赖参数时，唯一的业务请求参数仍叫 `req`。领域方法、接口声明、模型与工具实现、相关测试替身和回调保持一致。
 - 这项约定针对请求或执行输入对象。配置仍可叫 `cfg`，响应叫 `rsp`，依赖及普通辅助值按含义命名，例如 `tools`、`question`、`timeout`、`err`；只有 `ctx` 的方法仍使用 `ctx`。同一函数里的 HTTP 请求和业务请求需要区分时，HTTP 请求使用 `httpReq`。
-- 只统一参数变量名，不因此修改 `ChatInput`、`LoopInput` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
+- 只统一参数变量名，不因此修改 `ChatInput`、`ChatReq` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
 
 这是本项目的命名偏好，目的是让同类方法使用相同写法，不是 Google Go 对所有单参数函数的要求。
 
@@ -230,7 +230,7 @@ impl := &ImplAgent{
 - 个别字面量可以保留：空串、直观的 0/1 和索引、局部结构的固定数量、只出现一次且语义明确的文案或局部值，以及 JSON 标签、JSON Schema、显式路由等协议声明。是否提取以含义、复用和维护成本判断，不要求消除所有字面量。
 - 测试中的独立协议样本、边界输入和预期值可保留字面量，以验证线上取值不变；不要把所有预期都改成生产常量，导致常量改错时测试也同步放行。生成文件继续交给生成器处理。
 
-例如 `NewExecutionResult(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
+例如 `NewResult(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
 
 ## HTTP API 方法签名
 

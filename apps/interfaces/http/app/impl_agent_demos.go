@@ -214,7 +214,7 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *proto.DemosStreamReq) 
 }
 
 // demoExecution 只转换共用的执行记录，各业务响应仍由对应方法分别组装。
-func demoExecution(result agent.ExecutionResult) *proto.DemosExecution {
+func demoExecution(result agent.Result) *proto.DemosExecution {
 	return &proto.DemosExecution{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,

@@ -15,7 +15,7 @@ func (f modelFunc) Chat(ctx context.Context, req Request) (Response, error) {
 	return f(ctx, req)
 }
 
-func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
+func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0
 	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
@@ -64,7 +64,7 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 			FinishReason: "stop",
 		}, nil
 	})
-	answer, err := Run(context.Background(), LoopInput{
+	answer, err := Chat(context.Background(), ChatReq{
 		ModelCli: modelCli,
 		Tools:    MultiplyTools{},
 		Question: "问题",
@@ -73,6 +73,41 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	})
 	if err != nil || answer != "391 和 6" || calls != 2 {
 		t.Fatalf("运行结果 %q/%v，调用 %d 次", answer, err, calls)
+	}
+}
+
+func TestChatRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
+	for _, tc := range []struct {
+		name     string // 直接调用工具循环时的无效问题类型。
+		question string // 没有通过 Client 入口预先检查的问题。
+	}{
+		{
+			name: "空字符串",
+		},
+		{
+			name:     "只有空白",
+			question: " \t\n",
+		},
+		{
+			name:     "超过字符上限",
+			question: strings.Repeat("字", MaxQuestionChars+1),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modelCli := modelFunc(func(context.Context, Request) (Response, error) {
+				t.Fatal("问题无效时不应调用模型")
+				return Response{}, nil
+			})
+			// 不提供工具；如果错误地执行到工具访问，这个测试也会失败。
+			answer, err := Chat(t.Context(), ChatReq{
+				ModelCli: modelCli,
+				Question: tc.question,
+				Limits:   DefaultLimits(),
+			})
+			if !errors.Is(err, ErrInput) || answer != "" {
+				t.Fatalf("实际回答 %q、错误 %v，预期空回答和 ErrInput", answer, err)
+			}
+		})
 	}
 }
 
@@ -166,7 +201,7 @@ func TestMultiplyStopsOnCancellation(t *testing.T) {
 	}
 }
 
-func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
+func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name   string   // 用例名称。
 		limits Limits   // 本用例采用的运行预算。
@@ -265,7 +300,7 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 					},
 				}, nil
 			})
-			_, err := Run(context.Background(), LoopInput{
+			_, err := Chat(context.Background(), ChatReq{
 				ModelCli: modelCli,
 				Tools:    MultiplyTools{},
 				Question: "问题",
@@ -286,7 +321,7 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 		t.Fatal("取消后不应调用模型")
 		return Response{}, nil
 	})
-	_, err := Run(ctx, LoopInput{
+	_, err := Chat(ctx, ChatReq{
 		ModelCli: modelCli,
 		Tools:    MultiplyTools{},
 		Question: "问题",
@@ -298,7 +333,7 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	}
 }
 
-func TestLoopChecksWholeToolBatchBeforeExecution(t *testing.T) {
+func TestChatChecksWholeToolBatchBeforeExecution(t *testing.T) {
 	for _, tc := range []struct {
 		name  string   // 要检查的整轮工具请求问题。
 		ids   []string // 模型提出的工具调用 ID。
@@ -354,11 +389,11 @@ func TestLoopChecksWholeToolBatchBeforeExecution(t *testing.T) {
 					FinishReason: FinishReasonToolCalls,
 				}, nil
 			})
-			result := &ExecutionResult{}
+			result := &Result{}
 			observer := &testObserver{}
 			limits := DefaultLimits()
 			limits.ToolCalls = tc.limit
-			_, err := Run(t.Context(), LoopInput{
+			_, err := Chat(t.Context(), ChatReq{
 				ModelCli: modelCli,
 				Tools: &recordingTools{
 					tools:    MultiplyTools{},

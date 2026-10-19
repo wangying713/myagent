@@ -5,8 +5,8 @@ const (
 	StepKindTool  = "tool"  // 执行记录中的工具调用步骤。
 )
 
-// ExecutionResult 保存本次业务执行的结果，不承担 HTTP 序列化契约。
-type ExecutionResult struct {
+// Result 保存本次业务执行的结果，不承担 HTTP 序列化契约。
+type Result struct {
 	// 执行结果。
 	Operation string // 本次业务操作标识。
 	Completed bool   // 本次业务是否成功完成。
@@ -27,9 +27,9 @@ type ExecutionResult struct {
 	TelemetryEnabled bool   // 是否启用链路观测。
 }
 
-// NewExecutionResult 创建本次运行的初始结果，操作标识和是否开启观测由调用方传入。
-func NewExecutionResult(operation string, telemetryEnabled bool) ExecutionResult {
-	return ExecutionResult{
+// NewResult 创建本次运行的初始结果，操作标识和是否开启观测由调用方传入。
+func NewResult(operation string, telemetryEnabled bool) Result {
+	return Result{
 		Operation: operation,
 		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
 		UsageComplete: true,

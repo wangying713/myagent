@@ -10,21 +10,21 @@ const (
 
 // Run 通过受预算约束的循环调用模型和已注册的乘法工具。
 // question 为空字符串时使用 AgentQuestion。
-func (c *Client) Run(ctx context.Context, question string) (result ExecutionResult, err error) {
-	result = NewExecutionResult(OperationRun, c.observer.Enabled())
+func (c *Client) Run(ctx context.Context, question string) (result Result, err error) {
+	result = NewResult(OperationRun, c.observer.Enabled())
 	if question == "" {
 		question = AgentQuestion
 	}
-	if err := validateQuestion(question); err != nil {
-		return result, err
-	}
 	baseTools := MultiplyTools{}
-	ctx, run := c.startRun(ctx, &result, RunDetails{
+	ctx, run, err := c.prepareRun(ctx, &result, RunDetails{
 		Questions:  []string{question},
 		Prompt:     AgentPrompt,
 		Tools:      baseTools.Definitions(),
 		ToolChoice: ToolChoiceAuto,
 	})
+	if err != nil {
+		return result, err
+	}
 	defer func() {
 		run.end(err)
 	}()
@@ -33,7 +33,7 @@ func (c *Client) Run(ctx context.Context, question string) (result ExecutionResu
 		observer: c.observer,
 		result:   &result,
 	}
-	result.Answer, err = Run(ctx, LoopInput{
+	result.Answer, err = Chat(ctx, ChatReq{
 		ModelCli: run.modelCli,
 		Tools:    tools,
 		Question: question,

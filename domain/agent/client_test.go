@@ -35,15 +35,15 @@ func (o *testObserver) StartTool(ctx context.Context, _ ToolCall) (context.Conte
 
 // testRunObservation 记录业务观测的结束参数与调用状态。
 type testRunObservation struct {
-	result ExecutionResult // 结束观测时收到的业务结果。
-	err    error           // 结束观测时收到的业务错误。
-	ended  bool            // 是否已调用结束方法。
+	result Result // 结束观测时收到的业务结果。
+	err    error  // 结束观测时收到的业务错误。
+	ended  bool   // 是否已调用结束方法。
 }
 
 func (*testRunObservation) TraceID() string {
 	return "test-trace"
 }
-func (r *testRunObservation) End(result ExecutionResult, err error) {
+func (r *testRunObservation) End(result Result, err error) {
 	r.result, r.err, r.ended = result, err, true
 }
 
