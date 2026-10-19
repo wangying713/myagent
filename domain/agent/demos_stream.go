@@ -32,7 +32,7 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Re
 	if req.Emit == nil {
 		return result, ErrInput
 	}
-	modelCli, ok := c.modelCli.(StreamClient)
+	chatCli, ok := c.chatCli.(StreamClient)
 	if !ok {
 		return result, errors.New("模型客户端不支持流式回答")
 	}
@@ -49,7 +49,7 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Re
 	}()
 	started := time.Now()
 	result.ModelCalls = 1
-	response, err := modelCli.Stream(ctx, StreamInput{
+	response, err := chatCli.Stream(ctx, StreamInput{
 		Request: Request{
 			Messages: demoMessages(ChatPrompt, req.Question),
 		},

@@ -8,6 +8,13 @@ import (
 	"math"
 )
 
+// Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
+type Tools interface {
+	Definitions() []ToolDefinition
+	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
+	Dispatch(ctx context.Context, req ToolCall) (ToolResult, error)
+}
+
 // ToolNameMultiply 是乘法工具在声明和调用校验中共用的协议名称。
 const ToolNameMultiply = "multiply"
 

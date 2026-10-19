@@ -34,12 +34,12 @@ func Run(ctx context.Context, cfg config.Settings) error {
 			fmt.Fprintln(os.Stderr, "[观测] 退出刷新未完成，请按 trace ID 核查")
 		}
 	}()
-	modelCli, err := deepseek.New(cfg.Model, telemetry, nil)
+	chatCli, err := deepseek.New(cfg.Model, telemetry, nil)
 	if err != nil {
 		return err
 	}
-	defer modelCli.Close()
-	agentCli, err := agent.NewClient(modelCli, telemetry, cfg.Limits)
+	defer chatCli.Close()
+	agentCli, err := agent.NewClient(chatCli, telemetry, cfg.Limits)
 	if err != nil {
 		return err
 	}

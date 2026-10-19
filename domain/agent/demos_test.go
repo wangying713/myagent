@@ -52,7 +52,7 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			modelCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+			chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
 				if req.ResponseFormat == nil || req.ResponseFormat.Type != "json_object" {
 					t.Fatal("没有要求模型使用 JSON 输出")
 				}
@@ -64,7 +64,7 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 					FinishReason: FinishReasonStop,
 				}, nil
 			})
-			result, err := newTestClient(t, modelCli, &testObserver{}, DefaultLimits()).DemoStructured(context.Background(), ChatInput{})
+			result, err := newTestClient(t, chatCli, &testObserver{}, DefaultLimits()).DemoStructured(context.Background(), ChatInput{})
 			if (err == nil) != tc.valid || result.Execution.Completed != tc.valid {
 				t.Fatalf("实际完成 %v、错误 %v，预期有效 %v", result.Execution.Completed, err, tc.valid)
 			}
@@ -80,7 +80,7 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 
 func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	requests := []Request{}
-	modelCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
 		requests = append(requests, req)
 		return Response{
 			Message: Message{
@@ -92,7 +92,7 @@ func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	})
 	limits := DefaultLimits()
 	limits.ModelCalls = 2
-	agentCli := newTestClient(t, modelCli, &testObserver{}, limits)
+	agentCli := newTestClient(t, chatCli, &testObserver{}, limits)
 	result, err := agentCli.DemoWorkflow(context.Background(), ChatInput{})
 	if !errors.Is(err, ErrBudgetExceeded) || len(result.Stages) != 2 || result.Execution.Completed || result.Execution.ModelCalls != 2 {
 		t.Fatalf("预算失败未保留已完成阶段：%+v，错误 %v", result, err)

@@ -10,7 +10,7 @@ import (
 
 // recordingModel 累计单次运行的调用、用量和脱敏步骤，不可跨运行共享。
 type recordingModel struct {
-	modelCli ChatClient // 实际发起模型请求的客户端。
+	chatCli  ChatClient // 实际发起模型请求的客户端。
 	observer Observer   // 用于生成脱敏、限长展示副本的观测接口。
 	result   *Result    // 本次运行共享的累计结果。
 	limits   Limits     // 本次运行的模型次数与用量预算。
@@ -25,7 +25,7 @@ func (m *recordingModel) Chat(ctx context.Context, req Request) (Response, error
 	}
 	started := time.Now()
 	m.result.ModelCalls++
-	response, err := m.modelCli.Chat(ctx, req)
+	response, err := m.chatCli.Chat(ctx, req)
 	if err == nil {
 		err = response.Validate()
 	}

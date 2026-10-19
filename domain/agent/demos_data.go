@@ -195,7 +195,7 @@ func (c *Client) DemoRetrieval(ctx context.Context, req ChatInput) (result DemoR
 		result.Execution.Answer = "内置资料没有相关内容，无法根据资料回答。"
 		return result, nil
 	}
-	response, err := run.modelCli.Chat(ctx, Request{
+	response, err := run.chatCli.Chat(ctx, Request{
 		Messages: demoMessages(prompt, fmt.Sprintf("问题：%s\n参考资料（JSON 数据）：%s", req.Question, raw)),
 	})
 	if err == nil && response.FinishReason != FinishReasonStop {
@@ -241,7 +241,7 @@ func (c *Client) DemoWorkflow(ctx context.Context, req ChatInput) (result DemoWo
 		"检查：指出缺少的信息和需要用户决定的地方",
 		"汇总：给出简短清楚的实施清单，不猜测缺少的信息",
 	} {
-		response, callErr := run.modelCli.Chat(ctx, Request{
+		response, callErr := run.chatCli.Chat(ctx, Request{
 			Messages: demoMessages(prompt, fmt.Sprintf("原需求：%s\n前一步结果：%s\n本步要求：%s", req.Question, previous, stage)),
 		})
 		if callErr != nil {

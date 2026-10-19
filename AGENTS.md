@@ -6,7 +6,7 @@
 - 手写 Go 结构体的字段补齐中文说明，包括内部辅助类型、匿名结构体和测试数据；说明业务含义、单位及必要的零值或 nil 语义，简短注释放行尾，生成文件与历史归档不手改。具体见 `docs/development/go-decisions.zh-CN.md` 的“结构体字段说明”。
 - 手写 Go 函数和方法的参数最多 4 个，包括接口方法、函数类型、匿名函数和测试辅助函数；`ctx` 计入，接收者与返回值不计，`a, b string` 按两个参数计算。达到 5 个时，先检查职责，再把相关输入合并为具名结构体；`ctx` 仍单独作为首参。外部接口要求固定签名的实现和回调沿用外部约定。具体见 `docs/development/go-decisions.zh-CN.md` 的“函数与方法参数数量”。
 - 函数、方法只有一个业务请求或执行输入对象时，该参数统一命名为 `req`，如 `Run(ctx, req)`；领域方法、模型和工具调用、接口声明及相关测试保持一致。`ctx` 仍为首参，配置、依赖、响应和普通辅助值继续按含义命名，不把它们一律改成 `req`，也不因此修改输入类型名。具体见 `docs/development/go-decisions.zh-CN.md` 的“请求参数命名”。
-- 手写 Go 代码（含测试）中的客户端字段、函数参数和局部变量统一按“用途或服务名 + `Cli`”命名，如 `agentCli`、`modelCli`、`deepseekCli`、`httpCli`；导出字段使用 `ModelCli` 这类大写形式，同一用途的字段、构造参数和调用处保持一致。类型名 `Client`、`ChatClient` 和构造函数 `NewClient` 保持原有命名；模型名称、配置、观测元数据等数据字段不因同名而改为 `Cli`。生成文件、第三方代码及 `old` 历史归档不手改。具体见 `docs/development/go-decisions.zh-CN.md` 的“客户端变量命名”。
+- 手写 Go 代码（含测试）中的客户端字段、函数参数和局部变量统一按“用途或服务名 + `Cli`”命名，如 `agentCli`、`chatCli`、`deepseekCli`、`httpCli`；导出字段使用 `ChatCli` 这类大写形式，同一用途的字段、构造参数和调用处保持一致。类型名 `Client`、`ChatClient` 和构造函数 `NewClient` 保持原有命名；模型名称、配置、观测元数据等数据字段不因同名而改为 `Cli`。生成文件、第三方代码及 `old` 历史归档不手改。具体见 `docs/development/go-decisions.zh-CN.md` 的“客户端变量命名”。
 - 手写 Go 文件导入按“标准库 → 本项目包（`saklay/ai`）→ 外部依赖”分组，组间空一行，组内由 `gofmt` 排序；生成文件不手改。具体见 `docs/development/go-decisions.zh-CN.md`。
 - 手写 Go 代码（含测试）的非空代码块统一展开，每条语句单独一行，包括函数、方法及 `defer`、`go`、回调中的匿名函数；不把函数体压成单行或用分号拼接语句。具体见 `docs/development/go-decisions.zh-CN.md` 的“代码块与语句换行”。
 - 手写 Go 代码（含测试）的非空结构体字面量统一展开，每个字段单独一行，即使只有一个字段也不写成单行；切片、数组和映射包含多个元素时，每项单独一行。嵌套展开时外层同步展开，保留尾逗号并由 `gofmt` 格式化。空字面量可保留单行，切片、数组和映射的简单单元素也可保留单行。具体见 `docs/development/go-decisions.zh-CN.md` 的“复合字面量换行”。

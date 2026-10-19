@@ -124,7 +124,7 @@ POST /api/agent/chat
   → apps/interfaces/http/app/router.go：handle(implAgent.Chat)
   → apps/interfaces/http/app/handler.go：调用 httpx.DecodeProtoJSON 解码、准备请求、派生上下文
   → apps/interfaces/http/app/impl_agent.go：implAgent.Chat(ctx, req) → (rsp, err)
-  → domain/agent/client_chat.go：Client.Chat
+  → domain/agent/chat.go：Client.Chat
   → infra/deepseek/client.go：Client.Chat
 ```
 

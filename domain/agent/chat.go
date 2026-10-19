@@ -13,33 +13,97 @@ type ChatClient interface {
 	Chat(ctx context.Context, req Request) (Response, error)
 }
 
-// Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
-type Tools interface {
-	Definitions() []ToolDefinition
-	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
-	Dispatch(ctx context.Context, req ToolCall) (ToolResult, error)
+// ChatQuestion 是单轮聊天在未指定问题时使用的学习示例。
+const ChatQuestion = "用一句话解释什么是递归。"
+
+// ChatPrompt 是单轮聊天实际使用的系统提示词。
+const ChatPrompt = "你是一个简洁的中文助手。"
+
+// ChatInput 保存单轮问题；Question 为空字符串时使用 ChatQuestion。
+type ChatInput struct {
+	Question string // 单轮聊天问题，空字符串使用默认示例。
 }
 
-// ChatReq 保存本次对话使用的模型、工具、问题和调用限制。
-type ChatReq struct {
-	ModelCli ChatClient // 这次使用的模型，不能为 nil。
-	Tools    Tools      // 模型可以调用的工具，不能为 nil。
-	Question string     // 用户要问的问题。
-	Prompt   string     // 告诉模型该怎么回答的系统提示词。
-	Limits   Limits     // 最多调用几次模型、工具，以及能用多少 token；都必须大于 0。
-}
-
-// Chat 先问模型，需要工具时就执行工具，再把工具结果交给模型，直到得到回答或用完额度。
-// 每次运行单独保存消息和用量。工具拒绝执行时，也会把拒绝原因告诉模型。
-// 模型和工具收到 ctx 的取消通知后，要能停止执行。
-func Chat(ctx context.Context, req ChatReq) (string, error) {
-	// 对话函数也能被独立调用，因此自行检查问题，不依赖调用方提前校验。
-	if err := validateQuestion(req.Question); err != nil {
-		return "", err
+// Chat 发送一次模型请求；未提供问题时使用默认问题。
+func (c *Client) Chat(ctx context.Context, req ChatInput) (result Result, err error) {
+	result = NewResult(OperationChat, c.observer.Enabled())
+	if req.Question == "" {
+		req.Question = ChatQuestion
 	}
-	limits := req.Limits
+	ctx, run, err := c.prepareRun(ctx, &result, RunDetails{
+		Questions: []string{req.Question},
+		Prompt:    ChatPrompt,
+	})
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		run.end(err)
+	}()
+	response, err := run.chatCli.Chat(ctx, Request{
+		Messages: []Message{
+			{
+				Role:    RoleSystem,
+				Content: ChatPrompt,
+			},
+			{
+				Role:    RoleUser,
+				Content: req.Question,
+			},
+		},
+	})
+	if err != nil {
+		return result, err
+	}
+	if response.FinishReason != FinishReasonStop {
+		return result, ErrInvalidResponse
+	}
+	result.Answer = response.Message.Content
+	return result, nil
+}
+
+// chatWithToolsReq 保存本次工具对话的业务输入，模型客户端由 Client 提供。
+type chatWithToolsReq struct {
+	Operation string // 本次业务标识，用于执行结果和观测记录。
+	Tools     Tools  // 模型可以调用的工具，不能为 nil。
+	Question  string // 已由业务入口补齐默认值的问题。
+	Prompt    string // 告诉模型该怎么回答的系统提示词。
+	Limits    Limits // 全零时使用客户端默认预算；单次覆盖时三个值都必须大于 0。
+}
+
+// chatWithTools 统一准备记录、执行模型与工具对话，并在结束时汇总结果。
+// 工具拒绝时将原因交给模型；取消或预算用尽时保留已有步骤和用量。
+func (c *Client) chatWithTools(ctx context.Context, req chatWithToolsReq) (result Result, err error) {
+	result = NewResult(req.Operation, c.observer.Enabled())
+	if req.Tools == nil {
+		return result, ErrInput
+	}
+	limits := c.limits
+	if req.Limits != (Limits{}) {
+		limits = req.Limits
+	}
 	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
-		return "", fmt.Errorf("运行预算必须为正数")
+		return result, fmt.Errorf("运行预算必须为正数")
+	}
+	// 只给当前调用设置预算，客户端本身保持不变，可以继续供其他请求使用。
+	local := *c
+	local.limits = limits
+	ctx, run, err := local.prepareRun(ctx, &result, RunDetails{
+		Questions:  []string{req.Question},
+		Prompt:     req.Prompt,
+		Tools:      req.Tools.Definitions(),
+		ToolChoice: ToolChoiceAuto,
+	})
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		run.end(err)
+	}()
+	tools := &recordingTools{
+		tools:    req.Tools,
+		observer: c.observer,
+		result:   &result,
 	}
 	messages := []Message{
 		{
@@ -56,21 +120,21 @@ func Chat(ctx context.Context, req ChatReq) (string, error) {
 	seenToolCallIDs := make(map[string]bool)
 	for round := 0; round < limits.ModelCalls; round++ {
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return result, err
 		}
 		if remainingTokens == 0 {
-			return "", ErrBudgetExceeded
+			return result, ErrBudgetExceeded
 		}
-		rsp, err := req.ModelCli.Chat(ctx, Request{
+		rsp, err := run.chatCli.Chat(ctx, Request{
 			Messages:   messages,
-			Tools:      req.Tools.Definitions(),
+			Tools:      tools.Definitions(),
 			ToolChoice: ToolChoiceAuto,
 		})
 		if err != nil {
-			return "", fmt.Errorf("第 %d 轮模型调用: %w", round+1, err)
+			return result, fmt.Errorf("第 %d 轮模型调用: %w", round+1, err)
 		}
 		if err := rsp.Validate(); err != nil {
-			return "", err
+			return result, err
 		}
 		if used, known := rsp.Usage.Total(); known {
 			// 这次可以用超，但剩余额度归零后就不能再调用模型。
@@ -78,25 +142,26 @@ func Chat(ctx context.Context, req ChatReq) (string, error) {
 		}
 		messages = append(messages, rsp.Message)
 		if rsp.FinishReason == FinishReasonStop {
-			return rsp.Message.Content, nil
+			result.Answer = rsp.Message.Content
+			return result, nil
 		}
 		toolCalls := rsp.Message.ToolCalls
 		if len(toolCalls) > limits.ToolCalls-toolCallCount {
-			return "", ErrBudgetExceeded
+			return result, ErrBudgetExceeded
 		}
 		if err := validateToolCalls(toolCalls, seenToolCallIDs); err != nil {
-			return "", err
+			return result, err
 		}
 		for _, toolCall := range toolCalls {
-			message, err := callTool(ctx, req.Tools, toolCall)
+			message, err := callTool(ctx, tools, toolCall)
 			if err != nil {
-				return "", err
+				return result, err
 			}
 			toolCallCount++
 			messages = append(messages, message)
 		}
 	}
-	return "", ErrBudgetExceeded
+	return result, ErrBudgetExceeded
 }
 
 // validateToolCalls 先检查这一轮所有工具的 ID，再开始执行，避免执行到一半才发现 ID 有问题。

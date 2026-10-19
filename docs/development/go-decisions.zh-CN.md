@@ -126,38 +126,38 @@ type Result struct {
 - `context.Context` 仍单独作为首参；同一次操作要用的模型、工具等依赖也可以放进输入结构体，通过具名字段明确传入。不把无关数据塞进大结构体，不通过全局变量、`map[string]any` 或可变参数绕过数量限制。
 - 实现标准库、第三方接口或使用其规定的回调签名时，按外部要求保留签名；只有确实需要匹配外部约定时才适用此例外。
 
-例如工具循环把模型、工具、问题、提示词和调用限制放在一起，调用时只传 `ctx` 和这份输入：
+例如带工具对话将问题、提示词、工具和单次预算放在请求里，模型客户端和默认预算由 `Client` 提供，调用时只传 `ctx` 和这份输入：
 
 ```go
-// ChatReq 保存本次对话使用的模型、工具、问题和调用限制。
-type ChatReq struct {
-	ModelCli ChatClient // 这次使用的模型客户端，不能为 nil。
-	Tools    Tools      // 模型可以调用的工具，不能为 nil。
-	Question string     // 用户要问的问题。
-	Prompt   string     // 系统提示词。
-	Limits   Limits     // 模型、工具和 token 的使用上限。
+// chatWithToolsReq 保存本次工具对话的业务输入。
+type chatWithToolsReq struct {
+	Operation string // 本次业务标识。
+	Tools     Tools  // 本次允许执行的工具。
+	Question  string // 用户要问的问题。
+	Prompt    string // 系统提示词。
+	Limits    Limits // 全零使用客户端默认预算，覆盖时各值须为正数。
 }
 
-// Chat 根据输入调用模型和工具，返回最终回答。
-func Chat(ctx context.Context, req ChatReq) (string, error)
+// chatWithTools 执行模型与工具对话，并统一记录和汇总结果。
+func (c *Client) chatWithTools(ctx context.Context, req chatWithToolsReq) (Result, error)
 ```
 
 这是本项目为方便阅读设定的数量限制，不是 Google Go 的通用要求；分组思路见 [函数参数与可选配置](google-go-best-practices.zh-CN.md#六函数参数与可选配置)。
 
 ## 请求参数命名
 
-- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `Chat(ctx context.Context, req ChatReq)`、`Chat(ctx context.Context, req Request)`。
+- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `chatWithTools(ctx context.Context, req chatWithToolsReq)`、`Chat(ctx context.Context, req Request)`。
 - `ctx` 仍单独作为首参；另有模型、工具等依赖参数时，唯一的业务请求参数仍叫 `req`。领域方法、接口声明、模型与工具实现、相关测试替身和回调保持一致。
 - 这项约定针对请求或执行输入对象。配置仍可叫 `cfg`，响应叫 `rsp`，依赖及普通辅助值按含义命名，例如 `tools`、`question`、`timeout`、`err`；只有 `ctx` 的方法仍使用 `ctx`。同一函数里的 HTTP 请求和业务请求需要区分时，HTTP 请求使用 `httpReq`。
-- 只统一参数变量名，不因此修改 `ChatInput`、`ChatReq` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
+- 只统一参数变量名，不因此修改 `ChatInput`、`chatWithToolsReq` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
 
 这是本项目的命名偏好，目的是让同类方法使用相同写法，不是 Google Go 对所有单参数函数的要求。
 
 ## 客户端变量命名
 
-- 手写 Go 代码中的客户端字段、函数参数和局部变量，统一使用“用途或服务名 + `Cli`”，测试代码及测试替身同样遵循。例如 Agent 客户端用 `agentCli`，模型客户端用 `modelCli`，明确按提供方区分时用 `deepseekCli`，HTTP 客户端用 `httpCli`。
-- 按当前作用选择前缀；同一用途的字段、构造参数和调用处保持一致，例如 `newImplAgent(agentCli *agent.Client)` 将参数保存到 `agentCli` 字段。避免使用含义笼统的 `client`、`cli`，或混用 `modelClient` 与 `modelCli`。
-- 导出字段仍以大写字母开头，如 `ModelCli ChatClient`。客户端依赖即使通过接口、包装器或测试替身提供，也按实际用途使用 `Cli`，例如工具循环的 `ModelCli`、运行记录中的 `modelCli`。
+- 手写 Go 代码中的客户端字段、函数参数和局部变量，统一使用“用途或服务名 + `Cli`”，测试代码及测试替身同样遵循。例如 Agent 客户端用 `agentCli`，对话客户端用 `chatCli`，明确按提供方区分时用 `deepseekCli`，HTTP 客户端用 `httpCli`。
+- 按当前作用选择前缀；同一用途的字段、构造参数和调用处保持一致，例如 `newImplAgent(agentCli *agent.Client)` 将参数保存到 `agentCli` 字段。避免使用含义笼统的 `client`、`cli`，或混用 `chatClient` 与 `chatCli`。
+- 导出字段仍以大写字母开头，如 `ChatCli ChatClient`。客户端依赖即使通过接口、包装器或测试替身提供，也按实际用途使用 `Cli`，例如 `Client` 和运行记录中的 `chatCli`。
 - 这项规则针对客户端实例和依赖，不修改类型名 `Client`、`ChatClient`、`StreamClient`，构造函数继续用 `NewClient` 等原有名称。模型名称、配置及观测元数据仍按含义命名，例如 `Request.Model`、`Settings.Model`、`RunDetails.Model`；不将普通数据字段机械改成客户端名称。
 - 范围为本项目手写 Go 代码及测试；生成文件、第三方代码和 `old` 历史归档不手改，前端命名另按前端规范处理。
 

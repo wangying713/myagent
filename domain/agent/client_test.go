@@ -22,8 +22,11 @@ func (o *testObserver) Safe(raw []byte) string {
 func (*testObserver) Clean(text string) string {
 	return strings.ReplaceAll(text, "本机密钥", "[REDACTED]")
 }
-func (o *testObserver) StartRun(ctx context.Context, _ string, _ RunDetails) (context.Context, RunObservation) {
-	run := &testRunObservation{}
+func (o *testObserver) StartRun(ctx context.Context, operation string, req RunDetails) (context.Context, RunObservation) {
+	run := &testRunObservation{
+		operation: operation,
+		details:   req,
+	}
 	o.runs = append(o.runs, run)
 	return ctx, run
 }
@@ -35,9 +38,11 @@ func (o *testObserver) StartTool(ctx context.Context, _ ToolCall) (context.Conte
 
 // testRunObservation 记录业务观测的结束参数与调用状态。
 type testRunObservation struct {
-	result Result // 结束观测时收到的业务结果。
-	err    error  // 结束观测时收到的业务错误。
-	ended  bool   // 是否已调用结束方法。
+	operation string     // 本次观测对应的业务标识。
+	details   RunDetails // 启动观测时收到的问题和实际预算。
+	result    Result     // 结束观测时收到的业务结果。
+	err       error      // 结束观测时收到的业务错误。
+	ended     bool       // 是否已调用结束方法。
 }
 
 func (*testRunObservation) TraceID() string {
@@ -58,9 +63,9 @@ func (t *testToolObservation) End(output ToolResult, err error) {
 	t.output, t.err, t.ended = output, err, true
 }
 
-func newTestClient(t *testing.T, modelCli ChatClient, observer *testObserver, limits Limits) *Client {
+func newTestClient(t *testing.T, chatCli ChatClient, observer *testObserver, limits Limits) *Client {
 	t.Helper()
-	agentCli, err := NewClient(modelCli, observer, limits)
+	agentCli, err := NewClient(chatCli, observer, limits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +74,7 @@ func newTestClient(t *testing.T, modelCli ChatClient, observer *testObserver, li
 
 func TestClientChatRecordsSafeCopy(t *testing.T) {
 	observer := &testObserver{}
-	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		if len(req.Messages) != 2 || req.Messages[1].Content != ChatQuestion {
 			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", req.Messages)
 		}
@@ -82,7 +87,7 @@ func TestClientChatRecordsSafeCopy(t *testing.T) {
 			Raw:          []byte(`{"answer":"本机密钥"}`),
 		}, nil
 	})
-	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
+	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
 	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Steps) != 1 || result.UsageComplete {
 		t.Fatalf("聊天结果不符合契约：%+v，错误 %v", result, err)
 	}
@@ -101,7 +106,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 			true:  "预算停止",
 		}[limited], func(t *testing.T) {
 			calls := 0
-			modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+			chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 				calls++
 				answer := "记住了豆包。"
 				if calls == 2 {
@@ -123,7 +128,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 				limits.ModelCalls = 1
 			}
 			observer := &testObserver{}
-			result, err := newTestClient(t, modelCli, observer, limits).Messages(context.Background(), MessagesInput{})
+			result, err := newTestClient(t, chatCli, observer, limits).Messages(context.Background(), MessagesInput{})
 			if limited {
 				if !errors.Is(err, ErrBudgetExceeded) || result.Completed || result.Answer != "记住了豆包。" || calls != 1 {
 					t.Fatalf("预算停止丢失部分结果：%+v，错误 %v", result, err)
@@ -140,7 +145,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 
 func TestClientRunRecordsTool(t *testing.T) {
 	calls := 0
-	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
 		if calls == 1 {
 			return Response{
@@ -172,7 +177,7 @@ func TestClientRunRecordsTool(t *testing.T) {
 		}, nil
 	})
 	observer := &testObserver{}
-	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Run(context.Background(), "")
+	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Run(context.Background(), "")
 	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Steps) != 3 || result.Steps[1].Kind != "tool" {
 		t.Fatalf("工具执行记录错误：%+v，错误 %v", result, err)
 	}

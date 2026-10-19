@@ -41,11 +41,11 @@ func TestPrepareRunRejectsInvalidQuestionsBeforeObservation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			observer := &testObserver{}
-			modelCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
 				t.Fatal("问题无效时不应调用模型")
 				return Response{}, nil
 			})
-			agentCli := newTestClient(t, modelCli, observer, DefaultLimits())
+			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
 			result := NewResult(OperationChat, observer.Enabled())
 			_, run, err := agentCli.prepareRun(t.Context(), &result, RunDetails{
 				Questions: tc.questions,
