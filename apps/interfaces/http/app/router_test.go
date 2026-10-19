@@ -85,7 +85,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 			t.Error(err)
 		}
 	})
-	modelClient, err := deepseek.New(deepseek.Config{
+	modelCli, err := deepseek.New(deepseek.Config{
 		APIKey:  "test-api-key",
 		BaseURL: upstream.URL,
 		Model:   "test-model",
@@ -94,12 +94,12 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(modelClient.Close)
-	client, err := agent.NewClient(modelClient, telemetry, cfg.Limits)
+	t.Cleanup(modelCli.Close)
+	agentCli, err := agent.NewClient(modelCli, telemetry, cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(client, cfg.Timeout, telemetry)
+	handler, err := newRouter(agentCli, cfg.Timeout, telemetry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -828,7 +828,9 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 			Tokens:     8000,
 		},
 		Timeout: time.Second,
-	}, &memoryExporter{fail: true})
+	}, &memoryExporter{
+		fail: true,
+	})
 	w, response := invoke(handler, "messages", `{}`)
 	if w.Code != 409 || response.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
 		t.Fatalf("预算未保留已完成第一轮：%s", w.Body.String())
@@ -869,7 +871,9 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, err := protojson.Marshal(&proto.ChatReq{Question: &question})
+			body, err := protojson.Marshal(&proto.ChatReq{
+				Question: &question,
+			})
 			if err != nil {
 				t.Errorf("编码聊天请求：%v", err)
 				return

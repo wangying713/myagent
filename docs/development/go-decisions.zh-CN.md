@@ -131,7 +131,7 @@ type ExecutionResult struct {
 ```go
 // LoopInput 放这次工具循环要用的模型、工具、问题和调用限制。
 type LoopInput struct {
-	Model    ChatClient // 这次使用的模型，不能为 nil。
+	ModelCli ChatClient // 这次使用的模型客户端，不能为 nil。
 	Tools    Tools      // 模型可以调用的工具，不能为 nil。
 	Question string     // 用户要问的问题。
 	Prompt   string     // 系统提示词。
@@ -152,6 +152,29 @@ func Run(ctx context.Context, req LoopInput) (string, error)
 - 只统一参数变量名，不因此修改 `ChatInput`、`LoopInput` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
 
 这是本项目的命名偏好，目的是让同类方法使用相同写法，不是 Google Go 对所有单参数函数的要求。
+
+## 客户端变量命名
+
+- 手写 Go 代码中的客户端字段、函数参数和局部变量，统一使用“用途或服务名 + `Cli`”，测试代码及测试替身同样遵循。例如 Agent 客户端用 `agentCli`，模型客户端用 `modelCli`，明确按提供方区分时用 `deepseekCli`，HTTP 客户端用 `httpCli`。
+- 按当前作用选择前缀；同一用途的字段、构造参数和调用处保持一致，例如 `newImplAgent(agentCli *agent.Client)` 将参数保存到 `agentCli` 字段。避免使用含义笼统的 `client`、`cli`，或混用 `modelClient` 与 `modelCli`。
+- 导出字段仍以大写字母开头，如 `ModelCli ChatClient`。客户端依赖即使通过接口、包装器或测试替身提供，也按实际用途使用 `Cli`，例如工具循环的 `ModelCli`、运行记录中的 `modelCli`。
+- 这项规则针对客户端实例和依赖，不修改类型名 `Client`、`ChatClient`、`StreamClient`，构造函数继续用 `NewClient` 等原有名称。模型名称、配置及观测元数据仍按含义命名，例如 `Request.Model`、`Settings.Model`、`RunDetails.Model`；不将普通数据字段机械改成客户端名称。
+- 范围为本项目手写 Go 代码及测试；生成文件、第三方代码和 `old` 历史归档不手改，前端命名另按前端规范处理。
+
+```go
+// ImplAgent 把 HTTP 请求交给 Agent 客户端处理。
+type ImplAgent struct {
+	agentCli *agent.Client // 由入口传入的 Agent 客户端。
+}
+
+func newImplAgent(agentCli *agent.Client) *ImplAgent {
+	return &ImplAgent{
+		agentCli: agentCli,
+	}
+}
+```
+
+这是本项目按个人阅读习惯统一的变量命名，不是 Go 对所有客户端的通用强制要求。
 
 ## 代码块与语句换行
 
@@ -175,10 +198,11 @@ go func() {
 
 ## 复合字面量换行
 
-- 手写 Go 代码（包括测试）中的切片、数组、映射和结构体复合字面量，只要包含多个元素或字段，就采用多行写法，每个元素或字段独占一行；不因内容较短而挤在同一行。
+- 手写 Go 代码（包括测试）中的非空结构体字面量统一采用多行写法，每个字段独占一行；即使只有一个字段，也不能将初始化压在同一行。该规则同样适用于指针初始化、函数参数、返回值及匿名、嵌套结构体。
+- 切片、数组和映射的复合字面量包含多个元素时，每个元素独占一行；不因内容较短而挤在同一行。
 - 左花括号后换行，最后一项保留尾逗号，右花括号另起一行；缩进和字段对齐交给 `gofmt`。
 - 嵌套字面量逐层遵循同一规则；内层展开后，外层即使只有一个元素或字段，也展开书写，保持层次清晰。
-- 空字面量和仅含一个简单元素或字段的字面量可以保留单行。字符串中的 JSON 等协议样本不按 Go 字面量拆分；生成文件（如 `.pb.go`）沿用生成器输出，`old` 历史归档不纳入整改。
+- 空字面量可以保留单行，例如 `ImplAgent{}`。切片、数组和映射仅含一个简单元素时也可保留单行；这个例外不适用于非空结构体。字符串中的 JSON 等协议样本不按 Go 字面量拆分；生成文件（如 `.pb.go`）沿用生成器输出，第三方代码和 `old` 历史归档不纳入整改。
 
 ```go
 questions := []string{
@@ -189,6 +213,10 @@ questions := []string{
 message := Message{
 	Role:    RoleUser,
 	Content: question,
+}
+
+impl := &ImplAgent{
+	agentCli: agentCli,
 }
 ```
 

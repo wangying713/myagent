@@ -115,11 +115,17 @@ func TestResponseJSONCompatibility(t *testing.T) {
 			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"agent","completed":true,"answer":"结果为 391","telemetry_enabled":true,"elapsed_ms":42,"model_calls":2,"tool_calls":1,"known_tokens":12,"usage_complete":false,"steps":[{"kind":"model","name":"模型","request":"请求","response":"回答","elapsed_ms":11,"finish_reason":"stop","usage":{"prompt_tokens":0,"completion_tokens":null,"total_tokens":12}},{"kind":"tool","name":"multiply","request":"{\"a\":17,\"b\":23}","response":"391","elapsed_ms":1,"error":"步骤说明"}]}}`,
 		},
 		{
-			name:     "大整数保留 JSON 数字",
-			chat:     &proto.ChatRsp{ElapsedMs: 9007199254740993},
-			messages: &proto.MessagesRsp{ElapsedMs: 9007199254740993},
-			run:      &proto.RunRsp{ElapsedMs: 9007199254740993},
-			want:     `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":9007199254740993,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
+			name: "大整数保留 JSON 数字",
+			chat: &proto.ChatRsp{
+				ElapsedMs: 9007199254740993,
+			},
+			messages: &proto.MessagesRsp{
+				ElapsedMs: 9007199254740993,
+			},
+			run: &proto.RunRsp{
+				ElapsedMs: 9007199254740993,
+			},
+			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":9007199254740993,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

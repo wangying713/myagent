@@ -42,8 +42,8 @@ type Telemetry struct {
 	tracer   trace.Tracer             // 为业务、模型与工具创建 span 的追踪器。
 	provider *sdktrace.TracerProvider // 私有追踪提供方，关闭观测时为 nil。
 	secrets  []string                 // 已整理的脱敏词，优先匹配较长内容。
-	// client 保存内部创建的 OTLP HTTP 客户端，未创建时为 nil。
-	client *http.Client
+	// httpCli 保存内部创建的 OTLP HTTP 客户端，未创建时为 nil。
+	httpCli *http.Client
 }
 
 // reportingExporter 隔离观测失败；只输出固定提示，不输出 exporter 的底层正文。
@@ -96,16 +96,18 @@ func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnin
 	if exporter == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
-		t.client = &http.Client{
+		t.httpCli = &http.Client{
 			Transport: transport,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
 		}
 		var err error
-		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(t.client), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}))
+		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(t.httpCli), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
+			Enabled: false,
+		}))
 		if err != nil {
-			t.client.CloseIdleConnections()
+			t.httpCli.CloseIdleConnections()
 			return nil, fmt.Errorf("创建 OTLP 导出器失败，请检查观测配置")
 		}
 	}
@@ -143,8 +145,8 @@ func (t *Telemetry) Flush(ctx context.Context) error {
 
 // Close 在 ctx 允许的时间内关闭 provider 及导出器，并释放空闲 HTTP 连接。
 func (t *Telemetry) Close(ctx context.Context) error {
-	if t.client != nil {
-		defer t.client.CloseIdleConnections()
+	if t.httpCli != nil {
+		defer t.httpCli.CloseIdleConnections()
 	}
 	if t.provider == nil {
 		return nil

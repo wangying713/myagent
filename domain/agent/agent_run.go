@@ -10,7 +10,7 @@ import (
 type agentRun struct {
 	observer Observer         // 隐藏最终回答中的敏感内容。
 	result   *ExecutionResult // 保存这次运行的回答、步骤和统计。
-	model    *recordingModel  // 每次请求模型时，记录调用次数、用量和步骤。
+	modelCli *recordingModel  // 每次请求模型时，记录调用次数、用量和步骤。
 	run      RunObservation   // 这次运行的链路记录，结束时一并收尾。
 	started  time.Time        // 记下开始时间，用来计算总耗时。
 }
@@ -33,8 +33,8 @@ func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input Ru
 	// 把允许调用模型、工具的次数和 token 上限也记下来。
 	input.Limits = c.limits
 	// 如果模型能提供自己的名称、地址等信息，就一起记下来。
-	if model, ok := c.model.(ModelInfoProvider); ok {
-		info := model.ModelInfo()
+	if modelCli, ok := c.modelCli.(ModelInfoProvider); ok {
+		info := modelCli.ModelInfo()
 		input.Model = &info
 	}
 	// 开始记录这次运行，并把查询记录用的 trace ID 放进结果。
@@ -48,8 +48,8 @@ func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input Ru
 		run:      run,
 		started:  time.Now(),
 		// 给模型加上记账功能，每次调用都把用量和执行结果写进同一份 result。
-		model: &recordingModel{
-			inner:    c.model,
+		modelCli: &recordingModel{
+			modelCli: c.modelCli,
 			observer: c.observer,
 			result:   result,
 			limits:   c.limits,

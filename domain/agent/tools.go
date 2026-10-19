@@ -44,14 +44,20 @@ func (t MultiplyTools) Dispatch(ctx context.Context, req ToolCall) (ToolResult, 
 		return ToolResult{}, err
 	}
 	if req.Type != ToolTypeFunction || req.Function.Name != ToolNameMultiply {
-		return ToolResult{Error: "unknown_tool"}, nil
+		return ToolResult{
+			Error: "unknown_tool",
+		}, nil
 	}
 	if !json.Valid([]byte(req.Function.Arguments)) {
-		return ToolResult{Error: "invalid_json"}, nil
+		return ToolResult{
+			Error: "invalid_json",
+		}, nil
 	}
 	args, ok := multiplyArguments([]byte(req.Function.Arguments))
 	if !ok {
-		return ToolResult{Error: "invalid_arguments"}, nil
+		return ToolResult{
+			Error: "invalid_arguments",
+		}, nil
 	}
 	return t.multiply(ctx, args)
 }
@@ -63,7 +69,9 @@ func (MultiplyTools) multiply(ctx context.Context, req multiplyArgs) (ToolResult
 	}
 	value := req.A * req.B
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return ToolResult{Error: "tool_execution_failed"}, nil
+		return ToolResult{
+			Error: "tool_execution_failed",
+		}, nil
 	}
 	return ToolResult{
 		OK:     true,

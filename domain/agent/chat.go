@@ -29,7 +29,7 @@ func (c *Client) Chat(ctx context.Context, req ChatInput) (result ExecutionResul
 	defer func() {
 		run.end(err)
 	}()
-	response, err := run.model.Chat(ctx, Request{
+	response, err := run.modelCli.Chat(ctx, Request{
 		Messages: []Message{
 			{
 				Role:    RoleSystem,

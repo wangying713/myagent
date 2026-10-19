@@ -62,7 +62,11 @@ func TestReadTextStreamProtocol(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result := agent.Response{Message: agent.Message{Role: agent.RoleAssistant}}
+			result := agent.Response{
+				Message: agent.Message{
+					Role: agent.RoleAssistant,
+				},
+			}
 			text := ""
 			err := readTextStream(context.Background(), strings.NewReader(tc.body), streamReceiver{
 				result: &result,

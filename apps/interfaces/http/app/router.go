@@ -12,8 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func newRouter(client *agent.Client, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
-	implAgent, err := newImplAgent(client)
+func newRouter(agentCli *agent.Client, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
+	implAgent, err := newImplAgent(agentCli)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func newRouter(client *agent.Client, timeout time.Duration, observer httpObserve
 	})
 
 	// 路由逐条声明完整地址，便于从 URL 直接定位具名处理方法。
-	implAgentDemos := newImplAgentDemos(client)
+	implAgentDemos := newImplAgentDemos(agentCli)
 	router.GET("/api/health", health)
 	router.HEAD("/api/health", health)
 	router.POST("/api/agent/chat", handle(implAgent.Chat))

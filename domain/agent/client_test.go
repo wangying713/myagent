@@ -58,18 +58,18 @@ func (t *testToolObservation) End(output ToolResult, err error) {
 	t.output, t.err, t.ended = output, err, true
 }
 
-func newTestClient(t *testing.T, model ChatClient, observer *testObserver, limits Limits) *Client {
+func newTestClient(t *testing.T, modelCli ChatClient, observer *testObserver, limits Limits) *Client {
 	t.Helper()
-	client, err := NewClient(model, observer, limits)
+	agentCli, err := NewClient(modelCli, observer, limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client
+	return agentCli
 }
 
 func TestClientChatRecordsSafeCopy(t *testing.T) {
 	observer := &testObserver{}
-	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		if len(req.Messages) != 2 || req.Messages[1].Content != ChatQuestion {
 			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", req.Messages)
 		}
@@ -82,7 +82,7 @@ func TestClientChatRecordsSafeCopy(t *testing.T) {
 			Raw:          []byte(`{"answer":"本机密钥"}`),
 		}, nil
 	})
-	result, err := newTestClient(t, model, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
+	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
 	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Steps) != 1 || result.UsageComplete {
 		t.Fatalf("聊天结果不符合契约：%+v，错误 %v", result, err)
 	}
@@ -101,7 +101,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 			true:  "预算停止",
 		}[limited], func(t *testing.T) {
 			calls := 0
-			model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+			modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 				calls++
 				answer := "记住了豆包。"
 				if calls == 2 {
@@ -123,7 +123,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 				limits.ModelCalls = 1
 			}
 			observer := &testObserver{}
-			result, err := newTestClient(t, model, observer, limits).Messages(context.Background(), MessagesInput{})
+			result, err := newTestClient(t, modelCli, observer, limits).Messages(context.Background(), MessagesInput{})
 			if limited {
 				if !errors.Is(err, ErrBudgetExceeded) || result.Completed || result.Answer != "记住了豆包。" || calls != 1 {
 					t.Fatalf("预算停止丢失部分结果：%+v，错误 %v", result, err)
@@ -140,7 +140,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 
 func TestClientRunRecordsTool(t *testing.T) {
 	calls := 0
-	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
 		if calls == 1 {
 			return Response{
@@ -172,7 +172,7 @@ func TestClientRunRecordsTool(t *testing.T) {
 		}, nil
 	})
 	observer := &testObserver{}
-	result, err := newTestClient(t, model, observer, DefaultLimits()).Run(context.Background(), RunInput{})
+	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Run(context.Background(), RunInput{})
 	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Steps) != 3 || result.Steps[1].Kind != "tool" {
 		t.Fatalf("工具执行记录错误：%+v，错误 %v", result, err)
 	}
@@ -183,7 +183,7 @@ func TestClientRunRecordsTool(t *testing.T) {
 
 func TestClientInputAndCancellation(t *testing.T) {
 	observer := &testObserver{}
-	client := newTestClient(t, modelFunc(func(context.Context, Request) (Response, error) {
+	agentCli := newTestClient(t, modelFunc(func(context.Context, Request) (Response, error) {
 		t.Fatal("无效输入或取消后不应调用模型")
 		return Response{}, nil
 	}), observer, DefaultLimits())
@@ -191,10 +191,14 @@ func TestClientInputAndCancellation(t *testing.T) {
 		"  ",
 		strings.Repeat("字", 4097),
 	} {
-		if _, err := client.Chat(context.Background(), ChatInput{Question: question}); !errors.Is(err, ErrInput) {
+		if _, err := agentCli.Chat(context.Background(), ChatInput{
+			Question: question,
+		}); !errors.Is(err, ErrInput) {
 			t.Errorf("聊天实际错误 %v，预期 ErrInput", err)
 		}
-		if _, err := client.Run(context.Background(), RunInput{Question: question}); !errors.Is(err, ErrInput) {
+		if _, err := agentCli.Run(context.Background(), RunInput{
+			Question: question,
+		}); !errors.Is(err, ErrInput) {
 			t.Errorf("工具运行实际错误 %v，预期 ErrInput", err)
 		}
 	}
@@ -210,7 +214,9 @@ func TestClientInputAndCancellation(t *testing.T) {
 			"",
 		},
 	} {
-		if _, err := client.Messages(context.Background(), MessagesInput{Questions: questions}); !errors.Is(err, ErrInput) {
+		if _, err := agentCli.Messages(context.Background(), MessagesInput{
+			Questions: questions,
+		}); !errors.Is(err, ErrInput) {
 			t.Errorf("历史消息实际错误 %v，预期 ErrInput", err)
 		}
 	}
@@ -219,7 +225,7 @@ func TestClientInputAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := client.Chat(ctx, ChatInput{})
+	result, err := agentCli.Chat(ctx, ChatInput{})
 	if !errors.Is(err, context.Canceled) || result.ModelCalls != 0 || result.Completed || !observer.runs[0].ended {
 		t.Fatalf("取消执行错误：%+v，错误 %v", result, err)
 	}

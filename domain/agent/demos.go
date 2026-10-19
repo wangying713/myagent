@@ -73,9 +73,11 @@ func (c *Client) DemoStructured(ctx context.Context, req ChatInput) (result Demo
 	defer func() {
 		run.end(err)
 	}()
-	response, err := run.model.Chat(ctx, Request{
-		Messages:       demoMessages(prompt, req.Question),
-		ResponseFormat: &ResponseFormat{Type: "json_object"},
+	response, err := run.modelCli.Chat(ctx, Request{
+		Messages: demoMessages(prompt, req.Question),
+		ResponseFormat: &ResponseFormat{
+			Type: "json_object",
+		},
 	})
 	if err != nil {
 		return result, err
@@ -121,7 +123,7 @@ func (c *Client) demoLoop(ctx context.Context, req demoLoopInput) (result Execut
 		run.end(err)
 	}()
 	result.Answer, err = Run(ctx, LoopInput{
-		Model: run.model,
+		ModelCli: run.modelCli,
 		Tools: &recordingTools{
 			tools:    req.Tools,
 			observer: c.observer,

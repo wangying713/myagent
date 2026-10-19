@@ -50,7 +50,9 @@ func (c *Client) Messages(ctx context.Context, req MessagesInput) (result Execut
 			Role:    RoleUser,
 			Content: question,
 		})
-		response, callErr := run.model.Chat(ctx, Request{Messages: messages})
+		response, callErr := run.modelCli.Chat(ctx, Request{
+			Messages: messages,
+		})
 		if callErr != nil {
 			return result, callErr
 		}

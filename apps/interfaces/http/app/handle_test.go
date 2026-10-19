@@ -24,13 +24,17 @@ func TestHandleKeepsResponseWithError(t *testing.T) {
 		status int            // 预期 HTTP 状态码。
 	}{
 		{
-			name:   "成功",
-			rsp:    &proto.ChatRsp{Answer: "完整结果"},
+			name: "成功",
+			rsp: &proto.ChatRsp{
+				Answer: "完整结果",
+			},
 			status: 200,
 		},
 		{
-			name:   "部分结果",
-			rsp:    &proto.ChatRsp{Answer: "已完成部分"},
+			name: "部分结果",
+			rsp: &proto.ChatRsp{
+				Answer: "已完成部分",
+			},
 			err:    errors.New("内部敏感错误"),
 			status: 502,
 		},

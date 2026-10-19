@@ -17,7 +17,7 @@ func (f modelFunc) Chat(ctx context.Context, req Request) (Response, error) {
 
 func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0
-	model := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	modelCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
 		if calls == 1 {
 			if len(req.Messages) != 2 || req.Messages[0].Role != RoleSystem || req.Messages[0].Content != "计算助手" || req.Messages[1].Role != RoleUser || req.Messages[1].Content != "问题" {
@@ -65,7 +65,7 @@ func TestLoopPreservesAssistantAndMultipleToolResults(t *testing.T) {
 		}, nil
 	})
 	answer, err := Run(context.Background(), LoopInput{
-		Model:    model,
+		ModelCli: modelCli,
 		Tools:    MultiplyTools{},
 		Question: "问题",
 		Prompt:   "计算助手",
@@ -241,7 +241,7 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			model := modelFunc(func(context.Context, Request) (Response, error) {
+			modelCli := modelFunc(func(context.Context, Request) (Response, error) {
 				calls++
 				tools := []ToolCall{}
 				for _, id := range tc.ids {
@@ -260,11 +260,13 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 						ToolCalls: tools,
 					},
 					FinishReason: "tool_calls",
-					Usage:        Usage{TotalTokens: &tc.tokens},
+					Usage: Usage{
+						TotalTokens: &tc.tokens,
+					},
 				}, nil
 			})
 			_, err := Run(context.Background(), LoopInput{
-				Model:    model,
+				ModelCli: modelCli,
 				Tools:    MultiplyTools{},
 				Question: "问题",
 				Prompt:   "提示",
@@ -280,12 +282,12 @@ func TestLoopBudgetsAndProtocolErrors(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	model := modelFunc(func(context.Context, Request) (Response, error) {
+	modelCli := modelFunc(func(context.Context, Request) (Response, error) {
 		t.Fatal("取消后不应调用模型")
 		return Response{}, nil
 	})
 	_, err := Run(ctx, LoopInput{
-		Model:    model,
+		ModelCli: modelCli,
 		Tools:    MultiplyTools{},
 		Question: "问题",
 		Prompt:   "提示",
@@ -332,7 +334,7 @@ func TestLoopChecksWholeToolBatchBeforeExecution(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			model := modelFunc(func(context.Context, Request) (Response, error) {
+			modelCli := modelFunc(func(context.Context, Request) (Response, error) {
 				var calls []ToolCall
 				for _, id := range tc.ids {
 					calls = append(calls, ToolCall{
@@ -357,7 +359,7 @@ func TestLoopChecksWholeToolBatchBeforeExecution(t *testing.T) {
 			limits := DefaultLimits()
 			limits.ToolCalls = tc.limit
 			_, err := Run(t.Context(), LoopInput{
-				Model: model,
+				ModelCli: modelCli,
 				Tools: &recordingTools{
 					tools:    MultiplyTools{},
 					observer: observer,

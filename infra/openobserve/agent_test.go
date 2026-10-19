@@ -239,7 +239,10 @@ func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
 			Arguments: `{"b":23,"a":17}`,
 		},
 	})
-	tool.End(agent.ToolResult{OK: true, Result: 391}, nil)
+	tool.End(agent.ToolResult{
+		OK:     true,
+		Result: 391,
+	}, nil)
 	attrs := toolAttributes(t, telemetry, exporter)
 	const wantInput = `{"arguments":{"a":17,"b":23},"id":"call_1","name":"multiply","type":"function"}`
 	if attrs["app.request"].AsString() != wantInput {
@@ -287,7 +290,10 @@ func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 					Arguments: tc.arguments,
 				},
 			})
-			tool.End(agent.ToolResult{OK: true, Result: 391}, nil)
+			tool.End(agent.ToolResult{
+				OK:     true,
+				Result: 391,
+			}, nil)
 			attrs := toolAttributes(t, telemetry, exporter)
 			preview := attrs["gen_ai.input.messages"].AsString()
 			if attrs["app.request"].AsString() != preview {

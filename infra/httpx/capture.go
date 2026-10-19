@@ -16,8 +16,12 @@ func CaptureBodies(limit int, record func(c *gin.Context, request, response []by
 			c.Next()
 			return
 		}
-		request := &bodyCapture{limit: limit}
-		response := &bodyCapture{limit: limit}
+		request := &bodyCapture{
+			limit: limit,
+		}
+		response := &bodyCapture{
+			limit: limit,
+		}
 		body, writer := c.Request.Body, c.Writer
 		if body != nil {
 			c.Request.Body = &captureReader{

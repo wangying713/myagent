@@ -140,7 +140,7 @@ POST /api/agent/chat
 
 ```go
 func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
-	result, err := a.client.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
+	result, err := a.agentCli.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 
 `Chat` 和 `Run` 先转换并校验问题的省略与空字符串，再按同样方式返回结果。API 方法不接收 `gin.Context`，不解析 HTTP 正文、不设置超时、不直接写响应。
 
-`app/router.go` 创建 `newImplAgent(client)`，通过 `requestTimeout(timeout)` 中间件统一设置当前路由的超时；路由只传入业务方法：
+`app/router.go` 创建 `newImplAgent(agentCli)`，通过 `requestTimeout(timeout)` 中间件统一设置当前路由的超时；路由只传入业务方法：
 
 ```go
 router.POST("/api/agent/chat", handle(implAgent.Chat))

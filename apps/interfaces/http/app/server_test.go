@@ -41,7 +41,9 @@ func startHTTPForTest(t *testing.T, listener net.Listener, handler http.Handler,
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	run := &httpRun{
-		server: &http.Server{Handler: handler},
+		server: &http.Server{
+			Handler: handler,
+		},
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
@@ -75,13 +77,17 @@ type httpCall struct {
 
 func requestForTest(t *testing.T, listener net.Listener, path, body string) *httpCall {
 	t.Helper()
-	transport := &http.Transport{Proxy: nil}
+	transport := &http.Transport{
+		Proxy: nil,
+	}
 	t.Cleanup(transport.CloseIdleConnections)
-	client := &http.Client{
+	httpCli := &http.Client{
 		Transport: transport,
 		Timeout:   2 * time.Second,
 	}
-	call := &httpCall{done: make(chan struct{})}
+	call := &httpCall{
+		done: make(chan struct{}),
+	}
 	go func() {
 		defer close(call.done)
 		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+listener.Addr().String()+path, strings.NewReader(body))
@@ -90,7 +96,7 @@ func requestForTest(t *testing.T, listener net.Listener, path, body string) *htt
 			return
 		}
 		request.Header.Set("Content-Type", "application/json")
-		response, err := client.Do(request)
+		response, err := httpCli.Do(request)
 		if err != nil {
 			call.err = err
 			return

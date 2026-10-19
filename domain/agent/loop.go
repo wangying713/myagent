@@ -22,7 +22,7 @@ type Tools interface {
 
 // LoopInput 放这次工具循环要用的模型、工具、问题和调用限制。
 type LoopInput struct {
-	Model    ChatClient // 这次使用的模型，不能为 nil。
+	ModelCli ChatClient // 这次使用的模型，不能为 nil。
 	Tools    Tools      // 模型可以调用的工具，不能为 nil。
 	Question string     // 用户要问的问题。
 	Prompt   string     // 告诉模型该怎么回答的系统提示词。
@@ -57,7 +57,7 @@ func Run(ctx context.Context, req LoopInput) (string, error) {
 		if remainingTokens == 0 {
 			return "", ErrBudgetExceeded
 		}
-		response, err := req.Model.Chat(ctx, Request{
+		response, err := req.ModelCli.Chat(ctx, Request{
 			Messages:   messages,
 			Tools:      req.Tools.Definitions(),
 			ToolChoice: ToolChoiceAuto,

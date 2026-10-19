@@ -56,14 +56,16 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result agen
 		openobserve.End(span, started, err)
 	}()
 	c.telemetry.Payload(span, "app.request", raw)
-	response, err := c.http.Do(httpReq.WithContext(ctx))
+	response, err := c.httpCli.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return result, fmt.Errorf("请求模型文本流: %w", err)
 	}
 	defer response.Body.Close()
 	span.SetAttributes(attribute.Int("http.response.status_code", response.StatusCode))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return result, &ModelError{Status: response.StatusCode}
+		return result, &ModelError{
+			Status: response.StatusCode,
+		}
 	}
 	if !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 		return result, agent.ErrInvalidResponse

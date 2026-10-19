@@ -36,7 +36,7 @@ const (
 // Client 执行模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
 	config    Config                 // 构造时保存的模型服务配置。
-	http      *http.Client           // 发送模型请求的 HTTP 客户端。
+	httpCli   *http.Client           // 发送模型请求的 HTTP 客户端。
 	telemetry *openobserve.Telemetry // 记录调用链路及脱敏正文的观测组件。
 }
 
@@ -50,9 +50,9 @@ func (e *ModelError) Error() string {
 	return fmt.Sprintf("模型服务返回 HTTP %d", e.Status)
 }
 
-// New 校验配置并创建客户端，client 为 nil 时使用独立的 HTTP Transport。
-// 传入 client 时复用其 Transport；调用方应在业务结束后调用 Client.Close。
-func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Client, error) {
+// New 校验配置并创建客户端，httpCli 为 nil 时使用独立的 HTTP Transport。
+// 传入 httpCli 时复用其 Transport；调用方应在业务结束后调用 Client.Close。
+func New(cfg Config, telemetry *openobserve.Telemetry, httpCli *http.Client) (*Client, error) {
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("模型地址应为不含凭据和查询参数的 HTTP(S) URL")
@@ -63,25 +63,27 @@ func New(cfg Config, telemetry *openobserve.Telemetry, client *http.Client) (*Cl
 	if cfg.Model == "" || cfg.Timeout <= 0 || telemetry == nil {
 		return nil, errors.New("模型名、超时与观测依赖无效")
 	}
-	if client == nil {
+	if httpCli == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
-		client = &http.Client{Transport: transport}
+		httpCli = &http.Client{
+			Transport: transport,
+		}
 	}
-	copyClient := *client
-	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+	copiedHTTPCli := *httpCli
+	copiedHTTPCli.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	return &Client{
 		config:    cfg,
-		http:      &copyClient,
+		httpCli:   &copiedHTTPCli,
 		telemetry: telemetry,
 	}, nil
 }
 
 // Close 关闭 Transport 的空闲连接，不取消正在执行的请求。
 func (c *Client) Close() {
-	c.http.CloseIdleConnections()
+	c.httpCli.CloseIdleConnections()
 }
 
 // ModelInfo 返回运行观测使用的白名单配置，不暴露鉴权和 HTTP 客户端。
@@ -137,7 +139,7 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 	}()
 	c.telemetry.Payload(span, "app.request", raw)
 	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", httpReq.URL.Hostname()), attribute.String("url.full", httpReq.URL.String()))
-	resp, err := c.http.Do(httpReq.WithContext(ctx))
+	resp, err := c.httpCli.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return result, fmt.Errorf("请求模型服务: %w", err)
 	}
@@ -153,7 +155,9 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 		return result, fmt.Errorf("模型响应超过 4 MiB: %w", agent.ErrInvalidResponse)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return result, &ModelError{Status: resp.StatusCode}
+		return result, &ModelError{
+			Status: resp.StatusCode,
+		}
 	}
 	var decoded struct {
 		Usage   agent.Usage `json:"usage"` // 模型响应中的 token 用量。

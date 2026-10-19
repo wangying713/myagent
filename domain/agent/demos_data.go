@@ -77,14 +77,20 @@ func (demoProductTools) Dispatch(ctx context.Context, req ToolCall) (ToolResult,
 		return (MultiplyTools{}).Dispatch(ctx, req)
 	}
 	if req.Type != ToolTypeFunction || req.Function.Name != ToolNameLookupProduct {
-		return ToolResult{Error: "unknown_tool"}, nil
+		return ToolResult{
+			Error: "unknown_tool",
+		}, nil
 	}
 	var args demoLookupArgs
 	if decodeDemoObject(req.Function.Arguments, &args) != nil || strings.TrimSpace(args.Product) == "" {
-		return ToolResult{Error: "invalid_arguments"}, nil
+		return ToolResult{
+			Error: "invalid_arguments",
+		}, nil
 	}
 	if args.Product != DemoProductName {
-		return ToolResult{Error: "示例资料中没有这个商品"}, nil
+		return ToolResult{
+			Error: "示例资料中没有这个商品",
+		}, nil
 	}
 	return ToolResult{
 		OK: true,
@@ -118,7 +124,13 @@ func demoSearch(question string) []DemoSource {
 		document DemoSource // 命中后返回的只读资料。
 	}{
 		{
-			terms: []string{"笔记本", "缺页", "保修", "换货", "售后"},
+			terms: []string{
+				"笔记本",
+				"缺页",
+				"保修",
+				"换货",
+				"售后",
+			},
 			document: DemoSource{
 				ID:    "demo-notebook-001",
 				Title: "笔记本说明",
@@ -126,7 +138,11 @@ func demoSearch(question string) []DemoSource {
 			},
 		},
 		{
-			terms: []string{"配送", "发货", "运费"},
+			terms: []string{
+				"配送",
+				"发货",
+				"运费",
+			},
 			document: DemoSource{
 				ID:    "demo-shipping-002",
 				Title: "配送说明",
@@ -179,7 +195,7 @@ func (c *Client) DemoRetrieval(ctx context.Context, req ChatInput) (result DemoR
 		result.Execution.Answer = "内置资料没有相关内容，无法根据资料回答。"
 		return result, nil
 	}
-	response, err := run.model.Chat(ctx, Request{
+	response, err := run.modelCli.Chat(ctx, Request{
 		Messages: demoMessages(prompt, fmt.Sprintf("问题：%s\n参考资料（JSON 数据）：%s", req.Question, raw)),
 	})
 	if err == nil && response.FinishReason != FinishReasonStop {
@@ -225,7 +241,7 @@ func (c *Client) DemoWorkflow(ctx context.Context, req ChatInput) (result DemoWo
 		"检查：指出缺少的信息和需要用户决定的地方",
 		"汇总：给出简短清楚的实施清单，不猜测缺少的信息",
 	} {
-		response, callErr := run.model.Chat(ctx, Request{
+		response, callErr := run.modelCli.Chat(ctx, Request{
 			Messages: demoMessages(prompt, fmt.Sprintf("原需求：%s\n前一步结果：%s\n本步要求：%s", req.Question, previous, stage)),
 		})
 		if callErr != nil {
@@ -282,7 +298,9 @@ func (c *Client) DemoEvaluation(ctx context.Context) (result DemoEvaluationResul
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		item.Execution, err = c.Run(ctx, RunInput{Question: item.Question})
+		item.Execution, err = c.Run(ctx, RunInput{
+			Question: item.Question,
+		})
 		if err != nil {
 			item.Error = "本题调用未完成，请查看执行步骤"
 			result.Cases = append(result.Cases, item)

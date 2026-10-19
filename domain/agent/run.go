@@ -38,7 +38,7 @@ func (c *Client) Run(ctx context.Context, req RunInput) (result ExecutionResult,
 		result:   &result,
 	}
 	result.Answer, err = Run(ctx, LoopInput{
-		Model:    run.model,
+		ModelCli: run.modelCli,
 		Tools:    tools,
 		Question: req.Question,
 		Prompt:   AgentPrompt,
