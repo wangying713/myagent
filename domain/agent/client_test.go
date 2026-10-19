@@ -172,7 +172,7 @@ func TestClientRunRecordsTool(t *testing.T) {
 		}, nil
 	})
 	observer := &testObserver{}
-	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Run(context.Background(), RunInput{})
+	result, err := newTestClient(t, modelCli, observer, DefaultLimits()).Run(context.Background(), "")
 	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Steps) != 3 || result.Steps[1].Kind != "tool" {
 		t.Fatalf("工具执行记录错误：%+v，错误 %v", result, err)
 	}
@@ -196,9 +196,7 @@ func TestClientInputAndCancellation(t *testing.T) {
 		}); !errors.Is(err, ErrInput) {
 			t.Errorf("聊天实际错误 %v，预期 ErrInput", err)
 		}
-		if _, err := agentCli.Run(context.Background(), RunInput{
-			Question: question,
-		}); !errors.Is(err, ErrInput) {
+		if _, err := agentCli.Run(context.Background(), question); !errors.Is(err, ErrInput) {
 			t.Errorf("工具运行实际错误 %v，预期 ErrInput", err)
 		}
 	}

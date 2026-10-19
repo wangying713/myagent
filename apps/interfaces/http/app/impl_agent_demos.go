@@ -67,9 +67,7 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.agentCli.Run(ctx, agent.RunInput{
-		Question: question,
-	})
+	result, err := a.agentCli.Run(ctx, question)
 	return &proto.DemosToolsRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -185,9 +183,7 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *proto.DemosObserv
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.agentCli.DemoObservation(ctx, agent.RunInput{
-		Question: question,
-	})
+	result, err := a.agentCli.DemoObservation(ctx, question)
 	return &proto.DemosObservationRsp{
 		Execution: demoExecution(result),
 	}, err

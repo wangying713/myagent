@@ -76,9 +76,7 @@ func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, 
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.agentCli.Run(ctx, agent.RunInput{
-		Question: question,
-	})
+	result, err := a.agentCli.Run(ctx, question)
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}

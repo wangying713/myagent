@@ -40,7 +40,7 @@ func (c *Client) DemoOverview(ctx context.Context, req ChatInput) (DemoOverviewR
 	if err != nil {
 		return result, err
 	}
-	result.WithTools, err = c.Run(ctx, RunInput(req))
+	result.WithTools, err = c.Run(ctx, req.Question)
 	return result, err
 }
 
@@ -176,8 +176,8 @@ func (c *Client) DemoReliability(ctx context.Context, req DemoReliabilityInput) 
 }
 
 // DemoObservation 保留真实模型和工具调用的耗时、步骤与当前观测状态。
-func (c *Client) DemoObservation(ctx context.Context, req RunInput) (ExecutionResult, error) {
-	return c.Run(ctx, req)
+func (c *Client) DemoObservation(ctx context.Context, question string) (ExecutionResult, error) {
+	return c.Run(ctx, question)
 }
 
 // DemoDelivery 把本地商品资料、价格查询和乘法组合成一个只读商品助手。
