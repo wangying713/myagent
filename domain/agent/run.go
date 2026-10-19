@@ -14,8 +14,8 @@ type RunInput struct {
 }
 
 // Run 通过受预算约束的循环调用模型和已注册的乘法工具。
-func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult, err error) {
-	result = s.newResult(OperationRun)
+func (c *Client) Run(ctx context.Context, req RunInput) (result ExecutionResult, err error) {
+	result = c.newResult(OperationRun)
 	if req.Question == "" {
 		req.Question = AgentQuestion
 	}
@@ -23,7 +23,7 @@ func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult
 		return result, err
 	}
 	baseTools := MultiplyTools{}
-	ctx, run := s.begin(ctx, &result, RunDetails{
+	ctx, run := c.startRun(ctx, &result, RunDetails{
 		Questions:  []string{req.Question},
 		Prompt:     AgentPrompt,
 		Tools:      baseTools.Definitions(),
@@ -34,7 +34,7 @@ func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult
 	}()
 	tools := &recordingTools{
 		tools:    baseTools,
-		observer: s.observer,
+		observer: c.observer,
 		result:   &result,
 	}
 	result.Answer, err = Run(ctx, LoopInput{
@@ -42,7 +42,7 @@ func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult
 		Tools:    tools,
 		Question: req.Question,
 		Prompt:   AgentPrompt,
-		Limits:   s.limits,
+		Limits:   c.limits,
 	})
 	return result, err
 }

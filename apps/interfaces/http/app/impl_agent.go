@@ -10,14 +10,14 @@ import (
 
 // ImplAgent 为各接口准备领域输入，并显式组装各自的 Proto 响应。
 type ImplAgent struct {
-	service *agent.Service // 由入口注入的 Agent 领域服务。
+	client *agent.Client // 由入口注入的 Agent 客户端。
 }
 
-func newImplAgent(service *agent.Service) (*ImplAgent, error) {
-	if service == nil {
+func newImplAgent(client *agent.Client) (*ImplAgent, error) {
+	if client == nil {
 		return nil, errors.New("Agent API 业务依赖不能为空")
 	}
-	return &ImplAgent{service: service}, nil
+	return &ImplAgent{client: client}, nil
 }
 
 // Chat 执行单轮聊天，省略问题时使用默认问题。 @alias=/api/agent/chat
@@ -26,7 +26,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRs
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.Chat(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.Chat(ctx, agent.ChatInput{Question: question})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRs
 
 // Messages 执行两轮对话，第二轮携带第一轮实际返回的消息。 @alias=/api/agent/messages
 func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
-	result, err := a.service.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
+	result, err := a.client.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, 
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.Run(ctx, agent.RunInput{Question: question})
+	result, err := a.client.Run(ctx, agent.RunInput{Question: question})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}

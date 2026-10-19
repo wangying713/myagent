@@ -12,11 +12,11 @@ import (
 
 // ImplAgentDemos 为学习页面的每个演示准备输入并组装独立响应，业务仍由领域层执行。
 type ImplAgentDemos struct {
-	service *agent.Service // 与旧 API 复用的领域服务，不复制模型客户端或配置。
+	client *agent.Client // 与旧 API 复用的 Agent 客户端，不复制模型客户端或配置。
 }
 
-func newImplAgentDemos(service *agent.Service) *ImplAgentDemos {
-	return &ImplAgentDemos{service: service}
+func newImplAgentDemos(client *agent.Client) *ImplAgentDemos {
+	return &ImplAgentDemos{client: client}
 }
 
 // Overview 演示Agent 到底是什么。 @alias=/api/agent-demos/overview
@@ -25,7 +25,7 @@ func (a *ImplAgentDemos) Overview(ctx context.Context, req *proto.DemosOverviewR
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoOverview(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoOverview(ctx, agent.ChatInput{Question: question})
 	return &proto.DemosOverviewRsp{
 		Direct:    demoExecution(result.Direct),
 		WithTools: demoExecution(result.WithTools),
@@ -38,14 +38,14 @@ func (a *ImplAgentDemos) Chat(ctx context.Context, req *proto.DemosChatReq) (*pr
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.Chat(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.Chat(ctx, agent.ChatInput{Question: question})
 	return &proto.DemosChatRsp{Execution: demoExecution(result)}, err
 }
 
 // Messages 演示消息历史。 @alias=/api/agent-demos/messages
 func (a *ImplAgentDemos) Messages(ctx context.Context, req *proto.DemosMessagesReq) (*proto.DemosMessagesRsp, error) {
 	questions := req.GetQuestions()
-	result, err := a.service.Messages(ctx, agent.MessagesInput{Questions: questions})
+	result, err := a.client.Messages(ctx, agent.MessagesInput{Questions: questions})
 	return &proto.DemosMessagesRsp{Execution: demoExecution(result)}, err
 }
 
@@ -55,7 +55,7 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.Run(ctx, agent.RunInput{Question: question})
+	result, err := a.client.Run(ctx, agent.RunInput{Question: question})
 	return &proto.DemosToolsRsp{Execution: demoExecution(result)}, err
 }
 
@@ -65,7 +65,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *proto.DemosStructu
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoStructured(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoStructured(ctx, agent.ChatInput{Question: question})
 	return &proto.DemosStructuredRsp{
 		Execution: demoExecution(result.Execution),
 		Product:   result.Order.Product,
@@ -79,7 +79,7 @@ func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *proto.DemosMult
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoMultipleTools(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoMultipleTools(ctx, agent.ChatInput{Question: question})
 	return &proto.DemosMultipleToolsRsp{Execution: demoExecution(result)}, err
 }
 
@@ -96,7 +96,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *proto.DemosReliab
 	if calls < 1 || calls > int64(agent.DefaultLimits().ModelCalls) {
 		return nil, agent.ErrInput
 	}
-	result, err := a.service.DemoReliability(ctx, agent.DemoReliabilityInput{
+	result, err := a.client.DemoReliability(ctx, agent.DemoReliabilityInput{
 		Question:   question,
 		ModelCalls: int(calls),
 	})
@@ -118,7 +118,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *proto.DemosRetrieva
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoRetrieval(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoRetrieval(ctx, agent.ChatInput{Question: question})
 	sources := make([]*proto.DemosSource, 0, len(result.Sources))
 	for _, source := range result.Sources {
 		sources = append(sources, &proto.DemosSource{
@@ -139,7 +139,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowR
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoWorkflow(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoWorkflow(ctx, agent.ChatInput{Question: question})
 	stages := make([]*proto.DemosStage, 0, len(result.Stages))
 	for _, stage := range result.Stages {
 		stages = append(stages, &proto.DemosStage{
@@ -159,13 +159,13 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *proto.DemosObserv
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoObservation(ctx, agent.RunInput{Question: question})
+	result, err := a.client.DemoObservation(ctx, agent.RunInput{Question: question})
 	return &proto.DemosObservationRsp{Execution: demoExecution(result)}, err
 }
 
 // Evaluation 演示评估与回归。 @alias=/api/agent-demos/evaluation
 func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *proto.DemosEvaluationReq) (*proto.DemosEvaluationRsp, error) {
-	result, err := a.service.DemoEvaluation(ctx)
+	result, err := a.client.DemoEvaluation(ctx)
 	cases := make([]*proto.DemosCase, 0, len(result.Cases))
 	for _, item := range result.Cases {
 		cases = append(cases, &proto.DemosCase{
@@ -189,7 +189,7 @@ func (a *ImplAgentDemos) Delivery(ctx context.Context, req *proto.DemosDeliveryR
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.service.DemoDelivery(ctx, agent.ChatInput{Question: question})
+	result, err := a.client.DemoDelivery(ctx, agent.ChatInput{Question: question})
 	return &proto.DemosDeliveryRsp{Execution: demoExecution(result)}, err
 }
 
@@ -205,7 +205,7 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *proto.DemosStreamReq) 
 	}
 	return func(yield func(*proto.DemosStreamRsp, error) bool) {
 		stopped := false
-		result, err := a.service.DemoStream(ctx, agent.DemoStreamInput{
+		result, err := a.client.DemoStream(ctx, agent.DemoStreamInput{
 			Question: question,
 			Emit: func(text string) error {
 				if stopped || !yield(&proto.DemosStreamRsp{Delta: text}, nil) {

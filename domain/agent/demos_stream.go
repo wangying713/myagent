@@ -25,19 +25,19 @@ type DemoStreamInput struct {
 }
 
 // DemoStream 沿用当前请求上下文实时生成，失败时保留已经收到的文字与执行记录。
-func (s *Service) DemoStream(ctx context.Context, req DemoStreamInput) (result ExecutionResult, err error) {
+func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result ExecutionResult, err error) {
 	if req.Question == "" {
 		req.Question = "用生活中的例子解释 Go 的 context，分三点说明。"
 	}
 	if validateQuestion(req.Question) != nil || req.Emit == nil {
 		return result, ErrInput
 	}
-	client, ok := s.model.(StreamClient)
+	client, ok := c.model.(StreamClient)
 	if !ok {
 		return result, errors.New("模型客户端不支持流式回答")
 	}
-	result = s.newResult(DemoStream)
-	ctx, run := s.begin(ctx, &result, RunDetails{
+	result = c.newResult(DemoStream)
+	ctx, run := c.startRun(ctx, &result, RunDetails{
 		Questions: []string{req.Question},
 		Prompt:    ChatPrompt,
 	})
@@ -67,8 +67,8 @@ func (s *Service) DemoStream(ctx context.Context, req DemoStreamInput) (result E
 	step := ExecutionStep{
 		Kind:         StepKindModel,
 		Name:         "实时流式模型请求",
-		Request:      s.observer.Safe(response.RequestJSON),
-		Response:     s.observer.Safe(response.Raw),
+		Request:      c.observer.Safe(response.RequestJSON),
+		Response:     c.observer.Safe(response.Raw),
 		ElapsedMS:    time.Since(started).Milliseconds(),
 		FinishReason: response.FinishReason,
 		Usage:        &response.Usage,

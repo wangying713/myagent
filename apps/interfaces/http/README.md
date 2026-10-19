@@ -84,7 +84,7 @@ HTTP 失败码：
 ## Gin 使用约定
 
 - `app/router.go` 的 `newRouter` 返回 `*gin.Engine`，显式注册 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run` 和 `/api/health`。旧 `/api/demos/*` 已移除；不通过循环或课程字符串生成路由。
-- `app/impl_agent.go` 中的 `Chat`、`Messages`、`Run` 使用 `(ctx, req) → (rsp, err)` 签名，分别调用 `domain/agent.Service` 对应方法，返回生成的响应消息及错误。它们不接收 Gin 上下文或直接写 HTTP 响应。
+- `app/impl_agent.go` 中的 `Chat`、`Messages`、`Run` 使用 `(ctx, req) → (rsp, err)` 签名，分别调用 `domain/agent.Client` 对应方法，返回生成的响应消息及错误。它们不接收 Gin 上下文或直接写 HTTP 响应。
 - `app/router.go` 通过 `handle(implAgent.Chat)` 这类单参数调用逐条绑定 API。`app/handler.go` 统一解码、准备请求、管理超时和取消、转换响应及映射错误，失败时保留已有的部分结果；路由只提供具名业务方法。
 - `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `app/handler.go`。
 - 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
@@ -124,7 +124,7 @@ POST /api/agent/chat
   → apps/interfaces/http/app/router.go：handle(implAgent.Chat)
   → apps/interfaces/http/app/handler.go：调用 httpx.DecodeProtoJSON 解码、准备请求、派生上下文
   → apps/interfaces/http/app/impl_agent.go：implAgent.Chat(ctx, req) → (rsp, err)
-  → domain/agent/chat.go：Service.Chat
+  → domain/agent/chat.go：Client.Chat
   → infra/deepseek/client.go：Client.Chat
 ```
 
@@ -140,7 +140,7 @@ POST /api/agent/chat
 
 ```go
 func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
-	result, err := a.service.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
+	result, err := a.client.Messages(ctx, agent.MessagesInput{Questions: req.GetQuestions()})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 
 `Chat` 和 `Run` 先转换并校验问题的省略与空字符串，再按同样方式返回结果。API 方法不接收 `gin.Context`，不解析 HTTP 正文、不设置超时、不直接写响应。
 
-`app/router.go` 创建 `newImplAgent(service)`，通过 `requestTimeout(timeout)` 中间件统一设置当前路由的超时；路由只传入业务方法：
+`app/router.go` 创建 `newImplAgent(client)`，通过 `requestTimeout(timeout)` 中间件统一设置当前路由的超时；路由只传入业务方法：
 
 ```go
 router.POST("/api/agent/chat", handle(implAgent.Chat))

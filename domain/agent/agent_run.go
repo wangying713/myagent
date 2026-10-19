@@ -16,43 +16,43 @@ type agentRun struct {
 }
 
 // newResult 根据业务操作标识创建本次运行的初始结果，供后续调用累计状态和步骤。
-func (s *Service) newResult(operation string) ExecutionResult {
+func (c *Client) newResult(operation string) ExecutionResult {
 	return ExecutionResult{
 		Operation: operation,
 		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
 		UsageComplete: true,
 		// 使用非 nil 空切片，使尚无步骤的结果在 HTTP JSON 中表现为 []。
 		Steps:            []ExecutionStep{},
-		TelemetryEnabled: s.observer.Enabled(),
+		TelemetryEnabled: c.observer.Enabled(),
 	}
 }
 
-// begin 为这次问答做好准备：记下问题和调用限制，开始记录执行过程。
+// startRun 为这次问答做好准备：记下问题和调用限制，开始记录执行过程。
 // 后面把模型调用次数、用了多少 token、每一步做了什么都写进 result，最后由 end 收尾。
-func (s *Service) begin(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *agentRun) {
+func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *agentRun) {
 	// 把允许调用模型、工具的次数和 token 上限也记下来。
-	input.Limits = s.limits
+	input.Limits = c.limits
 	// 如果模型能提供自己的名称、地址等信息，就一起记下来。
-	if model, ok := s.model.(ModelInfoProvider); ok {
+	if model, ok := c.model.(ModelInfoProvider); ok {
 		info := model.ModelInfo()
 		input.Model = &info
 	}
 	// 开始记录这次运行，并把查询记录用的 trace ID 放进结果。
 	// 后续沿用返回的 ctx，模型和工具的记录就能串到同一次运行下。
-	ctx, run := s.observer.StartRun(ctx, result.Operation, input)
+	ctx, run := c.observer.StartRun(ctx, result.Operation, input)
 	result.TraceID = run.TraceID()
 	// 给这次运行准备一份单独的数据，并记下开始时间。
 	return ctx, &agentRun{
-		observer: s.observer,
+		observer: c.observer,
 		result:   result,
 		run:      run,
 		started:  time.Now(),
 		// 给模型加上记账功能，每次调用都把用量和执行结果写进同一份 result。
 		model: &recordingModel{
-			inner:    s.model,
-			observer: s.observer,
+			inner:    c.model,
+			observer: c.observer,
 			result:   result,
-			limits:   s.limits,
+			limits:   c.limits,
 		},
 	}
 }

@@ -14,15 +14,15 @@ type ChatInput struct {
 }
 
 // Chat 发送一次模型请求；未提供问题时使用默认问题。
-func (s *Service) Chat(ctx context.Context, req ChatInput) (result ExecutionResult, err error) {
-	result = s.newResult(OperationChat)
+func (c *Client) Chat(ctx context.Context, req ChatInput) (result ExecutionResult, err error) {
+	result = c.newResult(OperationChat)
 	if req.Question == "" {
 		req.Question = ChatQuestion
 	}
 	if err := validateQuestion(req.Question); err != nil {
 		return result, err
 	}
-	ctx, run := s.begin(ctx, &result, RunDetails{
+	ctx, run := c.startRun(ctx, &result, RunDetails{
 		Questions: []string{req.Question},
 		Prompt:    ChatPrompt,
 	})

@@ -85,7 +85,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 			t.Error(err)
 		}
 	})
-	client, err := deepseek.New(deepseek.Config{
+	modelClient, err := deepseek.New(deepseek.Config{
 		APIKey:  "test-api-key",
 		BaseURL: upstream.URL,
 		Model:   "test-model",
@@ -94,12 +94,12 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(client.Close)
-	runner, err := agent.NewService(client, telemetry, cfg.Limits)
+	t.Cleanup(modelClient.Close)
+	client, err := agent.NewClient(modelClient, telemetry, cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(runner, cfg.Timeout, telemetry)
+	handler, err := newRouter(client, cfg.Timeout, telemetry)
 	if err != nil {
 		t.Fatal(err)
 	}
