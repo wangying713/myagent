@@ -24,12 +24,8 @@ func newImplAgent(agentCli *agent.Client) (*ImplAgent, error) {
 
 // Chat 执行单轮聊天，省略问题时使用默认问题。 @alias=/api/agent/chat
 func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.Chat(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
@@ -72,11 +68,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 
 // Run 执行受预算约束的工具调用循环。 @alias=/api/agent/run
 func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
-	result, err := a.agentCli.Run(ctx, question)
+	result, err := a.agentCli.Run(ctx, req.GetQuestion())
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
@@ -100,17 +92,6 @@ func prepareAgentMessages(req *proto.MessagesReq, present map[string]bool) {
 	if present["questions"] && len(req.Questions) == 0 {
 		req.Questions = []string{}
 	}
-}
-
-func agentQuestionInput(value *string) (string, error) {
-	if value == nil {
-		return "", nil
-	}
-	// 省略使用业务默认问题，显式空字符串仍应拒绝。
-	if *value == "" {
-		return "", agent.ErrInput
-	}
-	return *value, nil
 }
 
 // agentSteps 转换接口复用的步骤与用量数据，保留 nil 与空切片的区别。

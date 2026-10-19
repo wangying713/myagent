@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ChatReq 对应 POST /api/agent/chat；省略问题使用默认问题，空字符串无效。
+// ChatReq 对应 POST /api/agent/chat；省略或空字符串交给领域层使用默认问题。
 type ChatReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      *string                `protobuf:"bytes,1,opt,name=question,proto3,oneof" json:"question,omitempty"`
@@ -113,6 +113,7 @@ func (x *MessagesReq) GetQuestions() []string {
 }
 
 // RunReq 对应 POST /api/agent/run，只允许调用已注册的工具。
+// 省略问题或空字符串使用领域层默认问题。
 type RunReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      *string                `protobuf:"bytes,1,opt,name=question,proto3,oneof" json:"question,omitempty"`

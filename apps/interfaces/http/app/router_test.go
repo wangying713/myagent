@@ -433,7 +433,6 @@ func TestInputRejectionDoesNotCallModel(t *testing.T) {
 			`{`,
 			`{} {}`,
 			`{"question":null}`,
-			`{"question":""}`,
 			`{"Question":"问题"}`,
 			`{"question":"a","question":"b"}`,
 			`{"model":"override"}`,

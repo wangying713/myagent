@@ -12,9 +12,84 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/domain/agent"
 
 	"github.com/gin-gonic/gin"
 )
+
+func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
+	for _, endpoint := range []struct {
+		path     string // 普通 API 或 Demo 的请求地址。
+		fallback string // 该接口在问题为空时使用的领域默认值。
+	}{
+		{
+			path:     "/api/agent/chat",
+			fallback: agent.ChatQuestion,
+		},
+		{
+			path:     "/api/agent/run",
+			fallback: agent.AgentQuestion,
+		},
+		{
+			path:     "/api/agent-demos/chat",
+			fallback: agent.ChatQuestion,
+		},
+		{
+			path:     "/api/agent-demos/tools",
+			fallback: agent.AgentQuestion,
+		},
+	} {
+		for _, input := range []struct {
+			name     string // 输入场景。
+			body     string // 客户端实际发送的 JSON。
+			question string // 模型应收到的完整问题。
+		}{
+			{
+				name:     "保留问题原文",
+				body:     `{"question":"  请计算 17×23，保留这句话。  "}`,
+				question: "  请计算 17×23，保留这句话。  ",
+			},
+			{
+				name:     "省略问题交给领域默认值",
+				body:     `{}`,
+				question: endpoint.fallback,
+			},
+			{
+				name:     "空字符串交给领域默认值",
+				body:     `{"question":""}`,
+				question: endpoint.fallback,
+			},
+		} {
+			t.Run(endpoint.path+"/"+input.name, func(t *testing.T) {
+				calls := 0
+				router, _ := setup(t, func(w http.ResponseWriter, r *http.Request) {
+					calls++
+					var request agent.Request
+					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+						t.Error(err)
+					}
+					if len(request.Messages) != 2 || request.Messages[1].Content != input.question {
+						t.Errorf("实际模型消息 %+v，预期问题原文 %q", request.Messages, input.question)
+					}
+					reply(w, map[string]string{
+						"role":    "assistant",
+						"content": "完成",
+					}, "stop")
+				}, routerTestConfig{
+					Limits:  agent.DefaultLimits(),
+					Timeout: time.Second,
+				}, &memoryExporter{})
+				req := httptest.NewRequest(http.MethodPost, endpoint.path, strings.NewReader(input.body))
+				req.Header.Set("Content-Type", "application/json")
+				out := httptest.NewRecorder()
+				router.ServeHTTP(out, req)
+				if out.Code != http.StatusOK || calls != 1 {
+					t.Fatalf("实际 HTTP %d、调用 %d 次、响应 %s，预期成功调用模型一次", out.Code, calls, out.Body.String())
+				}
+			})
+		}
+	}
+}
 
 func TestResponseJSONCompatibility(t *testing.T) {
 	zero, total := int64(0), int64(12)

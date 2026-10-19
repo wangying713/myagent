@@ -188,7 +188,11 @@ func TestAgentDemosEveryChapter(t *testing.T) {
 		},
 	} {
 		t.Run(tc.chapter, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/agent-demos/"+tc.chapter, strings.NewReader(`{}`))
+			body := `{}`
+			if tc.chapter == "stream" {
+				body = `{"question":""}`
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/agent-demos/"+tc.chapter, strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			out := httptest.NewRecorder()
 			router.ServeHTTP(out, req)
@@ -226,7 +230,7 @@ func TestAgentDemosRejectInvalidRequestsWithoutCallingModel(t *testing.T) {
 	}{
 		{
 			chapter: "chat",
-			body:    `{"question":""}`,
+			body:    `{"question":" "}`,
 		},
 		{
 			chapter: "messages",

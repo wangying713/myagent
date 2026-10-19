@@ -23,12 +23,8 @@ func newImplAgentDemos(agentCli *agent.Client) *ImplAgentDemos {
 
 // Overview 演示Agent 到底是什么。 @alias=/api/agent-demos/overview
 func (a *ImplAgentDemos) Overview(ctx context.Context, req *proto.DemosOverviewReq) (*proto.DemosOverviewRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoOverview(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	return &proto.DemosOverviewRsp{
 		Direct:    demoExecution(result.Direct),
@@ -38,12 +34,8 @@ func (a *ImplAgentDemos) Overview(ctx context.Context, req *proto.DemosOverviewR
 
 // Chat 演示普通聊天。 @alias=/api/agent-demos/chat
 func (a *ImplAgentDemos) Chat(ctx context.Context, req *proto.DemosChatReq) (*proto.DemosChatRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.Chat(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	return &proto.DemosChatRsp{
 		Execution: demoExecution(result),
@@ -63,11 +55,7 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *proto.DemosMessagesR
 
 // Tools 演示工具调用与循环。 @alias=/api/agent-demos/tools
 func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*proto.DemosToolsRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
-	result, err := a.agentCli.Run(ctx, question)
+	result, err := a.agentCli.Run(ctx, req.GetQuestion())
 	return &proto.DemosToolsRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -75,12 +63,8 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*
 
 // Structured 演示结构化输出。 @alias=/api/agent-demos/structured
 func (a *ImplAgentDemos) Structured(ctx context.Context, req *proto.DemosStructuredReq) (*proto.DemosStructuredRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoStructured(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	return &proto.DemosStructuredRsp{
 		Execution: demoExecution(result.Execution),
@@ -91,12 +75,8 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *proto.DemosStructu
 
 // MultipleTools 演示多个工具协作。 @alias=/api/agent-demos/multiple-tools
 func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *proto.DemosMultipleToolsReq) (*proto.DemosMultipleToolsRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoMultipleTools(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	return &proto.DemosMultipleToolsRsp{
 		Execution: demoExecution(result),
@@ -105,10 +85,6 @@ func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *proto.DemosMult
 
 // Reliability 演示失败与执行边界。 @alias=/api/agent-demos/reliability
 func (a *ImplAgentDemos) Reliability(ctx context.Context, req *proto.DemosReliabilityReq) (*proto.DemosReliabilityRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	calls := int64(1)
 	if req.ModelCalls != nil {
 		calls = req.GetModelCalls()
@@ -117,7 +93,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *proto.DemosReliab
 		return nil, agent.ErrInput
 	}
 	result, err := a.agentCli.DemoReliability(ctx, agent.DemoReliabilityInput{
-		Question:   question,
+		Question:   req.GetQuestion(),
 		ModelCalls: int(calls),
 	})
 	reason := "已完成，未触发次数限制"
@@ -134,12 +110,8 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *proto.DemosReliab
 
 // Retrieval 演示检索与记忆。 @alias=/api/agent-demos/retrieval
 func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *proto.DemosRetrievalReq) (*proto.DemosRetrievalRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoRetrieval(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	sources := make([]*proto.DemosSource, 0, len(result.Sources))
 	for _, source := range result.Sources {
@@ -157,12 +129,8 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *proto.DemosRetrieva
 
 // Workflow 演示工作流。 @alias=/api/agent-demos/workflow
 func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowReq) (*proto.DemosWorkflowRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoWorkflow(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	stages := make([]*proto.DemosStage, 0, len(result.Stages))
 	for _, stage := range result.Stages {
@@ -179,11 +147,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowR
 
 // Observation 演示日志与观测。 @alias=/api/agent-demos/observation
 func (a *ImplAgentDemos) Observation(ctx context.Context, req *proto.DemosObservationReq) (*proto.DemosObservationRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
-	result, err := a.agentCli.DemoObservation(ctx, question)
+	result, err := a.agentCli.DemoObservation(ctx, req.GetQuestion())
 	return &proto.DemosObservationRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -211,12 +175,8 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *proto.DemosEvaluat
 
 // Delivery 演示综合练习。 @alias=/api/agent-demos/delivery
 func (a *ImplAgentDemos) Delivery(ctx context.Context, req *proto.DemosDeliveryReq) (*proto.DemosDeliveryRsp, error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
 	result, err := a.agentCli.DemoDelivery(ctx, agent.ChatInput{
-		Question: question,
+		Question: req.GetQuestion(),
 	})
 	return &proto.DemosDeliveryRsp{
 		Execution: demoExecution(result),
@@ -226,10 +186,7 @@ func (a *ImplAgentDemos) Delivery(ctx context.Context, req *proto.DemosDeliveryR
 // Stream 返回同步拉取的响应序列；传输层负责 SSE，领域层只接收普通回调。
 // 消费者停止读取时回调立即返回取消，不启动后台生产协程。
 func (a *ImplAgentDemos) Stream(ctx context.Context, req *proto.DemosStreamReq) (iter.Seq2[*proto.DemosStreamRsp, error], error) {
-	question, err := agentQuestionInput(req.Question)
-	if err != nil {
-		return nil, err
-	}
+	question := req.GetQuestion()
 	if question != "" && (len([]rune(question)) > agent.MaxQuestionChars || strings.TrimSpace(question) == "") {
 		return nil, agent.ErrInput
 	}

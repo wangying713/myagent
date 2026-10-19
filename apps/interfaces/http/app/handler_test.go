@@ -58,10 +58,10 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 			status: 400,
 		},
 		{
-			name:   "空问题",
+			name:   "领域拒绝超长问题",
 			method: "POST",
 			path:   "/api/agent/chat",
-			body:   `{"question":""}`,
+			body:   `{"question":"` + strings.Repeat("字", agent.MaxQuestionChars+1) + `"}`,
 			code:   "invalid_input",
 			status: 400,
 		},

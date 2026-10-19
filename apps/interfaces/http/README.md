@@ -53,7 +53,7 @@ tail -f .runtime/http/server.log
 | `POST /api/agent/messages` | `{}` 或 `{"questions":["第一轮问题","第二轮问题"]}` | 单次执行两轮，第二轮携带第一轮实际历史 |
 | `POST /api/agent/run` | `{}` 或 `{"question":"乘法问题"}` | 只允许乘法工具的有限循环 |
 
-POST 使用 `Content-Type: application/json`。空对象使用原 Python demo 默认问题；拒绝未知或跨课程字段、重复字段、null、非法类型、空白问题及多段 JSON。每个问题最多 4096 字符，正文最多 32 KiB。
+POST 使用 `Content-Type: application/json`。空对象或空字符串问题使用领域层默认问题；拒绝未知或跨课程字段、重复字段、null、非法类型、空白问题及多段 JSON。每个问题最多 4096 字符，正文最多 32 KiB。
 
 响应的 `data` 包含 `completed`、`answer`、`steps`、耗时、调用数、已知 token、用量完整性。步骤按真实执行顺序保存脱敏后的请求与响应；工具步骤的请求中保留调用 ID 与 JSON 参数。
 
@@ -163,7 +163,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 
 请求与响应分别命名为 `ChatReq/ChatRsp`、`MessagesReq/MessagesRsp`、`RunReq/RunRsp`，都由 Proto 生成到 `proto`。
 
-`Chat` 和 `Run` 先转换并校验问题的省略与空字符串，再按同样方式返回结果。API 方法不接收 `gin.Context`，不解析 HTTP 正文、不设置超时、不直接写响应。
+`Chat` 和 `Run` 直接将 `req.GetQuestion()` 传给 Agent 客户端；默认问题与业务校验由领域层处理，再按同样方式返回结果。API 方法不接收 `gin.Context`，不解析 HTTP 正文、不设置超时、不直接写响应。
 
 `app/router.go` 创建 `newImplAgent(agentCli)`，通过 `requestTimeout(timeout)` 中间件统一设置当前路由的超时；路由只传入业务方法：
 
@@ -207,7 +207,7 @@ router.POST("/api/agent/run", handle(implAgent.Run))
 
 请求先由 `httpx.DecodeProtoJSON` 按消息描述符校验顶层字段名，再由官方 `protojson` 解码。保留 32 KiB 正文限制、内容类型检查，以及对顶层未知字段、重复字段、大小写与驼峰别名、显式 null、多段 JSON 的拒绝；不使用 Gin 默认绑定替代这些检查。字段名从 `.proto` 派生，不在处理器里维护第二份允许字段列表。
 
-- `question` 使用 `optional string`，区分省略与显式空字符串；省略使用默认问题，空字符串或空白问题无效。
+- `question` 保留 `optional string` 协议，接口直接传递 `GetQuestion()` 返回的字符串；省略和空字符串均交给领域层使用默认问题，纯空白或超长问题仍然无效。
 - `questions` 使用 `repeated string`。这类字段本身不提供存在性，因此通用解码器另行返回实际出现的顶层字段。路由为消息接口显式绑定 `prepareAgentMessages`，在成功解码后将显式空数组保留为非 nil 的空切片，省略则保持 nil。领域方法仍按原规则处理，不从上下文读取隐藏参数。
 - 用量使用 `optional int64`，区分未知、已知为零和其他数值。
 
