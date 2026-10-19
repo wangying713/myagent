@@ -11,7 +11,7 @@ const (
 // Run 通过受预算约束的循环调用模型和已注册的乘法工具。
 // question 为空字符串时使用 AgentQuestion。
 func (c *Client) Run(ctx context.Context, question string) (result ExecutionResult, err error) {
-	result = c.newResult(OperationRun)
+	result = NewExecutionResult(OperationRun, c.observer.Enabled())
 	if question == "" {
 		question = AgentQuestion
 	}

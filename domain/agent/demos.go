@@ -64,7 +64,7 @@ func (c *Client) DemoStructured(ctx context.Context, req ChatInput) (result Demo
 	if err := validateQuestion(req.Question); err != nil {
 		return result, err
 	}
-	result.Execution = c.newResult(DemoStructured)
+	result.Execution = NewExecutionResult(DemoStructured, c.observer.Enabled())
 	prompt := `只从用户文字提取商品和数量，输出 JSON，例如 {"product":"笔记本","quantity":3}。只允许 product、quantity 两个字段。缺少商品用空字符串，缺少数量用 0，不能猜测，不执行购买。`
 	ctx, run := c.startRun(ctx, &result.Execution, RunDetails{
 		Questions: []string{req.Question},
@@ -106,7 +106,7 @@ type demoLoopInput struct {
 
 // demoLoop 复用现有的循环和执行记录，每次请求独立计算预算。
 func (c *Client) demoLoop(ctx context.Context, req demoLoopInput) (result ExecutionResult, err error) {
-	result = c.newResult(req.Operation)
+	result = NewExecutionResult(req.Operation, c.observer.Enabled())
 	if err := validateQuestion(req.Question); err != nil {
 		return result, err
 	}

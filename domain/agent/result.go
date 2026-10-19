@@ -27,6 +27,18 @@ type ExecutionResult struct {
 	TelemetryEnabled bool   // 是否启用链路观测。
 }
 
+// NewExecutionResult 创建本次运行的初始结果，操作标识和是否开启观测由调用方传入。
+func NewExecutionResult(operation string, telemetryEnabled bool) ExecutionResult {
+	return ExecutionResult{
+		Operation: operation,
+		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
+		UsageComplete: true,
+		// 使用非 nil 空切片，使尚无步骤的结果在 HTTP JSON 中表现为 []。
+		Steps:            []ExecutionStep{},
+		TelemetryEnabled: telemetryEnabled,
+	}
+}
+
 // ExecutionStep 保存一次模型或工具调用的耗时、脱敏正文和可用的用量。
 type ExecutionStep struct {
 	Kind         string // 步骤类型，区分模型调用与工具调用。

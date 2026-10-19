@@ -15,18 +15,6 @@ type agentRun struct {
 	started  time.Time        // 记下开始时间，用来计算总耗时。
 }
 
-// newResult 根据业务操作标识创建本次运行的初始结果，供后续调用累计状态和步骤。
-func (c *Client) newResult(operation string) ExecutionResult {
-	return ExecutionResult{
-		Operation: operation,
-		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
-		UsageComplete: true,
-		// 使用非 nil 空切片，使尚无步骤的结果在 HTTP JSON 中表现为 []。
-		Steps:            []ExecutionStep{},
-		TelemetryEnabled: c.observer.Enabled(),
-	}
-}
-
 // startRun 为这次问答做好准备：记下问题和调用限制，开始记录执行过程。
 // 后面把模型调用次数、用了多少 token、每一步做了什么都写进 result，最后由 end 收尾。
 func (c *Client) startRun(ctx context.Context, result *ExecutionResult, input RunDetails) (context.Context, *agentRun) {

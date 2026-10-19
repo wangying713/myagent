@@ -230,7 +230,7 @@ impl := &ImplAgent{
 - 个别字面量可以保留：空串、直观的 0/1 和索引、局部结构的固定数量、只出现一次且语义明确的文案或局部值，以及 JSON 标签、JSON Schema、显式路由等协议声明。是否提取以含义、复用和维护成本判断，不要求消除所有字面量。
 - 测试中的独立协议样本、边界输入和预期值可保留字面量，以验证线上取值不变；不要把所有预期都改成生产常量，导致常量改错时测试也同步放行。生成文件继续交给生成器处理。
 
-例如 `s.newResult(OperationMessages)` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
+例如 `NewExecutionResult(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
 
 ## HTTP API 方法签名
 

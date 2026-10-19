@@ -15,7 +15,7 @@ type ChatInput struct {
 
 // Chat 发送一次模型请求；未提供问题时使用默认问题。
 func (c *Client) Chat(ctx context.Context, req ChatInput) (result ExecutionResult, err error) {
-	result = c.newResult(OperationChat)
+	result = NewExecutionResult(OperationChat, c.observer.Enabled())
 	if req.Question == "" {
 		req.Question = ChatQuestion
 	}

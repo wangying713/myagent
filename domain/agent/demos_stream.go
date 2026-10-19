@@ -36,7 +36,7 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ex
 	if !ok {
 		return result, errors.New("模型客户端不支持流式回答")
 	}
-	result = c.newResult(DemoStream)
+	result = NewExecutionResult(DemoStream, c.observer.Enabled())
 	ctx, run := c.startRun(ctx, &result, RunDetails{
 		Questions: []string{req.Question},
 		Prompt:    ChatPrompt,
