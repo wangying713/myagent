@@ -54,11 +54,25 @@ func newRouter(service *agent.Service, timeout time.Duration, observer httpObser
 	})
 
 	// 路由逐条声明完整地址，便于从 URL 直接定位具名处理方法。
+	implAgentDemos := newImplAgentDemos(service)
 	router.GET("/api/health", health)
 	router.HEAD("/api/health", health)
 	router.POST("/api/agent/chat", handle(implAgent.Chat))
 	router.POST("/api/agent/messages", handle(implAgent.Messages))
 	router.POST("/api/agent/run", handle(implAgent.Run))
+	router.POST("/api/agent-demos/overview", handle(implAgentDemos.Overview))
+	router.POST("/api/agent-demos/chat", handle(implAgentDemos.Chat))
+	router.POST("/api/agent-demos/messages", handle(implAgentDemos.Messages))
+	router.POST("/api/agent-demos/tools", handle(implAgentDemos.Tools))
+	router.POST("/api/agent-demos/structured", handle(implAgentDemos.Structured))
+	router.POST("/api/agent-demos/multiple-tools", handle(implAgentDemos.MultipleTools))
+	router.POST("/api/agent-demos/stream", handleAgentDemosStream(implAgentDemos.Stream))
+	router.POST("/api/agent-demos/reliability", handle(implAgentDemos.Reliability))
+	router.POST("/api/agent-demos/retrieval", handle(implAgentDemos.Retrieval))
+	router.POST("/api/agent-demos/workflow", handle(implAgentDemos.Workflow))
+	router.POST("/api/agent-demos/observation", handle(implAgentDemos.Observation))
+	router.POST("/api/agent-demos/evaluation", handle(implAgentDemos.Evaluation))
+	router.POST("/api/agent-demos/delivery", handle(implAgentDemos.Delivery))
 	return router, nil
 }
 

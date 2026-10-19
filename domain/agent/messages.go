@@ -32,12 +32,12 @@ func (s *Service) Messages(ctx context.Context, req MessagesInput) (result Execu
 			return result, err
 		}
 	}
-	ctx, execution := s.begin(ctx, &result, RunDetails{
+	ctx, run := s.begin(ctx, &result, RunDetails{
 		Questions: req.Questions,
 		Prompt:    MessagesPrompt,
 	})
 	defer func() {
-		execution.end(err)
+		run.end(err)
 	}()
 	messages := []Message{
 		{
@@ -50,7 +50,7 @@ func (s *Service) Messages(ctx context.Context, req MessagesInput) (result Execu
 			Role:    RoleUser,
 			Content: question,
 		})
-		response, callErr := execution.model.Chat(ctx, Request{Messages: messages})
+		response, callErr := run.model.Chat(ctx, Request{Messages: messages})
 		if callErr != nil {
 			return result, callErr
 		}

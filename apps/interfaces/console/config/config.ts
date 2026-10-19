@@ -213,6 +213,10 @@ export default defineConfig({
   utoopack: {
     module: {
       rules: {
+        '*.docs': {
+          loaders: [{ loader: join(__dirname, 'learning-doc-loader.cjs') }],
+          as: '*.js',
+        },
         '*.md': {
           loaders: [{ loader: join(__dirname, 'md-raw-loader.cjs') }],
           as: '*.js',

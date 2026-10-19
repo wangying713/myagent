@@ -1,37 +1,129 @@
-import { request } from '@umijs/max';
-import type { Lesson, RunRsp } from './data';
+import type { ApiResult } from '../api-explorer/data';
+import { sendApi, validateBody } from '../api-explorer/service';
+import type { AgentDemo } from './data';
 
-/** 调用 Agent 业务接口；业务失败也读取结构化正文，保留已完成的步骤。 */
-export async function runLesson(
-  lesson: Lesson,
-  questions: string[],
-  signal: AbortSignal,
-): Promise<RunRsp> {
-  const paths: Record<Lesson, string> = {
-    chat: '/api/agent/chat',
-    messages: '/api/agent/messages',
-    agent: '/api/agent/run',
+export { validateBody };
+
+export interface StreamEvent {
+  code: string;
+  msg: string;
+  traceID: string;
+  data: {
+    delta: string;
+    done: boolean;
+    execution: unknown;
   };
-  const rsp = await request<RunRsp>(paths[lesson], {
+}
+
+function parseStreamEvent(text: string): StreamEvent {
+  const value: unknown = JSON.parse(text);
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !('code' in value) ||
+    typeof value.code !== 'string' ||
+    !('msg' in value) ||
+    typeof value.msg !== 'string' ||
+    !('traceID' in value) ||
+    typeof value.traceID !== 'string' ||
+    !('data' in value) ||
+    !value.data ||
+    typeof value.data !== 'object' ||
+    !('delta' in value.data) ||
+    typeof value.data.delta !== 'string' ||
+    !('done' in value.data) ||
+    typeof value.data.done !== 'boolean'
+  ) {
+    throw new Error('流式事件格式不正确，已停止接收。');
+  }
+  return value as StreamEvent;
+}
+
+/** 普通请求复用 API 页的请求入口，保留原始参数和错误响应。 */
+export function sendDemo(
+  demo: AgentDemo,
+  body: string,
+  signal: AbortSignal,
+): Promise<ApiResult> {
+  return sendApi({ ...demo, method: 'POST' }, body, signal);
+}
+
+/** 浏览器 Axios 使用 XHR，不能逐段读响应；仅 SSE 使用同源 fetch 和相同的取消信号。 */
+export async function streamDemo(
+  demo: AgentDemo,
+  body: string,
+  signal: AbortSignal,
+  onEvent: (event: StreamEvent) => void,
+): Promise<ApiResult> {
+  const started = performance.now();
+  const response = await fetch(demo.path, {
     method: 'POST',
-    baseURL: '',
-    data: lesson === 'messages' ? { questions } : { question: questions[0] },
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body,
     signal,
-    timeout: 0,
-    skipErrorHandler: true,
-    validateStatus: (status) => status >= 200 && status < 600,
   });
   if (
-    typeof rsp.code !== 'string' ||
-    typeof rsp.msg !== 'string' ||
-    typeof rsp.traceID !== 'string' ||
-    (rsp.data !== null && typeof rsp.data?.completed !== 'boolean') ||
-    (rsp.code === 'ok' && rsp.data === null)
+    !response.ok ||
+    !response.headers.get('content-type')?.startsWith('text/event-stream')
   ) {
-    throw new Error('后台返回格式无效，请检查 Go 服务和接口代理');
+    return {
+      status: response.status,
+      body: await response.text(),
+      traceID: '',
+      elapsedMS: Math.round(performance.now() - started),
+    };
   }
-  return {
-    ...rsp,
-    data: rsp.data ? { ...rsp.data, steps: rsp.data.steps ?? [] } : null,
-  };
+  if (!response.body) {
+    throw new Error('浏览器没有提供可读取的响应流。');
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let buffer = '';
+  let eventLines: string[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      size += chunk.value?.byteLength ?? 0;
+      if (size > 4 * 1024 * 1024) {
+        throw new Error('响应超过 4 MiB，已停止接收。');
+      }
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+      let end = buffer.indexOf('\n');
+      while (end >= 0) {
+        const line = buffer.slice(0, end).replace(/\r$/, '');
+        buffer = buffer.slice(end + 1);
+        if (!line && eventLines.length) {
+          const raw = eventLines.join('\n');
+          eventLines = [];
+          const event = parseStreamEvent(raw);
+          onEvent(event);
+          if (event.data.done) {
+            return {
+              status: response.status,
+              body: raw,
+              traceID: event.traceID,
+              elapsedMS: Math.round(performance.now() - started),
+            };
+          }
+          if (event.code !== 'ok') {
+            throw new Error(event.msg);
+          }
+        } else if (line.startsWith('data:')) {
+          eventLines.push(line.slice(5).replace(/^ /, ''));
+        }
+        end = buffer.indexOf('\n');
+      }
+      if (chunk.done) {
+        throw new Error('连接提前结束，回答未完成；已收到的内容仍然保留。');
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }

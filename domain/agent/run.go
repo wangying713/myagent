@@ -23,14 +23,14 @@ func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult
 		return result, err
 	}
 	baseTools := MultiplyTools{}
-	ctx, execution := s.begin(ctx, &result, RunDetails{
+	ctx, run := s.begin(ctx, &result, RunDetails{
 		Questions:  []string{req.Question},
 		Prompt:     AgentPrompt,
 		Tools:      baseTools.Definitions(),
 		ToolChoice: ToolChoiceAuto,
 	})
 	defer func() {
-		execution.end(err)
+		run.end(err)
 	}()
 	tools := &recordingTools{
 		tools:    baseTools,
@@ -38,7 +38,7 @@ func (s *Service) Run(ctx context.Context, req RunInput) (result ExecutionResult
 		result:   &result,
 	}
 	result.Answer, err = Run(ctx, LoopInput{
-		Model:    execution.model,
+		Model:    run.model,
 		Tools:    tools,
 		Question: req.Question,
 		Prompt:   AgentPrompt,

@@ -55,9 +55,81 @@ export default [
     component: './chatbot',
   },
   {
+    path: '/agent-demos',
+    name: 'agent-demos',
+    icon: 'read',
+    routes: [
+      { path: '/agent-demos', redirect: '/agent-demos/overview' },
+      {
+        path: '/agent-demos/overview',
+        name: 'overview',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/chat',
+        name: 'chat',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/messages',
+        name: 'messages',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/tools',
+        name: 'tools',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/structured',
+        name: 'structured',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/multiple-tools',
+        name: 'multiple-tools',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/stream',
+        name: 'stream',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/reliability',
+        name: 'reliability',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/retrieval',
+        name: 'retrieval',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/workflow',
+        name: 'workflow',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/observation',
+        name: 'observation',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/evaluation',
+        name: 'evaluation',
+        component: './agent-development',
+      },
+      {
+        path: '/agent-demos/delivery',
+        name: 'delivery',
+        component: './agent-development',
+      },
+    ],
+  },
+  {
     path: '/agent-development',
-    name: 'agent-development',
-    icon: 'experiment',
+    hideInMenu: true,
     component: './agent-development',
   },
   {
@@ -74,11 +146,6 @@ export default [
       {
         path: '/demos',
         redirect: '/demos/dashboard/analysis',
-      },
-      {
-        path: '/demos/go-agent',
-        redirect: '/agent-development',
-        hideInMenu: true,
       },
       {
         path: '/demos/dashboard',

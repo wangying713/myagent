@@ -22,14 +22,14 @@ func (s *Service) Chat(ctx context.Context, req ChatInput) (result ExecutionResu
 	if err := validateQuestion(req.Question); err != nil {
 		return result, err
 	}
-	ctx, execution := s.begin(ctx, &result, RunDetails{
+	ctx, run := s.begin(ctx, &result, RunDetails{
 		Questions: []string{req.Question},
 		Prompt:    ChatPrompt,
 	})
 	defer func() {
-		execution.end(err)
+		run.end(err)
 	}()
-	response, err := execution.model.Chat(ctx, Request{
+	response, err := run.model.Chat(ctx, Request{
 		Messages: []Message{
 			{
 				Role:    RoleSystem,

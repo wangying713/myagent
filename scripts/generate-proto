@@ -35,19 +35,20 @@ mkdir -p "$project_dir/.tools/protobuf"
 output_dir=$(mktemp -d "${TMPDIR:-/tmp}/saklay-proto.XXXXXX")
 trap 'rm -rf "$output_dir"' EXIT
 trap 'exit 1' HUP INT TERM
-schema=apps/interfaces/http/proto/agent.proto
-generated=apps/interfaces/http/proto/agent.pb.go
-# 按 go_package 生成到 proto，与协议源文件同目录。
-"$compiler" -I . --plugin="protoc-gen-go=$generator" \
-    --go_out="$output_dir" --go_opt=module=saklay/ai "$schema"
-
-if [ "$check" = true ]; then
-    if ! cmp -s "$output_dir/$generated" "$generated"; then
-        echo "生成文件与 proto 定义不一致，请运行 ./scripts/generate-proto" >&2
-        exit 1
+for schema in apps/interfaces/http/proto/*.proto; do
+    generated="${schema%.proto}.pb.go"
+    "$compiler" -I . --plugin="protoc-gen-go=$generator" \
+        --go_out="$output_dir" --go_opt=module=saklay/ai "$schema"
+    if [ "$check" = true ]; then
+        if ! cmp -s "$output_dir/$generated" "$generated"; then
+            echo "生成文件与 $schema 不一致，请运行 ./scripts/generate-proto" >&2
+            exit 1
+        fi
+    else
+        cp "$output_dir/$generated" "$generated"
+        echo "已生成 $generated"
     fi
+done
+if [ "$check" = true ]; then
     echo "Proto 生成文件检查通过"
-else
-    cp "$output_dir/$generated" "$generated"
-    echo "已生成 $generated"
 fi

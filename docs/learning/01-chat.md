@@ -1,75 +1,47 @@
-# 01：看懂一次模型调用
+# 普通聊天与一次模型请求
 
-## 目标与阅读顺序
+本章已配一个可运行的小 Demo，后面的章节安排用于继续学习和逐步细化。
 
-能解释请求发给谁、模型看到哪些材料，以及接口成功为什么不等于任务完成。
+## 当前可以运行的 Demo
 
-先看 [聊天业务](../../domain/agent/chat.go) 的 `Service.Chat`，再看 [客户端](../../infra/deepseek/client.go) 的 `Chat`，最后看 [协议](../../domain/agent/protocol.go) 的 `Response.Validate`。Go 结构体和切片保存数据，`json.Marshal` 将数据编码成 JSON，`http.Client.Do` 发送请求；通过 `error` 返回失败，使用 `defer` 释放响应 body。
+### 只问一次，先看清输入输出
 
-## 页面请求与模型请求
+问题传给 Go，Go 加上中文系统提示，发给模型，再返回实际回答。
 
-管理台发送 `POST /api/agent/chat`，正文 `{}` 使用默认问题，也可发送：
+管理台打开 **Agent Demos → 普通聊天**，右侧已有请求参数，可以直接发送，也可以先修改。接口为 `POST /api/agent-demos/chat`。页面中的原文链接用于核对相关官方资料；项目设计的例子会单独注明。
 
-```json
-{"question":"用一句话解释什么是递归。"}
-```
+**怎么看结果：**execution.answer 是回答；model_calls 通常为 1；steps 里能看到本次模型请求和响应。
 
-Go 服务再发送模型请求。下面是当前默认配置对应的请求示意，鉴权只放请求头：
+可以改 question 后再请求，比较不同问法。每次请求互相独立。
 
-```text
-POST https://api.deepseek.com/v1/chat/completions
-Authorization: Bearer <本机配置的密钥>
-Content-Type: application/json
-```
+## 学习目标
 
-```json
-{
-  "model": "deepseek-flash",
-  "messages": [
-    {"role": "system", "content": "你是一个简洁的中文助手。"},
-    {"role": "user", "content": "用一句话解释什么是递归。"}
-  ],
-  "thinking": {"type": "disabled"},
-  "max_tokens": 512,
-  "stream": false
-}
-```
+看懂一次请求发了什么、收到了什么。
 
-模型名和地址来自配置；客户端补齐思考关闭、非流式、输出上限 512。密钥不会发送给前端，也不进入 prompt。工具描述在第三课才加入请求。
+## 贯穿案例
 
-## 如何读返回结果
+让模型用一句话解释递归。
 
-模型响应示意如下，文本和用量是示意值：
+## 章节安排
 
-```json
-{
-  "choices": [{
-    "message": {"role":"assistant","content":"递归是一个过程在解决问题时调用自身。"},
-    "finish_reason": "stop"
-  }],
-  "usage": {"prompt_tokens":30,"completion_tokens":15,"total_tokens":45}
-}
-```
+### 1. 消息角色
 
-客户端先检查 HTTP 状态，再解析唯一的候选响应并校验角色、正文和结束原因。`stop` 配合非空正文表示正常文本完成；`tool_calls` 交给工具循环；`length` 等其他原因报告无效或未完成，不把截断正文当完整答案。HTTP 错误与协议错误保留已收到的响应副本，方便定位。
+认识 system、user、assistant 的作用；把指令与待处理内容区分开。
 
-页面的 `data.answer` 是最终回答；`data.steps` 展示本次实际模型请求和原始响应的脱敏副本；`completed` 表示程序流程完成，不能证明开放式回答事实正确。用量未返回时，页面会说明统计不完整。
+### 2. 请求与响应
 
-## 操作与练习
+学习模型选择、消息列表、回答正文、结束原因和 token 用量；Go 中用结构体表达数据。
 
-打开 Agent 开发页面，点击“运行普通聊天”执行默认问题。应有一次模型步骤；正常观测为 HTTP 根 span、领域运行和模型 span，共 3 个。
+### 3. 正常与异常
 
-1. 在页面把“递归”改为“函数”，检查请求的 user 正文变化。
-2. 在聊天业务中临时调整 system 提示词，重启 Go 服务，比较请求和回答后恢复。前端输入只控制问题。
-3. 在客户端中临时将 `MaxTokens` 改为 1，观察结束原因和未完成状态后恢复。该字段当前固定在客户端，不是 HTTP 参数。
+区分完整回答、截断、网络失败和超时，不把所有 HTTP 成功响应都当作任务成功。
 
-每次只改一个变量。可先用 [离线接口测试](../../apps/interfaces/http/app/router_test.go) 构造截断响应，避免为验证错误反复调用真实模型。
+## 练习方向
 
-## 通过标准
+对照一份请求和响应样本，圈出问题、回答、结束原因与用量；先读样本，不需要接入真实模型。
 
-- 能从实际请求找到 URL、鉴权位置、system 和 user 消息。
-- 能从响应找到回答、`finish_reason` 和 `usage`，区分 HTTP 成功、协议完成与答案正确。
-- 能按 trace ID 找到两个 span，解释它们的父子关系。
-- 知道模型不会自行读取本机文件，材料需要程序显式提供。
+## 学会的标准
 
-下一课：[消息历史](02-messages.md)。
+能说清一轮聊天的输入输出，并指出失败发生在哪一层。
+
+[返回完整学习路线](README.md)。

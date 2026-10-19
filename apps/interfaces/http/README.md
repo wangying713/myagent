@@ -226,3 +226,11 @@ router.POST("/api/agent/run", handle(implAgent.Run))
 5. 运行生成检查、格式检查、`go vet`、普通测试与竞态测试；全程使用假模型和内存观测器。
 
 原理参考：[Go 消息生成说明](https://protobuf.dev/reference/go/go-generated/)、[ProtoJSON 格式](https://protobuf.dev/programming-guides/json/)、[字段存在性](https://protobuf.dev/programming-guides/field_presence/)。这些官方页面是来源资料，项目内使用说明以本中文文档为准。
+
+## Agent Demos 接口
+
+新增 `POST /api/agent-demos/overview`、`chat`、`messages`、`tools`、`structured`、`multiple-tools`、`stream`、`reliability`、`retrieval`、`workflow`、`observation`、`evaluation`、`delivery`，对应管理台的 13 个章节。路由逐条声明在 `app/router.go`，入口实现在 `app/impl_agent_demos.go`。原接口保留。
+
+普通响应仍为 `code/data/traceID/msg`；`data.execution` 是执行记录，概览分别返回 `direct/withTools`，评估返回 `cases/passed/total`。请求示例与实际演示边界见 `docs/learning` 各章的“当前可以运行的 Demo”。所有工具和资料都在本地固定注册，不执行外部动作。
+
+`stream` 返回 SSE；每条 `data:` 都是统一响应外层，末条 `data.done=true`。需检查 `code` 与 `execution.completed` 判断是否成功，收到部分内容或 HTTP 200 不能代表完成。取消请求会取消模型连接。离线测试用本机模拟服务，不读取真实密钥。

@@ -1,6 +1,6 @@
 # Go Agent 后台与管理台
 
-根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台点击后请求 Go HTTP 接口，展示实际消息、模型响应、工具结果和 OpenObserve trace ID。
+根据用户指定的三个 Python demo 迁移：普通聊天、携带历史的两轮对话、乘法工具调用循环。管理台「API」页保留这三个接口的调试能力；「Agent Demos」按学习路线提供 13 个最小可运行案例、说明文档与相关原文。
 
 HTTP 接口统一使用 Gin，当前锁定 v1.12.0；请求链路由官方 `otelgin` 中间件管理，显式注入私有观测配置；标准库 `http.Server` 负责超时和优雅退出。模型客户端继续使用标准库 HTTP/JSON，Agent 循环保持显式实现。
 
@@ -15,7 +15,7 @@ Go 工具链为 1.27.2，模块为 `saklay/ai`。`./scripts/go` 使用项目现�
 ./scripts/server
 ```
 
-打开 [Agent 开发](http://127.0.0.1:8000/agent-development)。开发环境预填演示账号 `admin` / `ant.design`，点击登录即可。侧边栏“Agent 开发”提供三个直接运行按钮，分别请求三课接口；可编辑问题并查看回答、真实步骤与 trace ID。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
+打开 [Agent Demos](http://127.0.0.1:8000/agent-demos/overview) 阅读学习资料；需要调试原有接口时，打开 [API](http://127.0.0.1:8000/api-explorer)。开发环境预填演示账号 `admin` / `ant.design`。API 页保留参数编辑、发送与取消请求、响应和 trace ID 展示。其他官方 Demos、个人页、欢迎页和 AI 助手保留。
 
 直接执行 `./scripts/server` 即可，默认整套重启；在 `scripts` 目录执行 `./server` 也可以。默认显式传入项目根目录的 `.env`，也可用 `./scripts/server restart -env-file 配置文件路径` 指定其他文件。Go 后台先编译最新代码，再优雅停止旧进程并启动；Node 前端复用 `npm start`，停止时一并通知其子进程退出。未运行的服务直接启动，成功前检查 Go 健康接口、管理台页面和前端到后台的代理。
 
@@ -40,7 +40,7 @@ Go 工具链为 1.27.2，模块为 `saklay/ai`。`./scripts/go` 使用项目现�
 | 消息历史 | `old/agent-learning/demos/demo_02_messages.py` | 第一轮保存实际 assistant → 第二轮回传完整历史 | `POST /api/agent/messages` |
 | 工具循环 | `old/agent-learning/demos/demo_03_agent_loop.py` | 模型提出 multiply → Go 校验并执行 → 按调用 ID 回填 → 模型回答 | `POST /api/agent/run` |
 
-默认问题和提示词保留原 demo 内容。工具仅有本地乘法；不引入 Agent 框架，不执行模型生成的代码。`old` 不参与 Go 构建。
+默认问题和提示词保留原 demo 内容。原三课工具为本地乘法；新增 Demo 另有内置商品查询。不引入 Agent 框架，不执行模型生成的代码。`old` 不参与 Go 构建。
 
 ## 目录
 
@@ -49,9 +49,9 @@ apps/
   config/            # 显式文件与环境变量配置
   interfaces/
     http/            # 启动入口、显式路由；agent 放接口适配，entity 放请求响应类型，proto 放协议源文件
-    console/         # 通用管理台；agent-development 为三课独立页面
+    console/         # 通用管理台；agent-development 为 13 章 Demo 页面
     cli/             # 预留，本次不新增 CLI 课程
-domain/agent/        # 三个业务流程、执行记录、协议、乘法工具和有限循环
+domain/agent/        # 基础流程、13 章最小演示、执行记录、协议和有限工具循环
 infra/
   httpx/             # 通用严格 JSON 解析、响应编码与传输错误
   deepseek/          # 标准库 HTTP 模型客户端
@@ -61,7 +61,7 @@ docs/
   learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-学习从 [中文学习指南](docs/learning/README.md) 开始，前三课包含操作、代码阅读、练习和通过标准；后续专题明确标注尚未实现。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+学习从 [中文学习指南](docs/learning/README.md) 开始，13 章包含当前演示的操作和边界；章节大纲保留进一步学习方向。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`run.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`loop.go`，执行记录见 `recording.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
@@ -73,7 +73,7 @@ HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/age
 
 默认总运行超时 120s、单次模型超时 60s；最多 5 次模型请求、8 次工具分发、8000 个累计已知 token 的软预算。真实演示会消耗模型 token；测试只使用假模型与内存观测器，不读取真实密钥。
 
-当前只做本机演示，不增加生产鉴权、流式、数据库或持久化会话。每次点击是独立运行，消息历史课程的一次运行包含两轮。
+当前只做本机演示，包含真实文本流式，不增加生产鉴权、数据库或持久化会话。每次 API 请求是独立运行，消息历史接口的一次请求包含两轮。
 
 ## 验证
 
@@ -90,3 +90,5 @@ npm run build
 ```
 
 格式由 `gofmt` 和现有 Biome 统一处理。构建前停止前端开发服务，构建结束后重新执行 `npm start`。规范见 [中文开发规范](docs/development/README.md)。
+
+管理台 **Agent Demos** 按学习路线提供 13 个二级章节，每章包含文档、相关原文链接及可编辑请求。Demo 接口为 `/api/agent-demos/*`，已有 API 页面和 `/api/agent/*` 继续保留。各章的实际演示范围见 `docs/learning`。

@@ -1,6 +1,6 @@
 # Ant Design Pro 官方完整版演示
 
-本目录安装 Ant Design Pro 官方 `v6.0.0`，保留官方页面、布局、登录和权限示例。欢迎、个人页、AI 助手、Agent 开发和 API 保留独立入口，其他示例统一归档到“示例页面（Demos）”。“Agent 开发”和“API”调用本项目 Go 后台，其他官方示例继续使用 Mock。
+本目录安装 Ant Design Pro 官方 `v6.0.0`，保留官方页面、布局、登录和权限示例。欢迎、个人页、AI 助手、Agent Demos 和 API 保留独立入口，其他示例统一归档到“示例页面（Demos）”。“Agent Demos”和“API”调用本项目 Go 后台，其他官方示例继续使用 Mock。
 
 ## 运行
 
@@ -53,7 +53,7 @@ npm start
 | 欢迎 | `src/pages/Welcome.tsx` | `/welcome` |
 | 个人页 | `src/pages/account` | `/account/center`、`/account/settings` |
 | AI 助手 | `src/pages/chatbot` | `/chatbot` |
-| Agent 开发 | `src/pages/agent-development` | `/agent-development` |
+| Agent Demos | `src/pages/agent-development` | `/agent-demos/overview` 及各章子路由 |
 | API | `src/pages/api-explorer` | `/api-explorer` |
 | 示例页面（Demos） | `src/pages/demos` | `/demos/...` |
 
@@ -87,28 +87,24 @@ npm run build
 
 ## API 接口调试
 
-点击“Agent 开发”下方的独立“API”菜单，或打开 `/api-explorer`。页面根据实际 Go 接口提供列表，包含健康检查 GET/HEAD，以及聊天、消息历史、Agent 运行三个 POST 接口。此页面按接口组织，不依赖课程演示页。
+点击独立“API”菜单，或打开 `/api-explorer`。页面根据实际 Go 接口提供列表，包含健康检查 GET/HEAD，以及聊天、消息历史、Agent 运行三个 POST 接口。此页面按接口组织，不依赖课程演示页。
 
 选中接口后可编辑默认 JSON，点击“发送请求”调用同源后台代理；GET/HEAD 不发送请求体。每个接口的编辑草稿在页面内分别保留，支持恢复默认参数。4xx/5xx 仍展示实际 HTTP 状态和响应正文，Trace ID 可复制。JSON 响应默认按两空格缩进、逐层换行显示，格式化只调整字符串之外的空白，保留大整数、精确小数、字段顺序和转义内容；非 JSON 响应保持原文。复制响应仍使用收到的原始正文。请求期间可取消，切换接口或离开页面也会取消旧请求；迟到响应不覆盖当前结果。
 
 接口定义与参数示例维护于 `src/pages/api-explorer/data.ts`，与 `apps/interfaces/http/app/router.go` 同步；后续新增后台接口时在列表中补充对应配置。此页不使用模板生成的 OpenAPI 示例或课程页面数据，也不保存模型密钥。
 
-## Agent 接口联调
+## Agent 学习文档与接口联调
 
-先在项目根目录准备 `.env`，再一键启动或重启前后端：
+Agent Demos 按 13 章组织二级菜单，每章有文档、相关原文和页内请求区域。正文来自项目 `docs` 中的 Markdown；修改后重启前端开发服务或重新构建，即可更新正文。旧文档链接仍可访问。
 
-```sh
-./scripts/server
-```
-
-打开 `http://127.0.0.1:8000/agent-development`。登录后点击侧边栏一级菜单“Agent 开发”，页面提供三个独立运行按钮：普通聊天、消息历史和工具调用循环。保留默认问题即可直接运行，也可先编辑问题。消息历史一次完成两轮，每次点击都重新开始。
-
-Agent 接口使用 `code/data/traceID/msg` 外层，成功 code 为 `ok`，失败提示使用 `msg`；data 可为 null，已有部分结果仍予保留。Trace ID 从外层读取。
-
-下方展示当前课程的回答、耗时、调用数、用量、trace ID 和可展开的真实请求、响应与工具步骤。窄屏时三张卡片竖向排列。旧地址 `/demos/go-agent` 跳转到新页面，不重复显示菜单。
-
-`config/proxy.ts` 只将 `/api/agent/*` 和 `/api/health` 转发到 `http://127.0.0.1:8080`，保留其他官方 Mock。若改了 Go 监听端口，同步修改该代理目标。模型密钥和观测鉴权留在 Go 配置，前端不保存凭据。
-
-执行期间禁用其他运行按钮和问题编辑，可点击“取消本次执行”。接口返回业务错误时仍展示已经完成的步骤，网络错误和取消分别显示提示；取消后的旧响应不会覆盖新执行结果。
+原有接口继续在独立 `/api-explorer` 页面调试。`config/proxy.ts` 将 `/api/agent/*`、`/api/agent-demos/*` 和 `/api/health` 转发到 `http://127.0.0.1:8080`，其余官方 Mock 保留。模型密钥和观测鉴权留在 Go 配置，前端不保存凭据。
 
 模板的完整中文介绍见 [README.zh-CN.md](README.zh-CN.md)，来源与适配记录见 [UPSTREAM.md](UPSTREAM.md)。
+
+## Agent Demos
+
+管理台菜单已改为 **Agent Demos**，按学习路线展开 13 个章节。打开章节后可阅读文档、点击官方原文或相关参考链接，并在当前页编辑 JSON、发送请求、停止请求和查看真实执行结果。旧文档地址 `/agent-development` 仍可打开；新入口为 <http://127.0.0.1:8000/agent-demos/overview>。
+
+Demo 请求 `/api/agent-demos/*`；原「API」页面和 `/api/agent/*` 全部保留。模型和观测继续使用现有 Go 启动配置，前端不保存密钥。检索与商品资料使用内置样本；评估使用三道固定题；流式页面实时读取模型内容，停止或切换章节会取消请求。
+
+学习文档来自 `docs/learning`，修改后重启开发服务或重新构建以重新载入。

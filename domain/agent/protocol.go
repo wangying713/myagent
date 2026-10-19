@@ -80,15 +80,21 @@ type FunctionDefinition struct {
 
 // Request 保存模型请求协议；实际模型名和生成参数由注入的客户端适配。
 type Request struct {
-	Model      string           `json:"model"`                 // 目标模型名称，由模型客户端适配。
-	Messages   []Message        `json:"messages"`              // 按对话顺序排列的消息历史。
-	Tools      []ToolDefinition `json:"tools,omitempty"`       // 当前允许模型选择的工具定义。
-	ToolChoice string           `json:"tool_choice,omitempty"` // 工具选择策略，auto 允许模型自行决定是否调用。
-	Thinking   struct {
+	Model          string           `json:"model"`                     // 目标模型名称，由模型客户端适配。
+	Messages       []Message        `json:"messages"`                  // 按对话顺序排列的消息历史。
+	Tools          []ToolDefinition `json:"tools,omitempty"`           // 当前允许模型选择的工具定义。
+	ToolChoice     string           `json:"tool_choice,omitempty"`     // 工具选择策略，auto 允许模型自行决定是否调用。
+	ResponseFormat *ResponseFormat  `json:"response_format,omitempty"` // 非 nil 时要求模型输出 JSON 对象。
+	Thinking       struct {
 		Type string `json:"type"` // 思考模式类型，由模型客户端适配。
 	} `json:"thinking"` // 模型思考模式配置。
 	MaxTokens int  `json:"max_tokens"` // 最大输出 token 数，由模型客户端适配。
-	Stream    bool `json:"stream"`     // 是否请求流式响应，当前客户端固定为 false。
+	Stream    bool `json:"stream"`     // 是否请求流式响应；流式使用独立的 Stream 方法。
+}
+
+// ResponseFormat 指定模型回答的编码形式，JSON 内容仍须通过业务校验。
+type ResponseFormat struct {
+	Type string `json:"type"` // json_object 要求回答为 JSON 对象。
 }
 
 // Usage 用指针区分零用量和未提供的用量。

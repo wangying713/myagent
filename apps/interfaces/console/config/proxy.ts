@@ -15,6 +15,11 @@ export default {
       target: 'http://127.0.0.1:8080',
       changeOrigin: true,
     },
+    '/api/agent-demos/': {
+      target: 'http://127.0.0.1:8080',
+      changeOrigin: true,
+      proxyTimeout: 130000,
+    },
     '/api/agent/': {
       target: 'http://127.0.0.1:8080',
       changeOrigin: true,

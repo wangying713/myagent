@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -64,6 +65,9 @@ func handle[Req, Rsp any, PReq protoRequest[Req]](api func(context.Context, PReq
 		if messages, ok := any(req).(*proto.MessagesReq); ok {
 			prepareAgentMessages(messages, present)
 		}
+		if messages, ok := any(req).(*proto.DemosMessagesReq); ok && present["questions"] && len(messages.Questions) == 0 {
+			messages.Questions = []string{}
+		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 		rsp, err := api(ctx, req)
@@ -82,6 +86,32 @@ func writeAPIResult(c *gin.Context, rsp any, err error) {
 		data = messagesRspJSON(rsp)
 	case *proto.RunRsp:
 		data = runRspJSON(rsp)
+	case *proto.DemosOverviewRsp:
+		data = demosOverviewRspJSON(rsp)
+	case *proto.DemosChatRsp:
+		data = demosChatRspJSON(rsp)
+	case *proto.DemosMessagesRsp:
+		data = demosMessagesRspJSON(rsp)
+	case *proto.DemosToolsRsp:
+		data = demosToolsRspJSON(rsp)
+	case *proto.DemosStructuredRsp:
+		data = demosStructuredRspJSON(rsp)
+	case *proto.DemosMultipleToolsRsp:
+		data = demosMultipleToolsRspJSON(rsp)
+	case *proto.DemosStreamRsp:
+		data = demosStreamRspJSON(rsp)
+	case *proto.DemosReliabilityRsp:
+		data = demosReliabilityRspJSON(rsp)
+	case *proto.DemosRetrievalRsp:
+		data = demosRetrievalRspJSON(rsp)
+	case *proto.DemosWorkflowRsp:
+		data = demosWorkflowRspJSON(rsp)
+	case *proto.DemosObservationRsp:
+		data = demosObservationRspJSON(rsp)
+	case *proto.DemosEvaluationRsp:
+		data = demosEvaluationRspJSON(rsp)
+	case *proto.DemosDeliveryRsp:
+		data = demosDeliveryRspJSON(rsp)
 	default:
 		// 新增协议须显式配置 HTTP 表现，避免标准 ProtoJSON 或生成标签改变契约。
 		writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{
@@ -91,6 +121,9 @@ func writeAPIResult(c *gin.Context, rsp any, err error) {
 		return
 	}
 	status, failure := classifyAgentError(err)
+	if errors.Is(err, agent.ErrInput) && strings.HasPrefix(c.FullPath(), "/api/agent-demos/") {
+		failure.Message = "参数不符合本章要求，请对照默认示例检查问题、两轮消息或调用次数"
+	}
 	writeHTTPRsp(c, status, data, failure)
 }
 

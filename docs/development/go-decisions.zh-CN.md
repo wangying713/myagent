@@ -240,3 +240,9 @@ HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显�
 通用框架能力优先复用当前依赖，新增依赖须能减少维护成本并保留现有契约。HTTP 请求链路使用 `otelgin`，Proto 解码使用官方 `protojson`；严格字段检查和 HTTP JSON 表现继续由入口适配。
 
 配置文件已使用 `godotenv.Read`。当前环境解析保留显式实现：显式空值优先于文件与默认值，布尔值仅接受规范化后的 true/false，整数沿用本机 int 范围。`caarlos0/env/v11` 的默认值与类型转换语义不同，当前规模下接入还需自定义解析及错误翻译，暂不增加该依赖。服务生命周期继续使用标准库，模型客户端保留原始 assistant 消息、取消与无重试语义。
+
+## Agent Demos 与文本流式接口
+
+经用户安排，`app/impl_agent_demos.go` 接入 13 个章节的最小演示，`proto/agent_demos.proto` 分别定义各接口的请求和响应，JSON 表现位于 `entity/agent_demos_json.go`。生成脚本统一检查 `http/proto` 中的所有协议。原 API 独立保留。
+
+普通 Demo 沿用 `(ctx, req) (rsp, error)` 和单参数 `handle`。文本流式接口的响应是同步拉取的 `iter.Seq2`，由专门的 SSE 适配写出；方法不依赖 Gin 或直接写 HTTP。每个事件沿用 `code/data/traceID/msg`，增量使用 `delta`，最终事件 `done=true` 并带完整或部分执行结果。流建立前失败返回普通 JSON；建立后失败用最终事件表达，不能再改 HTTP 状态。缺少最终事件视为中断。

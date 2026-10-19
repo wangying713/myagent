@@ -14,6 +14,10 @@ declare module '*.md' {
   const content: string;
   export default content;
 }
+declare module '*.docs' {
+  const documents: Record<string, string>;
+  export default documents;
+}
 declare module 'omit.js';
 declare module 'mockjs';
 

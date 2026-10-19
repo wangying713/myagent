@@ -1,357 +1,156 @@
-import { PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
+import type { ComponentProps, XMarkdownProps } from '@ant-design/x-markdown';
+import XMarkdown from '@ant-design/x-markdown';
+import '@ant-design/x-markdown/es/XMarkdown/index.css';
+import { Link, useLocation, useModel } from '@umijs/max';
+import React, { useEffect } from 'react';
+import { agentDemos } from './data';
 import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Collapse,
-  Descriptions,
-  Empty,
-  Form,
-  Input,
-  Row,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import type { Lesson, RunRsp } from './data';
-import { lessons, plannedLessons } from './data';
-import { runLesson } from './service';
+  defaultDocument,
+  documentHref,
+  documents,
+  documentURL,
+} from './documents';
+import RequestPanel from './request-panel';
+import './index.css';
 
-const LESSON_ORDER: Lesson[] = ['chat', 'messages', 'agent'];
-
-function prettyJSON(text: string): string {
-  if (!text) {
-    return '尚未收到响应';
-  }
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2);
-  } catch {
-    return text;
-  }
-}
-
-function ProtocolText({ text }: { text: string }) {
+function selectedDemo(pathname: string) {
   return (
-    <pre
-      style={{
-        whiteSpace: 'pre-wrap',
-        overflowWrap: 'anywhere',
-        maxHeight: 420,
-        overflow: 'auto',
-        margin: 0,
-      }}
-    >
-      {prettyJSON(text)}
-    </pre>
+    agentDemos.find((demo) => pathname === `/agent-demos/${demo.id}`) ||
+    agentDemos[0]
   );
 }
 
-export default function AgentDevelopment() {
-  const [lesson, setLesson] = useState<Lesson>('chat');
-  const [questions, setQuestions] = useState<Record<Lesson, string[]>>({
-    chat: [...lessons.chat.questions],
-    messages: [...lessons.messages.questions],
-    agent: [...lessons.agent.questions],
-  });
-  const [result, setResult] = useState<RunRsp>();
-  const [notice, setNotice] = useState('');
-  const [running, setRunning] = useState(false);
-  const controller = useRef<AbortController | null>(null);
-
-  useEffect(
-    () => () => {
-      controller.current?.abort();
-      controller.current = null;
-    },
-    [],
+function selectedDocument(search: string, pathname: string): string {
+  return (
+    new URLSearchParams(search).get('doc') || selectedDemo(pathname).document
   );
+}
 
-  const handleRun = async (target: Lesson) => {
-    if (controller.current) {
-      return;
-    }
-    const current = new AbortController();
-    controller.current = current;
-    setLesson(target);
-    setRunning(true);
-    setResult(undefined);
-    setNotice('');
-    try {
-      const response = await runLesson(
-        target,
-        questions[target],
-        current.signal,
-      );
-      if (controller.current === current) {
-        setResult(response);
-      }
-    } catch {
-      if (controller.current === current) {
-        setNotice(
-          current.signal.aborted
-            ? '已取消本次请求。'
-            : '接口请求失败，请确认 Go 服务已启动。',
-        );
-      }
-    } finally {
-      if (controller.current === current) {
-        controller.current = null;
-        setRunning(false);
-      }
-    }
-  };
+function DocumentLink({ children, domNode }: ComponentProps) {
+  const location = useLocation();
+  const source = 'attribs' in domNode ? domNode.attribs.href : undefined;
+  const href = source
+    ? documentHref(selectedDocument(location.search, location.pathname), source)
+    : undefined;
+  if (!href) {
+    return <span title="此文件请在项目目录中查看">{children}</span>;
+  }
+  if (href.startsWith('/agent-demos/')) {
+    return <Link to={href}>{children}</Link>;
+  }
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
 
-  const handleCancel = () => {
-    controller.current?.abort();
-    controller.current = null;
-    setRunning(false);
-    setNotice('已取消本次请求，后台会停止后续模型和工具调用。');
-  };
+const components = {
+  a: DocumentLink,
+};
 
-  const data = result?.data;
+const markdownConfig: XMarkdownProps['config'] = {
+  renderer: {
+    heading({ depth, text, tokens }) {
+      const id = text
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}_\s-]/gu, '')
+        .trim()
+        .replace(/\s/g, '-');
+      return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>`;
+    },
+  },
+};
+
+export default function AgentDemos() {
+  const location = useLocation();
+  const demo = selectedDemo(location.pathname);
+  const documentPath = selectedDocument(location.search, location.pathname);
+  const content = Object.hasOwn(documents, documentPath)
+    ? documents[documentPath]
+    : undefined;
+  const { initialState } = useModel('@@initialState');
+  const isDark = initialState?.settings?.navTheme === 'realDark';
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (location.hash) {
+        document
+          .getElementById(decodeURIComponent(location.hash.slice(1)))
+          ?.scrollIntoView();
+      } else {
+        window.scrollTo(0, 0);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [documentPath, location.hash]);
+
   return (
     <PageContainer
-      title="Agent 开发"
-      content="前三节可运行，查看 Go 接口的真实执行结果；下方还有结构化输出、流式回答和多个工具协作的课程大纲。"
+      title={documentPath === demo.document ? demo.title : '学习文档'}
+      subTitle="Agent Demos"
     >
-      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-        <Row gutter={[24, 24]}>
-          {LESSON_ORDER.map((key, index) => (
-            <Col key={key} xs={24} lg={8} style={{ display: 'flex' }}>
-              <Card
-                title={`${index + 1}. ${lessons[key].title}`}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-                styles={{
-                  body: { display: 'flex', flexDirection: 'column', flex: 1 },
-                }}
-              >
-                <Typography.Paragraph type="secondary">
-                  {lessons[key].description}
-                </Typography.Paragraph>
-                <Form layout="vertical" style={{ flex: 1 }}>
-                  {questions[key].map((question, position) => (
-                    <Form.Item
-                      key={
-                        position === 0 ? 'first-question' : 'second-question'
-                      }
-                      label={
-                        key === 'messages'
-                          ? `第 ${position + 1} 轮问题`
-                          : '问题'
-                      }
-                      htmlFor={`${key}-question-${position}`}
-                    >
-                      <Input.TextArea
-                        id={`${key}-question-${position}`}
-                        value={question}
-                        disabled={running}
-                        maxLength={4096}
-                        showCount
-                        autoSize={{ minRows: 2, maxRows: 6 }}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setQuestions((previous) => ({
-                            ...previous,
-                            [key]: previous[key].map((text, questionIndex) =>
-                              questionIndex === position ? value : text,
-                            ),
-                          }));
-                        }}
-                      />
-                    </Form.Item>
-                  ))}
-                </Form>
-                <Button
-                  type="primary"
-                  block
-                  icon={<PlayCircleOutlined />}
-                  loading={running && lesson === key}
-                  disabled={
-                    running ||
-                    questions[key].some((question) => !question.trim())
-                  }
-                  onClick={() => handleRun(key)}
+      <section className="agent-docs" data-theme={isDark ? 'dark' : 'light'}>
+        <nav className="agent-docs-nav" aria-label="学习文档">
+          <Link
+            to={documentURL(defaultDocument)}
+            aria-current={documentPath === defaultDocument ? 'page' : undefined}
+          >
+            DeepSeek 官方示例与课程依据
+          </Link>
+          <Link
+            to={documentURL('learning/README.md')}
+            aria-current={
+              documentPath === 'learning/README.md' ? 'page' : undefined
+            }
+          >
+            完整学习路线
+          </Link>
+        </nav>
+        <div
+          className={
+            documentPath === demo.document
+              ? 'agent-demo-layout'
+              : 'agent-demo-layout agent-demo-doc-only'
+          }
+        >
+          <article className="agent-docs-content">
+            {documentPath === demo.document && (
+              <header className="agent-demo-source">
+                <p>{demo.description}</p>
+                <a
+                  href={demo.sourceURL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  运行{lessons[key].title}
-                </Button>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        {running && (
-          <Alert
-            type="info"
-            showIcon
-            title={`正在运行：${lessons[lesson].title}`}
-            description="正在等待后台完成模型或工具调用。取消后可重新运行任一演示。"
-            action={
-              <Button icon={<StopOutlined />} onClick={handleCancel}>
-                取消本次执行
-              </Button>
-            }
-          />
-        )}
-        {notice && <Alert type="info" title={notice} showIcon />}
-        {result && result.code !== 'ok' && (
-          <Alert
-            type="error"
-            title={result.msg}
-            description={
-              <>
-                错误码：{result.code}。
-                {result.data
-                  ? '下方保留已完成的执行记录。'
-                  : '本次请求未产生执行结果。'}
-                {!result.data && result.traceID && (
-                  <Typography.Text copyable>{result.traceID}</Typography.Text>
-                )}
-              </>
-            }
-            showIcon
-          />
-        )}
-        {data ? (
-          <>
-            <Card
-              title={`${lessons[lesson].title} · 执行结果`}
-              extra={
-                <Tag color={data.completed ? 'success' : 'error'}>
-                  {data.completed ? '已完成' : '未完成'}
-                </Tag>
-              }
-            >
-              <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-                {data.answer || '尚未获得最终回答'}
-              </Typography.Paragraph>
-              <Descriptions
-                column={{ xs: 1, sm: 2, lg: 3 }}
-                items={[
-                  {
-                    key: 'elapsed',
-                    label: '总耗时',
-                    children: `${data.elapsed_ms} ms`,
-                  },
-                  {
-                    key: 'models',
-                    label: '模型调用',
-                    children: `${data.model_calls} 次`,
-                  },
-                  {
-                    key: 'tools',
-                    label: '工具分发',
-                    children: `${data.tool_calls} 次`,
-                  },
-                  {
-                    key: 'usage',
-                    label: '已知累计 token',
-                    children: `${data.known_tokens}${data.usage_complete ? '' : '（部分用量未知）'}`,
-                  },
-                  {
-                    key: 'trace',
-                    label: 'Trace ID',
-                    span: 2,
-                    children: result?.traceID ? (
-                      <Typography.Text copyable>
-                        {result.traceID}
-                      </Typography.Text>
-                    ) : (
-                      '观测已关闭'
-                    ),
-                  },
-                ]}
-              />
-              {data.telemetry_enabled && (
-                <Typography.Text type="secondary">
-                  Trace ID 可用于在 OpenObserve 中查询；生成 ID
-                  不代表记录已确认入库。
-                </Typography.Text>
-              )}
-            </Card>
-            <Card title={`执行过程 · ${data.steps.length} 个步骤`}>
-              {data.steps.length > 0 ? (
-                <Collapse
-                  items={data.steps.map((step, index) => ({
-                    key: `${index}-${step.kind}`,
-                    label: `${index + 1}. ${step.name} · ${step.elapsed_ms} ms${step.finish_reason ? ` · ${step.finish_reason}` : ''}`,
-                    children: (
-                      <Space orientation="vertical" style={{ width: '100%' }}>
-                        {step.error && (
-                          <Alert type="warning" title={step.error} />
-                        )}
-                        <Typography.Text strong>
-                          {step.kind === 'tool'
-                            ? '工具调用与参数'
-                            : '发送的请求与消息历史'}
-                        </Typography.Text>
-                        <ProtocolText text={step.request} />
-                        <Typography.Text strong>
-                          {step.kind === 'tool'
-                            ? '工具执行结果'
-                            : '收到的模型响应（含本轮用量）'}
-                        </Typography.Text>
-                        <ProtocolText text={step.response} />
-                      </Space>
-                    ),
-                  }))}
-                />
-              ) : (
-                <Empty description="没有执行步骤" />
-              )}
-            </Card>
-          </>
-        ) : (
-          !running &&
-          !notice && (
-            <Card>
-              <Empty description="点击上方任一运行按钮，查看回答与执行过程" />
-            </Card>
-          )
-        )}
-        <Card title="后续课程" extra={<Tag>待开发</Tag>}>
-          <Typography.Paragraph type="secondary">
-            先看课程大纲，后续按你安排的顺序开发。这三节暂未接入运行接口。
-          </Typography.Paragraph>
-          <Collapse
-            defaultActiveKey={['structured-output']}
-            items={plannedLessons.map((planned) => ({
-              key: planned.key,
-              label: planned.title,
-              children: (
-                <>
-                  <Typography.Paragraph>
-                    {planned.description}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph>
-                    <Typography.Text strong>课堂案例：</Typography.Text>
-                    {planned.example}
-                  </Typography.Paragraph>
-                  <Typography.Text strong>学习步骤</Typography.Text>
-                  <ol>
-                    {planned.steps.map((step) => (
-                      <li key={step}>{step}</li>
-                    ))}
-                  </ol>
-                  <Typography.Paragraph>
-                    <Typography.Text strong>动手练习：</Typography.Text>
-                    {planned.exercise}
-                  </Typography.Paragraph>
-                  <Typography.Paragraph style={{ marginBottom: 0 }}>
-                    <Typography.Text strong>学会的标准：</Typography.Text>
-                    {planned.completion}
-                  </Typography.Paragraph>
-                </>
-              ),
-            }))}
-          />
-        </Card>
-      </Space>
+                  {demo.sourceTitle} ↗
+                </a>
+                <span>
+                  {demo.projectExample
+                    ? ' · 项目练习，原文作为相关依据'
+                    : ' · 基于 DeepSeek 官方用法'}
+                </span>
+              </header>
+            )}
+            {content === undefined ? (
+              <p>没有找到这份文档，请从上方入口重新选择。</p>
+            ) : (
+              <XMarkdown
+                key={documentPath}
+                components={components}
+                config={markdownConfig}
+                escapeRawHtml
+              >
+                {content}
+              </XMarkdown>
+            )}
+          </article>
+          {documentPath === demo.document && (
+            <RequestPanel key={demo.id} demo={demo} />
+          )}
+        </div>
+      </section>
     </PageContainer>
   );
 }

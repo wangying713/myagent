@@ -1,4 +1,4 @@
-// Package deepseek 通过标准库 HTTP 调用非流式 Chat Completions。
+// Package deepseek 通过标准库 HTTP 调用普通及文本流式 Chat Completions。
 package deepseek
 
 import (
@@ -33,7 +33,7 @@ const (
 	defaultThinkingType = "disabled"
 )
 
-// Client 执行非流式模型请求并记录脱敏观测；构造后可并发调用。
+// Client 执行模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
 	config    Config                 // 构造时保存的模型服务配置。
 	http      *http.Client           // 发送模型请求的 HTTP 客户端。
@@ -104,7 +104,7 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 		return result, err
 	}
 	if req.Stream {
-		return result, errors.New("这三个 demo 不支持流式请求")
+		return result, errors.New("流式请求请使用 Stream 方法")
 	}
 	req.Model = c.config.Model
 	req.Thinking.Type = defaultThinkingType

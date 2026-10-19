@@ -90,6 +90,7 @@ export const errorConfig: RequestConfig = {
     (config: RequestOptions) => {
       if (
         config.url?.startsWith('/api/agent/') ||
+        config.url?.startsWith('/api/agent-demos/') ||
         config.url === '/api/health'
       ) {
         return config;

@@ -16,7 +16,11 @@
 - HTTP API 的协议源文件与生成的请求响应类型统一放在 `http/proto`，手写 HTTP 公共外层与 JSON 表现类型放在 `http/entity`。后续新增接口按业务分文件：`.proto` 与 `.pb.go` 同目录，各接口独立定义响应，按需复用步骤、用量等共用消息；手写共用数据也按业务分文件。`entity` 只承载接口数据，不依赖业务处理包、领域服务、Gin 或基础设施；请求准备及响应组装放在对应业务的 `app/impl_xxx.go`，接口显式返回自己的 Proto 响应；允许重复的字段赋值，不封装统一业务响应处理函数。HTTP JSON 适配和错误映射由 `app/handler.go` 处理。领域层和 `infra/httpx` 不依赖应用的 `entity` 或 `proto` 包。
 - API 方法统一为 `(ctx, req) (rsp, error)`，响应通过返回值提供；通过 `handle(implAgent.Chat)` 这类单参数调用接入 Gin，方法内不解析 HTTP 或直接写响应。请求消息统一用 `Req` 后缀，响应消息用 `Rsp` 后缀；Agent 分别使用 `ChatReq/ChatRsp`、`MessagesReq/MessagesRsp`、`RunReq/RunRsp`。`http/app/handler.go` 集中处理请求准备、JSON 适配、业务错误映射和统一 HTTP 写出；超时在路由初始化时通过中间件显式设置，解码及请求准备完成后才开始计时，不使用全局配置，外层结构为 `entity.Rsp[T]` 的 `code/data/traceID/msg`，成功 code 为 `ok`；公共响应码常量位于 `entity/code.go`，应用代码使用具名常量，领域错误判断、HTTP 状态和提示保留在 `app/handler.go`。无结果时 data 为 null，部分结果与错误同时返回时必须保留结果。具体见 `docs/development/go-decisions.zh-CN.md`。
 - Agent API 消息在 `http/proto/agent.proto` 定义，通过 `scripts/generate-proto` 生成 `http/proto/agent.pb.go`，禁止手改 `.pb.go`；提交前运行 `scripts/generate-proto --check`。API 方法使用 `proto` 中生成的请求和响应类型，领域层不依赖 Protobuf。HTTP JSON 表现类型位于 `entity/agent_json.go`，业务 data 通过 API 的私有转换保留数字、零值、null 与字段名等契约，不能直接换成标准 ProtoJSON。HTTP trace 在解码前建立，traceID 只放统一外层；领域运行、模型与工具沿用同一链路，关闭观测时为空。
-- 当前只实现聊天、消息历史和受控工具循环三课及 OpenObserve Traces。默认问题、提示词与流程已迁入 Go；学习资料以 `docs/learning` 为入口，未实现专题只保留学习路线，不据此扩展业务代码。
+- 保留聊天、消息历史、受控工具循环原 API 及 OpenObserve Traces；经用户明确安排，管理台 Agent Demos 按学习路线提供 13 个最小可运行案例。学习资料以 `docs/learning` 为入口，未在案例中实现的扩展主题不自动新增业务。
 - `old` 为废弃的历史归档，不参与 Go 构建，不作为新开发依据；服务只读取显式 `-env-file` 指定的新配置，不自动读取旧凭据。
 - 测试默认离线，不读取真实密钥、不连接外部模型。新增或修改行为时验证相应契约；提交前运行格式检查、`go vet ./...`、`go test ./...`、`go test -race ./...`。
 - 不提交 `.env` 或真实凭据，不自动覆盖已有配置，不把未知工具或模型生成的文本直接执行。
+
+- 管理台「Agent Demos」按现有学习章节组织二级菜单，支持文档、原文链接和页内接口请求；入口实现放在 `app/impl_agent_demos.go`，协议放在 `proto/agent_demos.proto`。原「API」页及后台继续保留。纯文档任务仍只处理文档及阅读入口，不据此增删已有业务功能。
+
+- 文本流式 Demo 采用明确的 SSE 适配：API 方法 `(ctx, req)` 返回同步响应序列，传输层负责逐条写出统一外层；最终事件 `done=true`，成功与否由 `code` 和执行状态决定。取消沿当前上下文传播，不启动脱离请求的生成协程。普通 JSON 接口沿用现有签名与响应规则。

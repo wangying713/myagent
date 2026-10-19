@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package saklay.http.agent;
+
+option go_package = "saklay/ai/apps/interfaces/http/proto";
+
+import "apps/interfaces/http/proto/agent.proto";
+
+// DemosOverviewReq 对应 POST /api/agent-demos/overview，演示Agent 到底是什么。
+message DemosOverviewReq {
+  optional string question = 1;
+}
+
+// DemosOverviewRsp 保留Agent 到底是什么的实际执行结果。
+message DemosOverviewRsp {
+  DemosExecution direct = 1;
+  DemosExecution with_tools = 2;
+}
+
+// DemosChatReq 对应 POST /api/agent-demos/chat，演示普通聊天。
+message DemosChatReq {
+  optional string question = 1;
+}
+
+// DemosChatRsp 保留普通聊天的实际执行结果。
+message DemosChatRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosMessagesReq 对应 POST /api/agent-demos/messages，演示消息历史。
+message DemosMessagesReq {
+  repeated string questions = 1;
+}
+
+// DemosMessagesRsp 保留消息历史的实际执行结果。
+message DemosMessagesRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosToolsReq 对应 POST /api/agent-demos/tools，演示工具调用与循环。
+message DemosToolsReq {
+  optional string question = 1;
+}
+
+// DemosToolsRsp 保留工具调用与循环的实际执行结果。
+message DemosToolsRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosStructuredReq 对应 POST /api/agent-demos/structured，演示结构化输出。
+message DemosStructuredReq {
+  optional string question = 1;
+}
+
+// DemosStructuredRsp 保留结构化输出的实际执行结果。
+message DemosStructuredRsp {
+  DemosExecution execution = 1;
+  string product = 2;
+  int64 quantity = 3;
+}
+
+// DemosMultipleToolsReq 对应 POST /api/agent-demos/multiple-tools，演示多个工具协作。
+message DemosMultipleToolsReq {
+  optional string question = 1;
+}
+
+// DemosMultipleToolsRsp 保留多个工具协作的实际执行结果。
+message DemosMultipleToolsRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosStreamReq 对应 POST /api/agent-demos/stream，演示流式回答。
+message DemosStreamReq {
+  optional string question = 1;
+}
+
+// DemosStreamRsp 保留流式回答的实际执行结果。
+message DemosStreamRsp {
+  DemosExecution execution = 1;
+  string delta = 2;
+  bool done = 3;
+}
+
+// DemosReliabilityReq 对应 POST /api/agent-demos/reliability，演示失败与执行边界。
+message DemosReliabilityReq {
+  optional string question = 1;
+  optional int64 model_calls = 2;
+}
+
+// DemosReliabilityRsp 保留失败与执行边界的实际执行结果。
+message DemosReliabilityRsp {
+  DemosExecution execution = 1;
+  string stop_reason = 2;
+}
+
+// DemosRetrievalReq 对应 POST /api/agent-demos/retrieval，演示检索与记忆。
+message DemosRetrievalReq {
+  optional string question = 1;
+}
+
+// DemosRetrievalRsp 保留检索与记忆的实际执行结果。
+message DemosRetrievalRsp {
+  DemosExecution execution = 1;
+  repeated DemosSource sources = 2;
+}
+
+// DemosWorkflowReq 对应 POST /api/agent-demos/workflow，演示工作流。
+message DemosWorkflowReq {
+  optional string question = 1;
+}
+
+// DemosWorkflowRsp 保留工作流的实际执行结果。
+message DemosWorkflowRsp {
+  DemosExecution execution = 1;
+  repeated DemosStage stages = 2;
+}
+
+// DemosObservationReq 对应 POST /api/agent-demos/observation，演示日志与观测。
+message DemosObservationReq {
+  optional string question = 1;
+}
+
+// DemosObservationRsp 保留日志与观测的实际执行结果。
+message DemosObservationRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosEvaluationReq 对应 POST /api/agent-demos/evaluation，演示评估与回归。
+message DemosEvaluationReq {
+}
+
+// DemosEvaluationRsp 保留评估与回归的实际执行结果。
+message DemosEvaluationRsp {
+  repeated DemosCase cases = 1;
+  int64 passed = 2;
+  int64 total = 3;
+}
+
+// DemosDeliveryReq 对应 POST /api/agent-demos/delivery，演示综合练习。
+message DemosDeliveryReq {
+  optional string question = 1;
+}
+
+// DemosDeliveryRsp 保留综合练习的实际执行结果。
+message DemosDeliveryRsp {
+  DemosExecution execution = 1;
+}
+
+// DemosExecution 与旧接口共用步骤协议，单独定义 Demo 的执行结果。
+message DemosExecution {
+  string lesson = 1;
+  bool completed = 2;
+  string answer = 3;
+  bool telemetry_enabled = 4;
+  int64 elapsed_ms = 5;
+  int64 model_calls = 6;
+  int64 tool_calls = 7;
+  int64 known_tokens = 8;
+  bool usage_complete = 9;
+  repeated ExecutionStep steps = 10;
+}
+
+// DemosSource 是实际命中的本地资料片段。
+message DemosSource {
+  string id = 1;
+  string title = 2;
+  string text = 3;
+}
+
+// DemosStage 是固定工作流中已经完成的步骤。
+message DemosStage {
+  string name = 1;
+  string content = 2;
+}
+
+// DemosCase 是一道固定题的实际结果与检查结论。
+message DemosCase {
+  string question = 1;
+  string expected = 2;
+  bool passed = 3;
+  DemosExecution execution = 4;
+  string error = 5;
+}
