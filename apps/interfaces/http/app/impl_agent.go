@@ -10,10 +10,10 @@ import (
 
 // ImplAgent 为各接口准备领域输入，并显式组装各自的 HTTP 响应。
 type ImplAgent struct {
-	agentCli *agent.Client // 由入口注入的 Agent 客户端。
+	agentCli *agentService // 由入口注入的 Agent 应用服务。
 }
 
-func newImplAgent(agentCli *agent.Client) (*ImplAgent, error) {
+func newImplAgent(agentCli *agentService) (*ImplAgent, error) {
 	if agentCli == nil {
 		return nil, errors.New("Agent API 业务依赖不能为空")
 	}
@@ -40,7 +40,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled,
+		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -62,7 +62,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled,
+		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -91,7 +91,7 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled,
+		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -102,12 +102,12 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 }
 
 // agentResult 转换共用的 Agent 执行结果，各接口响应仍由对应方法组装。
-func agentResult(result agent.ChatRsp) *entity.AgentResult {
+func (a *agentService) agentResult(result agent.ChatRsp) *entity.AgentResult {
 	return &entity.AgentResult{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled,
+		TelemetryEnabled: a.telemetry.Enabled() && result.Operation != "",
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,

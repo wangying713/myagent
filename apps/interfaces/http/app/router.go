@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/entity"
-	"saklay/ai/domain/agent"
 	"saklay/ai/infra/httpx"
 
 	"github.com/gin-gonic/gin"
 )
 
-func newRouter(agentCli *agent.Client, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
+func newRouter(agentCli *agentService, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
 	implAgent, err := newImplAgent(agentCli)
 	if err != nil {
 		return nil, err

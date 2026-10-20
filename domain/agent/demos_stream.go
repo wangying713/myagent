@@ -36,8 +36,8 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 	if !ok {
 		return result, errors.New("模型客户端不支持流式回答")
 	}
-	result = NewChatRsp(DemoStream, c.observer.Enabled())
-	ctx, run, err := c.prepareRun(ctx, &result, RunDetails{
+	result = NewChatRsp(DemoStream)
+	run, err := c.prepareRun(&result, RunInput{
 		Questions: []string{req.Question},
 		Prompt:    DemoChatPrompt,
 	})
@@ -72,8 +72,8 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 	record := CallRecord{
 		Kind:         CallKindModel,
 		Name:         "实时流式模型请求",
-		Request:      c.observer.Safe(response.RequestJSON),
-		Response:     c.observer.Safe(response.Raw),
+		Request:      string(response.RequestJSON),
+		Response:     string(response.Raw),
 		ElapsedMS:    time.Since(started).Milliseconds(),
 		FinishReason: response.FinishReason,
 		Usage:        &response.Usage,

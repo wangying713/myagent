@@ -39,11 +39,15 @@ func Run(ctx context.Context, cfg config.Settings) error {
 		return err
 	}
 	defer chatCli.Close()
-	agentCli, err := agent.NewClient(chatCli, telemetry, cfg.Limits)
+	agentCli, err := agent.NewClient(chatCli, cfg.Limits)
 	if err != nil {
 		return err
 	}
-	handler, err := newRouter(agentCli, cfg.HTTP.RunTimeout, telemetry)
+	service, err := newAgentService(agentCli, telemetry, chatCli.ModelInfo(), cfg.Limits)
+	if err != nil {
+		return err
+	}
+	handler, err := newRouter(service, cfg.HTTP.RunTimeout, telemetry)
 	if err != nil {
 		return err
 	}

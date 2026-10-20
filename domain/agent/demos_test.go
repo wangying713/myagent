@@ -64,7 +64,7 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 					FinishReason: FinishReasonStop,
 				}, nil
 			})
-			result, err := newTestClient(t, chatCli, &testObserver{}, DefaultLimits()).DemoStructured(context.Background(), "")
+			result, err := newTestClient(t, chatCli, DefaultLimits()).DemoStructured(context.Background(), "")
 			if (err == nil) != tc.valid || result.Execution.Completed != tc.valid {
 				t.Fatalf("实际完成 %v、错误 %v，预期有效 %v", result.Execution.Completed, err, tc.valid)
 			}
@@ -92,7 +92,7 @@ func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	})
 	limits := DefaultLimits()
 	limits.ModelCalls = 2
-	agentCli := newTestClient(t, chatCli, &testObserver{}, limits)
+	agentCli := newTestClient(t, chatCli, limits)
 	result, err := agentCli.DemoWorkflow(context.Background(), "")
 	if !errors.Is(err, ErrBudgetExceeded) || len(result.Stages) != 2 || result.Execution.Completed || result.Execution.ModelCalls != 2 {
 		t.Fatalf("预算失败未保留已完成阶段：%+v，错误 %v", result, err)
@@ -109,7 +109,7 @@ func TestDemoProductToolRejectsUnknownAndUnsafeArguments(t *testing.T) {
 		`{"product":"笔记本","command":"rm"}`,
 		`{"product":null}`,
 	} {
-		result, err := (demoProductTools{}).Dispatch(context.Background(), ToolCall{
+		result, err := (ProductTools{}).Dispatch(context.Background(), ToolCall{
 			Type: ToolTypeFunction,
 			Function: FunctionCall{
 				Name:      ToolNameLookupProduct,
@@ -122,7 +122,7 @@ func TestDemoProductToolRejectsUnknownAndUnsafeArguments(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := (demoProductTools{}).Dispatch(ctx, ToolCall{}); !errors.Is(err, context.Canceled) {
+	if _, err := (ProductTools{}).Dispatch(ctx, ToolCall{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("取消后仍然执行了商品工具")
 	}
 }

@@ -87,8 +87,8 @@ func (c *Client) Close() {
 }
 
 // ModelInfo 返回运行观测使用的白名单配置，不暴露鉴权和 HTTP 客户端。
-func (c *Client) ModelInfo() agent.ModelInfo {
-	return agent.ModelInfo{
+func (c *Client) ModelInfo() openobserve.ModelInfo {
+	return openobserve.ModelInfo{
 		Provider:     providerName,
 		Name:         c.config.Model,
 		Endpoint:     strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions",

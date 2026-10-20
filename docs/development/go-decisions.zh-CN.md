@@ -80,10 +80,10 @@ const (
 接口方法与普通函数、方法一样，说明独立放在声明上方：
 
 ```go
-// ToolObservation 保存一次工具调用的观测句柄。
-type ToolObservation interface {
-	// End 记录结果和错误并结束观测，每次 StartTool 对应一次调用。
-	End(ToolResult, error)
+// ChatClient 提供业务需要的模型调用能力。
+type ChatClient interface {
+	// Chat 执行一次模型请求，并响应上下文取消。
+	Chat(ctx context.Context, req Request) (Response, error)
 }
 ```
 
@@ -171,7 +171,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (ChatRsp, error)
 - 手写 Go 代码中的客户端字段、函数参数和局部变量，统一使用“用途或服务名 + `Cli`”，测试代码及测试替身同样遵循。例如 Agent 客户端用 `agentCli`，对话客户端用 `chatCli`，明确按提供方区分时用 `deepseekCli`，HTTP 客户端用 `httpCli`。
 - 按当前作用选择前缀；同一用途的字段、构造参数和调用处保持一致，例如 `newImplAgent(agentCli *agent.Client)` 将参数保存到 `agentCli` 字段。避免使用含义笼统的 `client`、`cli`，或混用 `chatClient` 与 `chatCli`。
 - 导出字段仍以大写字母开头，如 `ChatCli ChatClient`。客户端依赖即使通过接口、包装器或测试替身提供，也按实际用途使用 `Cli`，例如 `Client` 和运行记录中的 `chatCli`。
-- 这项规则针对客户端实例和依赖，不修改类型名 `Client`、`ChatClient`、`StreamClient`，构造函数继续用 `NewClient` 等原有名称。模型名称、配置及观测元数据仍按含义命名，例如 `Request.Model`、`Settings.Model`、`RunDetails.Model`；不将普通数据字段机械改成客户端名称。
+- 这项规则针对客户端实例和依赖，不修改类型名 `Client`、`ChatClient`、`StreamClient`，构造函数继续用 `NewClient` 等原有名称。模型名称、配置及观测元数据仍按含义命名，例如 `Request.Model`、`Settings.Model`、`RunInput.Tools`；不将普通数据字段机械改成客户端名称。
 - 范围为本项目手写 Go 代码及测试；生成文件、第三方代码和 `old` 历史归档不手改，前端命名另按前端规范处理。
 
 ```go
@@ -274,7 +274,7 @@ HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显�
 
 实现与使用说明见 [HTTP API](../../apps/interfaces/http/README.md) 和 [通用 HTTP 能力](../../infra/httpx/README.md)。
 
-领域运行 `agent.run` 的观测输入通过使用方定义的 `Observer.StartRun` 显式传入已补齐默认值并校验的问题；领域层不接触 OpenTelemetry 属性或 JSON 展示协议。`infra/openobserve` 组装输入问题与输出的 `completed/answer` 预览，复用正文采集开关、脱敏、限长及原生预览适配，失败保留已有回答，不记录底层错误正文。
+应用层 `app/agent_service.go` 在每次业务执行前通过具体的 `infra/openobserve.Telemetry` 建立 `agent.run`，向领域客户端传入派生上下文，并在结束时记录结果。领域层只执行并返回原始回答、调用记录及 `RunInput` 中的实际输入，不定义观测接口，也不处理展示脱敏；`RunInput` 随结果保留已补齐默认值、通过校验的问题和实际工具、预算，观测层不重复推断。`infra/openobserve.Tools` 包装真实工具执行，模型观测仍由 DeepSeek 客户端负责。应用层只对返回展示副本脱敏，模型历史、工具结果和工作流后续输入始终使用原文。组合案例由应用层编排，每次独立业务执行各有自己的运行 span；流式案例在同步消费期间管理同一运行 span。`infra/openobserve` 组装输入与输出预览，保留采集开关、限长、部分结果及错误状态，不记录底层错误正文。
 
 ## 第三方能力选择
 

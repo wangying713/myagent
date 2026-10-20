@@ -12,10 +12,10 @@ import (
 
 // ImplAgentDemos 为学习页面的每个演示准备输入并组装独立响应，业务仍由领域层执行。
 type ImplAgentDemos struct {
-	agentCli *agent.Client // 与旧 API 复用的 Agent 客户端，不复制模型客户端或配置。
+	agentCli *agentService // 与原 API 复用的 Agent 应用服务。
 }
 
-func newImplAgentDemos(agentCli *agent.Client) *ImplAgentDemos {
+func newImplAgentDemos(agentCli *agentService) *ImplAgentDemos {
 	return &ImplAgentDemos{
 		agentCli: agentCli,
 	}
@@ -25,8 +25,8 @@ func newImplAgentDemos(agentCli *agent.Client) *ImplAgentDemos {
 func (a *ImplAgentDemos) Overview(ctx context.Context, req *entity.DemosOverviewReq) (*entity.DemosOverviewRsp, error) {
 	result, err := a.agentCli.DemoOverview(ctx, req.Question)
 	return &entity.DemosOverviewRsp{
-		Direct:    agentResult(result.Direct),
-		WithTools: agentResult(result.WithTools),
+		Direct:    a.agentCli.agentResult(result.Direct),
+		WithTools: a.agentCli.agentResult(result.WithTools),
 	}, err
 }
 
@@ -42,7 +42,7 @@ func (a *ImplAgentDemos) Chat(ctx context.Context, req *entity.DemosChatReq) (*e
 		ToolChoice: agent.ToolChoiceNone,
 	})
 	return &entity.DemosChatRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -59,7 +59,7 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *entity.DemosToolsReq) (
 		Prompt:    agent.AgentPrompt,
 	})
 	return &entity.DemosToolsRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -70,7 +70,7 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 		Questions: questions,
 	})
 	return &entity.DemosMessagesRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -78,7 +78,7 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStructuredReq) (*entity.DemosStructuredRsp, error) {
 	result, err := a.agentCli.DemoStructured(ctx, req.Question)
 	return &entity.DemosStructuredRsp{
-		Execution: agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Product:   result.Order.Product,
 		Quantity:  result.Order.Quantity,
 	}, err
@@ -88,7 +88,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStruct
 func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *entity.DemosMultipleToolsReq) (*entity.DemosMultipleToolsRsp, error) {
 	result, err := a.agentCli.DemoMultipleTools(ctx, req.Question)
 	return &entity.DemosMultipleToolsRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -101,7 +101,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 	if calls < 1 || calls > agent.DefaultLimits().ModelCalls {
 		return nil, agent.ErrInput
 	}
-	result, err := a.agentCli.DemoReliability(ctx, agent.DemoReliabilityInput{
+	result, err := a.agentCli.DemoReliability(ctx, demoReliabilityInput{
 		Question:   req.Question,
 		ModelCalls: calls,
 	})
@@ -112,7 +112,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 		reason = "执行未完成，请查看错误与步骤"
 	}
 	return &entity.DemosReliabilityRsp{
-		Execution:  agentResult(result),
+		Execution:  a.agentCli.agentResult(result),
 		StopReason: reason,
 	}, err
 }
@@ -129,7 +129,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetriev
 		})
 	}
 	return &entity.DemosRetrievalRsp{
-		Execution: agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Sources:   sources,
 	}, err
 }
@@ -145,7 +145,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *entity.DemosWorkflow
 		})
 	}
 	return &entity.DemosWorkflowRsp{
-		Execution: agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Stages:    stages,
 	}, err
 }
@@ -163,7 +163,7 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *entity.DemosObser
 		Prompt:    agent.AgentPrompt,
 	})
 	return &entity.DemosObservationRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -176,7 +176,7 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 			Question:  item.Question,
 			Expected:  item.Expected,
 			Passed:    item.Passed,
-			Execution: agentResult(item.Execution),
+			Execution: a.agentCli.agentResult(item.Execution),
 			Error:     item.Error,
 		})
 	}
@@ -191,7 +191,7 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 func (a *ImplAgentDemos) Delivery(ctx context.Context, req *entity.DemosDeliveryReq) (*entity.DemosDeliveryRsp, error) {
 	result, err := a.agentCli.DemoDelivery(ctx, req.Question)
 	return &entity.DemosDeliveryRsp{
-		Execution: agentResult(result),
+		Execution: a.agentCli.agentResult(result),
 	}, err
 }
 
@@ -218,7 +218,7 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *entity.DemosStreamReq)
 		})
 		if !stopped {
 			yield(&entity.DemosStreamRsp{
-				Execution: agentResult(result),
+				Execution: a.agentCli.agentResult(result),
 				Done:      true,
 			}, err)
 		}

@@ -93,11 +93,15 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 		t.Fatal(err)
 	}
 	t.Cleanup(chatCli.Close)
-	agentCli, err := agent.NewClient(chatCli, telemetry, cfg.Limits)
+	agentCli, err := agent.NewClient(chatCli, cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(agentCli, cfg.Timeout, telemetry)
+	service, err := newAgentService(agentCli, telemetry, chatCli.ModelInfo(), cfg.Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := newRouter(service, cfg.Timeout, telemetry)
 	if err != nil {
 		t.Fatal(err)
 	}

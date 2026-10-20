@@ -14,7 +14,7 @@ type ChatClient interface {
 
 // ChatReq 保存对话输入，模型客户端和默认预算由 Client 提供。
 type ChatReq struct {
-	Operation  string // 本次业务标识，用于执行结果和观测记录。
+	Operation  string // 本次业务标识，用于区分执行结果。
 	Tools      Tools  // 模型可以调用的工具；nil 或没有工具定义时禁止调用。
 	ToolChoice string // auto 允许模型选择工具，none 禁止；空值根据是否提供工具决定。
 	Question   string // 调用方提供的用户问题，不能为空或只有空白。
@@ -28,7 +28,7 @@ type ChatRsp struct {
 	// 执行结果。
 	Operation string // 本次业务操作标识。
 	Completed bool   // 本次业务是否成功完成。
-	Answer    string // 脱敏后的回答，失败时保留已有内容。
+	Answer    string // 模型返回的回答，失败时保留已有内容；对外展示由应用层处理。
 
 	// 运行统计。
 	ElapsedMS     int64 // 本次运行耗时，单位为毫秒。
@@ -40,20 +40,17 @@ type ChatRsp struct {
 	// 调用记录。
 	Calls []CallRecord // 按执行顺序保存的模型与工具调用记录。
 
-	// 链路信息。
-	TraceID          string // 本次运行的链路标识，关闭观测时为空。
-	TelemetryEnabled bool   // 是否启用链路观测。
+	Input RunInput // 本次执行实际使用的问题、提示词、工具及预算。
 }
 
-// NewChatRsp 创建本次运行的初始结果，操作标识和是否开启观测由调用方传入。
-func NewChatRsp(operation string, telemetryEnabled bool) ChatRsp {
+// NewChatRsp 创建本次运行的初始结果。
+func NewChatRsp(operation string) ChatRsp {
 	return ChatRsp{
 		Operation: operation,
 		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
 		UsageComplete: true,
 		// 使用非 nil 空切片，使尚无调用记录的结果在 HTTP JSON 中表现为 []。
-		Calls:            []CallRecord{},
-		TelemetryEnabled: telemetryEnabled,
+		Calls: []CallRecord{},
 	}
 }
 
@@ -66,8 +63,8 @@ const (
 type CallRecord struct {
 	Kind         string // 调用类型，区分模型调用与工具调用。
 	Name         string // 模型调用说明或工具名称。
-	Request      string // 脱敏并限长后的请求正文。
-	Response     string // 脱敏并限长后的响应正文。
+	Request      string // 实际请求正文，对外展示由应用层处理。
+	Response     string // 实际响应正文，对外展示由应用层处理。
 	ElapsedMS    int64  // 本次调用耗时，单位为毫秒。
 	FinishReason string // 模型结束原因，工具调用时为空。
 	Usage        *Usage // 模型返回的 token 用量，工具调用时为 nil。
@@ -80,7 +77,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp ChatRsp, err error)
 	if req.Operation == "" {
 		req.Operation = OperationChat
 	}
-	rsp = NewChatRsp(req.Operation, c.observer.Enabled())
+	rsp = NewChatRsp(req.Operation)
 	definitions, err := c.prepareChat(&req)
 	if err != nil {
 		return rsp, err
@@ -89,7 +86,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp ChatRsp, err error)
 	// 只给当前调用设置预算，客户端本身保持不变，可以继续供其他请求使用。
 	local := *c
 	local.limits = limits
-	ctx, run, err := local.prepareRun(ctx, &rsp, RunDetails{
+	run, err := local.prepareRun(&rsp, RunInput{
 		Questions:  []string{req.Question},
 		Prompt:     req.Prompt,
 		Tools:      definitions,

@@ -12,30 +12,52 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var _ agent.Observer = (*Telemetry)(nil)
+// ModelInfo 描述模型客户端的公开配置，不包含鉴权信息。
+type ModelInfo struct {
+	Provider     string        // 模型服务提供方。
+	Name         string        // 请求使用的模型名称。
+	Endpoint     string        // 不包含凭据的模型请求地址。
+	Timeout      time.Duration // 单次模型调用的超时时长。
+	MaxTokens    int           // 单次模型请求的最大输出 token 数。
+	ThinkingType string        // 模型思考模式。
+	Stream       bool          // 是否使用流式响应。
+}
 
-// StartRun 记录实际运行输入，沿用父链路；领域层无需依赖 OpenTelemetry。
-func (t *Telemetry) StartRun(ctx context.Context, operation string, details agent.RunDetails) (context.Context, agent.RunObservation) {
+// StartRun 建立业务运行 span，应用层在执行结束后提交实际输入和结果。
+func (t *Telemetry) StartRun(ctx context.Context, operation string, model *ModelInfo) (context.Context, *Run) {
 	ctx, span := t.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
-	input := runInput{
-		Prompt:     details.Prompt,
-		Tools:      make([]runTool, 0, len(details.Tools)),
-		ToolChoice: details.ToolChoice,
-		Limits: runLimits{
-			ModelCalls: details.Limits.ModelCalls,
-			ToolCalls:  details.Limits.ToolCalls,
-			Tokens:     details.Limits.Tokens,
-		},
-	}
-	if operation == agent.OperationMessages {
-		input.Questions = details.Questions
-	} else if len(details.Questions) > 0 {
-		input.Question = details.Questions[0]
+	run := &Run{
+		telemetry: t,
+		span:      span,
+		started:   time.Now(),
+		operation: operation,
+		model:     model,
 	}
 	if deadline, ok := ctx.Deadline(); ok {
-		input.Deadline = deadline.UTC().Format(time.RFC3339Nano)
+		run.deadline = deadline.UTC().Format(time.RFC3339Nano)
 	}
-	if info := details.Model; info != nil {
+	return ctx, run
+}
+
+// recordInput 记录业务实际使用的输入，不在观测层重新推断默认值。
+func (r *Run) recordInput(req agent.RunInput) {
+	input := runInput{
+		Prompt:     req.Prompt,
+		Tools:      make([]runTool, 0, len(req.Tools)),
+		ToolChoice: req.ToolChoice,
+		Limits: runLimits{
+			ModelCalls: req.Limits.ModelCalls,
+			ToolCalls:  req.Limits.ToolCalls,
+			Tokens:     req.Limits.Tokens,
+		},
+	}
+	if r.operation == agent.OperationMessages {
+		input.Questions = req.Questions
+	} else if len(req.Questions) > 0 {
+		input.Question = req.Questions[0]
+	}
+	input.Deadline = r.deadline
+	if info := r.model; info != nil {
 		input.Model = &runModel{
 			Provider:     info.Provider,
 			Name:         info.Name,
@@ -46,7 +68,7 @@ func (t *Telemetry) StartRun(ctx context.Context, operation string, details agen
 			Stream:       info.Stream,
 		}
 	}
-	for _, tool := range details.Tools {
+	for _, tool := range req.Tools {
 		input.Tools = append(input.Tools, runTool{
 			Type: tool.Type,
 			Function: runFunction{
@@ -58,12 +80,7 @@ func (t *Telemetry) StartRun(ctx context.Context, operation string, details agen
 	}
 	// 预览只包含白名单标量及已校验的 JSON；无效协议片段按文本记录，不影响业务。
 	request, _ := json.Marshal(input)
-	t.Payload(span, "app.request", request)
-	return ctx, &runObservation{
-		telemetry: t,
-		span:      span,
-		started:   time.Now(),
-	}
+	r.telemetry.Payload(r.span, "app.request", request)
 }
 
 // runInput 保存业务输入的观测预览，不承担领域或 HTTP 序列化契约。
@@ -152,21 +169,19 @@ func previewJSON(text string) any {
 	return text
 }
 
-// runObservation 持有单次业务运行的观测资源。
-type runObservation struct {
+// Run 持有单次业务运行的观测资源，由应用层负责结束。
+type Run struct {
 	telemetry *Telemetry // 负责记录正文与脱敏的观测组件。
 	span      trace.Span // 本次调用的链路 span。
 	started   time.Time  // 本次调用的开始时间，用于统计耗时。
+	operation string     // 本次业务操作标识。
+	model     *ModelInfo // 模型公开配置；nil 表示未提供。
+	deadline  string     // 本次运行的 UTC 截止时间，无截止时间时为空。
 }
 
-func (r *runObservation) TraceID() string {
-	if !r.span.SpanContext().IsValid() {
-		return ""
-	}
-	return r.span.SpanContext().TraceID().String()
-}
-
-func (r *runObservation) End(result agent.ChatRsp, err error) {
+// End 记录实际输入、完整或部分结果和最终错误，并结束本次运行。
+func (r *Run) End(result agent.ChatRsp, err error) {
+	r.recordInput(result.Input)
 	output := runOutput{
 		Operation:     result.Operation,
 		Completed:     result.Completed,
@@ -197,7 +212,7 @@ func (r *runObservation) End(result agent.ChatRsp, err error) {
 }
 
 // StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
-func (t *Telemetry) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, agent.ToolObservation) {
+func (t *Telemetry) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, *toolObservation) {
 	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(req.Function.Name)), attribute.String("app.tool.call.id", t.Clean(req.ID)))
 	// 展示副本平铺工具调用并展开参数；previewJSON 只在参数为合法 JSON 时返回 RawMessage，因此不会编码失败。
 	request, _ := json.Marshal(toolInput{

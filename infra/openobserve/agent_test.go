@@ -104,7 +104,8 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			telemetry, exporter := newRunTelemetry(t, true, 4096)
 			original := slices.Clone(tc.questions)
-			_, run := telemetry.StartRun(t.Context(), tc.operation, agent.RunDetails{
+			_, run := telemetry.StartRun(t.Context(), tc.operation, nil)
+			input := agent.RunInput{
 				Questions: tc.questions,
 				Prompt:    "提示 configured-secret",
 				Limits: agent.Limits{
@@ -112,8 +113,9 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 					ToolCalls:  3,
 					Tokens:     100,
 				},
-			})
+			}
 			result := agent.ChatRsp{
+				Input:         input,
 				Completed:     tc.err == nil,
 				Answer:        "已有回答 configured-secret",
 				ModelCalls:    1,
@@ -122,35 +124,8 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 			}
 			run.End(result, tc.err)
 			attrs, status := runAttributes(t, telemetry, exporter)
-			var input map[string]any
-			if err := json.Unmarshal([]byte(tc.wantInput), &input); err != nil {
-				t.Fatal(err)
-			}
-			input["prompt"] = "提示 [REDACTED]"
-			input["model"] = nil
-			input["tools"] = []any{}
-			input["limits"] = map[string]int{
-				"model_calls": 2,
-				"tool_calls":  3,
-				"tokens":      100,
-			}
-			wantInput, err := json.Marshal(input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if attrs["gen_ai.input.messages"].AsString() != string(wantInput) {
-				t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), wantInput)
-			}
-			var output struct {
-				Completed bool   `json:"completed"` // 从预览中解码的业务完成状态。
-				Answer    string `json:"answer"`    // 从预览中解码的脱敏回答。
-			}
-			if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"].AsString()), &output); err != nil {
-				t.Fatal(err)
-			}
-			if output.Completed != result.Completed || output.Answer != "已有回答 [REDACTED]" {
-				t.Errorf("实际输出预览 %+v，预期保留完成状态与脱敏后的已有回答", output)
-			}
+			assertRunPreviews(t, attrs, tc.wantInput, result)
+
 			if (status == codes.Error) != (tc.err != nil) {
 				t.Errorf("实际 span 状态 %v，预期失败=%v", status, tc.err != nil)
 			}
@@ -183,6 +158,40 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 	}
 }
 
+// assertRunPreviews 检查运行输入预览和脱敏后的输出预览。
+func assertRunPreviews(t *testing.T, attrs map[string]attribute.Value, wantQuestion string, result agent.ChatRsp) {
+	t.Helper()
+	var input map[string]any
+	if err := json.Unmarshal([]byte(wantQuestion), &input); err != nil {
+		t.Fatal(err)
+	}
+	input["prompt"] = "提示 [REDACTED]"
+	input["model"] = nil
+	input["tools"] = []any{}
+	input["limits"] = map[string]int{
+		"model_calls": 2,
+		"tool_calls":  3,
+		"tokens":      100,
+	}
+	wantInput, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attrs["gen_ai.input.messages"].AsString() != string(wantInput) {
+		t.Errorf("实际输入预览 %s，预期 %s", attrs["gen_ai.input.messages"].AsString(), wantInput)
+	}
+	var output struct {
+		Completed bool   `json:"completed"` // 从预览中解码的业务完成状态。
+		Answer    string `json:"answer"`    // 从预览中解码的脱敏回答。
+	}
+	if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"].AsString()), &output); err != nil {
+		t.Fatal(err)
+	}
+	if output.Completed != result.Completed || output.Answer != "已有回答 [REDACTED]" {
+		t.Errorf("实际输出预览 %+v，预期保留完成状态与脱敏后的已有回答", output)
+	}
+}
+
 func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 	for _, capture := range []bool{
 		true,
@@ -193,10 +202,11 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 			false: "关闭正文采集",
 		}[capture], func(t *testing.T) {
 			telemetry, exporter := newRunTelemetry(t, capture, 256)
-			_, run := telemetry.StartRun(t.Context(), "chat", agent.RunDetails{
-				Questions: []string{strings.Repeat("输入", 200)},
-			})
+			_, run := telemetry.StartRun(t.Context(), "chat", nil)
 			run.End(agent.ChatRsp{
+				Input: agent.RunInput{
+					Questions: []string{strings.Repeat("输入", 200)},
+				},
 				Completed: true,
 				Answer:    strings.Repeat("输出", 200),
 			}, nil)
