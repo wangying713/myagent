@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	AgentQuestion = "每盒有 17 支笔，买 23 盒，一共多少支？" // 工具调用示例的默认乘法问题。
+	// AgentPrompt 约束模型通过工具计算乘法，并在工具失败时如实回答。
+	AgentPrompt           = "你是计算助手。涉及乘法必须用工具；工具出错时不能捏造结果。用中文简短回答。"
 	DemoStructured        = "structured"     // 提取并检查商品与数量。
 	DemoMultipleTools     = "multiple-tools" // 先查询商品，再计算总价。
 	DemoReliability       = "reliability"    // 演示调用次数限制。
@@ -43,7 +46,12 @@ func (c *Client) DemoOverview(ctx context.Context, question string) (DemoOvervie
 	if err != nil {
 		return result, err
 	}
-	result.WithTools, err = c.Run(ctx, question)
+	result.WithTools, err = c.Chat(ctx, ChatReq{
+		Operation: OperationRun,
+		Tools:     MultiplyTools{},
+		Question:  question,
+		Prompt:    AgentPrompt,
+	})
 	return result, err
 }
 

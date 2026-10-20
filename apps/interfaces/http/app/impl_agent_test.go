@@ -38,6 +38,10 @@ func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 			path:     "/api/agent-demos/tools",
 			fallback: agent.AgentQuestion,
 		},
+		{
+			path:     "/api/agent-demos/observation",
+			fallback: agent.AgentQuestion,
+		},
 	} {
 		for _, input := range []struct {
 			name     string // 输入场景。
@@ -70,6 +74,11 @@ func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 					}
 					if len(request.Messages) != 2 || request.Messages[1].Content != input.question {
 						t.Errorf("实际模型消息 %+v，预期问题原文 %q", request.Messages, input.question)
+					}
+					if endpoint.fallback == agent.AgentQuestion {
+						if len(request.Messages) == 0 || request.Messages[0].Content != agent.AgentPrompt || request.ToolChoice != agent.ToolChoiceAuto || len(request.Tools) != 1 || request.Tools[0].Function.Name != agent.ToolNameMultiply {
+							t.Errorf("工具接口未保留计算助手的提示词、乘法工具或自动调用策略：%+v", request)
+						}
 					}
 					reply(w, map[string]string{
 						"role":    "assistant",

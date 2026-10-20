@@ -294,7 +294,12 @@ func TestChatKeepsBudgetOverridesLocal(t *testing.T) {
 	if !errors.Is(err, ErrBudgetExceeded) || limited.Completed || limited.ModelCalls != 1 || limited.ToolCalls != 1 {
 		t.Fatalf("单次预算未生效或丢失执行记录：%+v，错误 %v", limited, err)
 	}
-	result, err := agentCli.Run(t.Context(), "2 乘 3")
+	result, err := agentCli.Chat(t.Context(), ChatReq{
+		Operation: OperationRun,
+		Tools:     MultiplyTools{},
+		Question:  "2 乘 3",
+		Prompt:    AgentPrompt,
+	})
 	if err != nil || !result.Completed || result.Answer != "6" || result.ModelCalls != 2 || result.ToolCalls != 1 || agentCli.limits != limits {
 		t.Fatalf("前一次预算覆盖影响了后续请求：%+v，错误 %v", result, err)
 	}

@@ -298,7 +298,12 @@ func (c *Client) DemoEvaluation(ctx context.Context) (result DemoEvaluationResul
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		item.Execution, err = c.Run(ctx, item.Question)
+		item.Execution, err = c.Chat(ctx, ChatReq{
+			Operation: OperationRun,
+			Tools:     MultiplyTools{},
+			Question:  item.Question,
+			Prompt:    AgentPrompt,
+		})
 		if err != nil {
 			item.Error = "本题调用未完成，请查看执行步骤"
 			result.Cases = append(result.Cases, item)

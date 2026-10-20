@@ -74,7 +74,16 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 
 // Run 执行受预算约束的工具调用循环。 @alias=/api/agent/run
 func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, error) {
-	result, err := a.agentCli.Run(ctx, req.GetQuestion())
+	question := req.GetQuestion()
+	if question == "" {
+		question = agent.AgentQuestion
+	}
+	result, err := a.agentCli.Chat(ctx, agent.ChatReq{
+		Operation: agent.OperationRun,
+		Tools:     agent.MultiplyTools{},
+		Question:  question,
+		Prompt:    agent.AgentPrompt,
+	})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}

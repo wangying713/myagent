@@ -146,7 +146,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 	}
 }
 
-func TestClientRunRecordsTool(t *testing.T) {
+func TestClientChatRecordsTool(t *testing.T) {
 	calls := 0
 	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
@@ -180,7 +180,12 @@ func TestClientRunRecordsTool(t *testing.T) {
 		}, nil
 	})
 	observer := &testObserver{}
-	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Run(context.Background(), "")
+	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Chat(t.Context(), ChatReq{
+		Operation: OperationRun,
+		Tools:     MultiplyTools{},
+		Question:  AgentQuestion,
+		Prompt:    AgentPrompt,
+	})
 	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Steps) != 3 || result.Steps[1].Kind != "tool" {
 		t.Fatalf("工具执行记录错误：%+v，错误 %v", result, err)
 	}
@@ -204,7 +209,12 @@ func TestClientInputAndCancellation(t *testing.T) {
 		}); !errors.Is(err, ErrInput) {
 			t.Errorf("聊天实际错误 %v，预期 ErrInput", err)
 		}
-		if _, err := agentCli.Run(context.Background(), question); !errors.Is(err, ErrInput) {
+		if _, err := agentCli.Chat(t.Context(), ChatReq{
+			Operation: OperationRun,
+			Tools:     MultiplyTools{},
+			Question:  question,
+			Prompt:    AgentPrompt,
+		}); !errors.Is(err, ErrInput) {
 			t.Errorf("工具运行实际错误 %v，预期 ErrInput", err)
 		}
 	}

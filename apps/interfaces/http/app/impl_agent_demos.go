@@ -46,6 +46,23 @@ func (a *ImplAgentDemos) Chat(ctx context.Context, req *proto.DemosChatReq) (*pr
 	}, err
 }
 
+// Tools 演示工具调用与循环。 @alias=/api/agent-demos/tools
+func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*proto.DemosToolsRsp, error) {
+	question := req.GetQuestion()
+	if question == "" {
+		question = agent.AgentQuestion
+	}
+	result, err := a.agentCli.Chat(ctx, agent.ChatReq{
+		Operation: agent.OperationRun,
+		Tools:     agent.MultiplyTools{},
+		Question:  question,
+		Prompt:    agent.AgentPrompt,
+	})
+	return &proto.DemosToolsRsp{
+		Execution: demoExecution(result),
+	}, err
+}
+
 // Messages 演示消息历史。 @alias=/api/agent-demos/messages
 func (a *ImplAgentDemos) Messages(ctx context.Context, req *proto.DemosMessagesReq) (*proto.DemosMessagesRsp, error) {
 	questions := req.GetQuestions()
@@ -53,14 +70,6 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *proto.DemosMessagesR
 		Questions: questions,
 	})
 	return &proto.DemosMessagesRsp{
-		Execution: demoExecution(result),
-	}, err
-}
-
-// Tools 演示工具调用与循环。 @alias=/api/agent-demos/tools
-func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*proto.DemosToolsRsp, error) {
-	result, err := a.agentCli.Run(ctx, req.GetQuestion())
-	return &proto.DemosToolsRsp{
 		Execution: demoExecution(result),
 	}, err
 }
@@ -143,7 +152,16 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowR
 
 // Observation 演示日志与观测。 @alias=/api/agent-demos/observation
 func (a *ImplAgentDemos) Observation(ctx context.Context, req *proto.DemosObservationReq) (*proto.DemosObservationRsp, error) {
-	result, err := a.agentCli.Run(ctx, req.GetQuestion())
+	question := req.GetQuestion()
+	if question == "" {
+		question = agent.AgentQuestion
+	}
+	result, err := a.agentCli.Chat(ctx, agent.ChatReq{
+		Operation: agent.OperationRun,
+		Tools:     agent.MultiplyTools{},
+		Question:  question,
+		Prompt:    agent.AgentPrompt,
+	})
 	return &proto.DemosObservationRsp{
 		Execution: demoExecution(result),
 	}, err
