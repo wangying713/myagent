@@ -58,6 +58,21 @@ type RunRsp struct {
 	Steps            []AgentExecutionStep `json:"steps"`             // 按执行顺序保存的模型与工具调用记录。
 }
 
+// AgentResult 是 Agent 执行结果。
+type AgentResult struct {
+	Lesson           string `json:"lesson"`            // 业务操作标识。
+	Completed        bool   `json:"completed"`         // 本次业务是否成功完成。
+	Answer           string `json:"answer"`            // 脱敏后的回答，失败时保留已有内容。
+	TelemetryEnabled bool   `json:"telemetry_enabled"` // 是否启用链路观测。
+	ElapsedMS        int64  `json:"elapsed_ms"`        // 本次运行耗时，单位为毫秒。
+	ModelCalls       int    `json:"model_calls"`       // 已发起的模型调用次数。
+	ToolCalls        int    `json:"tool_calls"`        // 已发起的工具调用次数。
+	KnownTokens      int    `json:"known_tokens"`      // 可确认的累计 token 用量。
+	UsageComplete    bool   `json:"usage_complete"`    // 所有模型调用的用量是否均已确认并累计。
+	// 按执行顺序保存模型与工具调用记录；nil 输出 null，非 nil 空切片输出空数组。
+	Steps []AgentExecutionStep `json:"steps"`
+}
+
 // AgentExecutionStep 是一次模型或工具执行的 HTTP JSON 记录。
 type AgentExecutionStep struct {
 	Kind         string      `json:"kind"`                    // 步骤类型，区分模型调用与工具调用。

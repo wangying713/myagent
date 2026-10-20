@@ -101,6 +101,22 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 	}, err
 }
 
+// agentResult 转换共用的 Agent 执行结果，各接口响应仍由对应方法组装。
+func agentResult(result agent.ChatRsp) *entity.AgentResult {
+	return &entity.AgentResult{
+		Lesson:           result.Operation,
+		Completed:        result.Completed,
+		Answer:           result.Answer,
+		TelemetryEnabled: result.TelemetryEnabled,
+		ElapsedMS:        result.ElapsedMS,
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
+		UsageComplete:    result.UsageComplete,
+		Steps:            agentSteps(result.Steps),
+	}
+}
+
 // agentSteps 转换接口复用的步骤与用量数据，保留 nil 与空切片的区别。
 func agentSteps(steps []agent.ExecutionStep) []entity.AgentExecutionStep {
 	var data []entity.AgentExecutionStep

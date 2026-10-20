@@ -25,8 +25,8 @@ func newImplAgentDemos(agentCli *agent.Client) *ImplAgentDemos {
 func (a *ImplAgentDemos) Overview(ctx context.Context, req *entity.DemosOverviewReq) (*entity.DemosOverviewRsp, error) {
 	result, err := a.agentCli.DemoOverview(ctx, req.Question)
 	return &entity.DemosOverviewRsp{
-		Direct:    demoExecution(result.Direct),
-		WithTools: demoExecution(result.WithTools),
+		Direct:    agentResult(result.Direct),
+		WithTools: agentResult(result.WithTools),
 	}, err
 }
 
@@ -42,7 +42,7 @@ func (a *ImplAgentDemos) Chat(ctx context.Context, req *entity.DemosChatReq) (*e
 		ToolChoice: agent.ToolChoiceNone,
 	})
 	return &entity.DemosChatRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -59,7 +59,7 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *entity.DemosToolsReq) (
 		Prompt:    agent.AgentPrompt,
 	})
 	return &entity.DemosToolsRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -70,7 +70,7 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 		Questions: questions,
 	})
 	return &entity.DemosMessagesRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -78,7 +78,7 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStructuredReq) (*entity.DemosStructuredRsp, error) {
 	result, err := a.agentCli.DemoStructured(ctx, req.Question)
 	return &entity.DemosStructuredRsp{
-		Execution: demoExecution(result.Execution),
+		Execution: agentResult(result.Execution),
 		Product:   result.Order.Product,
 		Quantity:  result.Order.Quantity,
 	}, err
@@ -88,7 +88,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStruct
 func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *entity.DemosMultipleToolsReq) (*entity.DemosMultipleToolsRsp, error) {
 	result, err := a.agentCli.DemoMultipleTools(ctx, req.Question)
 	return &entity.DemosMultipleToolsRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -112,7 +112,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 		reason = "执行未完成，请查看错误与步骤"
 	}
 	return &entity.DemosReliabilityRsp{
-		Execution:  demoExecution(result),
+		Execution:  agentResult(result),
 		StopReason: reason,
 	}, err
 }
@@ -129,7 +129,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetriev
 		})
 	}
 	return &entity.DemosRetrievalRsp{
-		Execution: demoExecution(result.Execution),
+		Execution: agentResult(result.Execution),
 		Sources:   sources,
 	}, err
 }
@@ -145,7 +145,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *entity.DemosWorkflow
 		})
 	}
 	return &entity.DemosWorkflowRsp{
-		Execution: demoExecution(result.Execution),
+		Execution: agentResult(result.Execution),
 		Stages:    stages,
 	}, err
 }
@@ -163,7 +163,7 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *entity.DemosObser
 		Prompt:    agent.AgentPrompt,
 	})
 	return &entity.DemosObservationRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -176,7 +176,7 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 			Question:  item.Question,
 			Expected:  item.Expected,
 			Passed:    item.Passed,
-			Execution: demoExecution(item.Execution),
+			Execution: agentResult(item.Execution),
 			Error:     item.Error,
 		})
 	}
@@ -191,7 +191,7 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 func (a *ImplAgentDemos) Delivery(ctx context.Context, req *entity.DemosDeliveryReq) (*entity.DemosDeliveryRsp, error) {
 	result, err := a.agentCli.DemoDelivery(ctx, req.Question)
 	return &entity.DemosDeliveryRsp{
-		Execution: demoExecution(result),
+		Execution: agentResult(result),
 	}, err
 }
 
@@ -218,25 +218,9 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *entity.DemosStreamReq)
 		})
 		if !stopped {
 			yield(&entity.DemosStreamRsp{
-				Execution: demoExecution(result),
+				Execution: agentResult(result),
 				Done:      true,
 			}, err)
 		}
 	}, nil
-}
-
-// demoExecution 只转换共用的执行记录，各业务响应仍由对应方法分别组装。
-func demoExecution(result agent.ChatRsp) *entity.DemoExecution {
-	return &entity.DemoExecution{
-		Lesson:           result.Operation,
-		Completed:        result.Completed,
-		Answer:           result.Answer,
-		TelemetryEnabled: result.TelemetryEnabled,
-		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       result.ModelCalls,
-		ToolCalls:        result.ToolCalls,
-		KnownTokens:      result.KnownTokens,
-		UsageComplete:    result.UsageComplete,
-		Steps:            agentSteps(result.Steps),
-	}
 }
