@@ -53,7 +53,7 @@ type RunObservation interface {
 	// TraceID 返回本次执行的链路标识；没有链路时返回空字符串。
 	TraceID() string
 	// End 记录结果和错误并结束观测，每次 StartRun 对应一次调用。
-	End(Result, error)
+	End(ChatRsp, error)
 }
 
 // ToolObservation 保存一次工具调用的观测句柄，由该次调用负责结束。

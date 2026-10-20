@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ChatReq 对应 POST /api/agent/chat；省略或空字符串交给领域层使用默认问题。
+// ChatReq 对应 POST /api/agent/chat；省略或空字符串时，接口传入默认学习示例。
 type ChatReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Question      *string                `protobuf:"bytes,1,opt,name=question,proto3,oneof" json:"question,omitempty"`

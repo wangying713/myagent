@@ -15,7 +15,143 @@ func (f modelFunc) Chat(ctx context.Context, req Request) (Response, error) {
 	return f(ctx, req)
 }
 
-func TestChatWithToolsPreservesAssistantAndMultipleToolResults(t *testing.T) {
+func TestChatChoosesToolPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name       string // 是否提供工具以及是否明确指定策略。
+		tools      Tools  // 本次对话提供的工具，nil 表示不提供。
+		choice     string // 调用方指定的策略，空值使用默认行为。
+		wantChoice string // 实际发送给模型并记录的工具策略。
+	}{
+		{
+			name:       "不提供工具",
+			wantChoice: ToolChoiceNone,
+		},
+		{
+			name:       "没有工具时不能自动调用",
+			choice:     ToolChoiceAuto,
+			wantChoice: ToolChoiceNone,
+		},
+		{
+			name:       "提供工具后默认允许选择",
+			tools:      MultiplyTools{},
+			wantChoice: ToolChoiceAuto,
+		},
+		{
+			name:       "明确允许选择工具",
+			tools:      MultiplyTools{},
+			choice:     ToolChoiceAuto,
+			wantChoice: ToolChoiceAuto,
+		},
+		{
+			name:       "提供工具但明确禁用",
+			tools:      MultiplyTools{},
+			choice:     ToolChoiceNone,
+			wantChoice: ToolChoiceNone,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+				calls++
+				if len(req.Messages) != 1 || req.Messages[0].Role != RoleUser || req.Messages[0].Content != "打个招呼" {
+					t.Fatalf("未提供提示词时应只发送用户问题，实际 %+v", req.Messages)
+				}
+				if req.ToolChoice != tc.wantChoice || (len(req.Tools) > 0) != (tc.tools != nil) {
+					t.Fatalf("实际策略 %q、工具 %d 个，预期策略 %q、提供工具 %v", req.ToolChoice, len(req.Tools), tc.wantChoice, tc.tools != nil)
+				}
+				return Response{
+					Message: Message{
+						Role:    RoleAssistant,
+						Content: "直接回答",
+					},
+					FinishReason: FinishReasonStop,
+				}, nil
+			})
+			observer := &testObserver{}
+			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
+			result, err := agentCli.Chat(t.Context(), ChatReq{
+				Question:   "打个招呼",
+				Tools:      tc.tools,
+				ToolChoice: tc.choice,
+			})
+			if err != nil || !result.Completed || result.Answer != "直接回答" || calls != 1 || result.ModelCalls != 1 || result.ToolCalls != 0 {
+				t.Fatalf("普通回答未正确结束：%+v，错误 %v，模型请求 %d 次", result, err, calls)
+			}
+			if observer.runs[0].details.ToolChoice != tc.wantChoice || !observer.runs[0].ended {
+				t.Fatal("运行记录没有保存实际工具策略或没有收尾")
+			}
+		})
+	}
+}
+
+func TestChatRejectsToolCallsWhenDisabled(t *testing.T) {
+	for _, tc := range []struct {
+		name  string // 没有工具或明确禁止工具的场景。
+		tools Tools  // 本次提供的工具，nil 表示没有工具。
+	}{
+		{
+			name: "没有提供工具",
+		},
+		{
+			name:  "提供工具但禁止调用",
+			tools: MultiplyTools{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+				calls++
+				return Response{
+					Message: Message{
+						Role: RoleAssistant,
+						ToolCalls: []ToolCall{
+							{
+								ID:   "unexpected-tool",
+								Type: ToolTypeFunction,
+								Function: FunctionCall{
+									Name:      ToolNameMultiply,
+									Arguments: `{"a":2,"b":3}`,
+								},
+							},
+						},
+					},
+					FinishReason: FinishReasonToolCalls,
+				}, nil
+			})
+			observer := &testObserver{}
+			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
+			result, err := agentCli.Chat(t.Context(), ChatReq{
+				Question:   "2 乘 3",
+				Tools:      tc.tools,
+				ToolChoice: ToolChoiceNone,
+			})
+			if !errors.Is(err, ErrInvalidResponse) || result.Completed || calls != 1 || result.ToolCalls != 0 || len(observer.tools) != 0 {
+				t.Fatalf("禁用后仍继续执行：%+v，错误 %v，模型请求 %d 次", result, err, calls)
+			}
+			if !observer.runs[0].ended || !errors.Is(observer.runs[0].err, ErrInvalidResponse) {
+				t.Fatal("拒绝工具调用后没有正确结束运行记录")
+			}
+		})
+	}
+}
+
+func TestChatRejectsUnknownToolChoiceBeforeModelCall(t *testing.T) {
+	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+		t.Fatal("工具策略无效时不应调用模型")
+		return Response{}, nil
+	})
+	observer := &testObserver{}
+	agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
+	_, err := agentCli.Chat(t.Context(), ChatReq{
+		Question:   "检查无效的工具策略",
+		ToolChoice: "unknown",
+	})
+	if !errors.Is(err, ErrInput) || len(observer.runs) != 0 {
+		t.Fatalf("实际错误 %v、运行记录 %d 条，预期 ErrInput 且不启动运行", err, len(observer.runs))
+	}
+}
+
+func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0
 	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
 		calls++
@@ -66,7 +202,7 @@ func TestChatWithToolsPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	})
 	observer := &testObserver{}
 	agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
-	result, err := agentCli.chatWithTools(t.Context(), chatWithToolsReq{
+	result, err := agentCli.Chat(t.Context(), ChatReq{
 		Operation: OperationRun,
 		Tools:     MultiplyTools{},
 		Question:  "问题",
@@ -83,13 +219,13 @@ func TestChatWithToolsPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	}
 }
 
-func TestChatWithToolsRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
+func TestChatRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
 	for _, tc := range []struct {
 		name     string // 直接调用工具循环时的无效问题类型。
 		question string // 业务入口没有预先检查的问题。
 	}{
 		{
-			name: "空字符串",
+			name: "空问题不能自动换成示例",
 		},
 		{
 			name:     "只有空白",
@@ -107,7 +243,7 @@ func TestChatWithToolsRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testi
 			})
 			observer := &testObserver{}
 			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
-			result, err := agentCli.chatWithTools(t.Context(), chatWithToolsReq{
+			result, err := agentCli.Chat(t.Context(), ChatReq{
 				Operation: OperationRun,
 				Tools:     MultiplyTools{},
 				Question:  tc.question,
@@ -119,7 +255,7 @@ func TestChatWithToolsRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testi
 	}
 }
 
-func TestChatWithToolsKeepsBudgetOverridesLocal(t *testing.T) {
+func TestChatKeepsBudgetOverridesLocal(t *testing.T) {
 	chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
 		if len(req.Messages) == 2 {
 			return Response{
@@ -261,7 +397,7 @@ func TestMultiplyStopsOnCancellation(t *testing.T) {
 	}
 }
 
-func TestChatWithToolsBudgetsAndProtocolErrors(t *testing.T) {
+func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name   string   // 用例名称。
 		limits Limits   // 本用例采用的运行预算。
@@ -362,7 +498,7 @@ func TestChatWithToolsBudgetsAndProtocolErrors(t *testing.T) {
 			})
 			observer := &testObserver{}
 			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
-			result, err := agentCli.chatWithTools(t.Context(), chatWithToolsReq{
+			result, err := agentCli.Chat(t.Context(), ChatReq{
 				Operation: OperationRun,
 				Tools:     MultiplyTools{},
 				Question:  "问题",
@@ -388,7 +524,7 @@ func TestChatWithToolsBudgetsAndProtocolErrors(t *testing.T) {
 	})
 	observer := &testObserver{}
 	agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
-	result, err := agentCli.chatWithTools(ctx, chatWithToolsReq{
+	result, err := agentCli.Chat(ctx, ChatReq{
 		Operation: OperationRun,
 		Tools:     MultiplyTools{},
 		Question:  "问题",
@@ -399,7 +535,52 @@ func TestChatWithToolsBudgetsAndProtocolErrors(t *testing.T) {
 	}
 }
 
-func TestChatWithToolsChecksWholeToolBatchBeforeExecution(t *testing.T) {
+func TestChatCountsToolBudgetAcrossRounds(t *testing.T) {
+	ids := []string{
+		"first-tool",
+		"second-tool",
+	}
+	calls := 0
+	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+		if calls >= len(ids) {
+			t.Fatal("工具预算用完后不应继续请求模型")
+		}
+		id := ids[calls]
+		calls++
+		return Response{
+			Message: Message{
+				Role: RoleAssistant,
+				ToolCalls: []ToolCall{
+					{
+						ID:   id,
+						Type: ToolTypeFunction,
+						Function: FunctionCall{
+							Name:      ToolNameMultiply,
+							Arguments: `{"a":2,"b":3}`,
+						},
+					},
+				},
+			},
+			FinishReason: FinishReasonToolCalls,
+		}, nil
+	})
+	observer := &testObserver{}
+	limits := DefaultLimits()
+	limits.ToolCalls = 1
+	agentCli := newTestClient(t, chatCli, observer, limits)
+	result, err := agentCli.Chat(t.Context(), ChatReq{
+		Question: "分两轮计算乘法",
+		Tools:    MultiplyTools{},
+	})
+	if !errors.Is(err, ErrBudgetExceeded) || calls != 2 || result.ToolCalls != 1 || len(observer.tools) != 1 || result.Completed {
+		t.Fatalf("跨轮次没有正确累计工具预算：%+v，错误 %v，模型请求 %d 次", result, err, calls)
+	}
+	if len(result.Steps) != 3 || !observer.tools[0].ended || !observer.runs[0].ended {
+		t.Fatalf("预算停止时没有保留记录并收尾：%+v", result)
+	}
+}
+
+func TestChatChecksWholeToolBatchBeforeExecution(t *testing.T) {
 	for _, tc := range []struct {
 		name  string   // 要检查的整轮工具请求问题。
 		ids   []string // 模型提出的工具调用 ID。
@@ -459,7 +640,7 @@ func TestChatWithToolsChecksWholeToolBatchBeforeExecution(t *testing.T) {
 			limits := DefaultLimits()
 			limits.ToolCalls = tc.limit
 			agentCli := newTestClient(t, chatCli, observer, limits)
-			result, err := agentCli.chatWithTools(t.Context(), chatWithToolsReq{
+			result, err := agentCli.Chat(t.Context(), ChatReq{
 				Operation: OperationRun,
 				Tools:     MultiplyTools{},
 				Question:  "计算乘法",

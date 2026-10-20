@@ -24,8 +24,14 @@ func newImplAgent(agentCli *agent.Client) (*ImplAgent, error) {
 
 // Chat 执行单轮聊天，省略问题时使用默认问题。 @alias=/api/agent/chat
 func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
-	result, err := a.agentCli.Chat(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
+	question := req.GetQuestion()
+	if question == "" {
+		question = agent.DemoChatQuestion
+	}
+	result, err := a.agentCli.Chat(ctx, agent.ChatReq{
+		Question:   question,
+		Prompt:     agent.DemoChatPrompt,
+		ToolChoice: agent.ToolChoiceNone,
 	})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err

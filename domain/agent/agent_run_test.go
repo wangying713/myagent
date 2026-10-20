@@ -46,7 +46,7 @@ func TestPrepareRunRejectsInvalidQuestionsBeforeObservation(t *testing.T) {
 				return Response{}, nil
 			})
 			agentCli := newTestClient(t, chatCli, observer, DefaultLimits())
-			result := NewResult(OperationChat, observer.Enabled())
+			result := NewChatRsp(OperationChat, observer.Enabled())
 			_, run, err := agentCli.prepareRun(t.Context(), &result, RunDetails{
 				Questions: tc.questions,
 			})

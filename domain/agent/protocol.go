@@ -28,6 +28,7 @@ const (
 const (
 	ToolTypeFunction = "function" // 当前支持的函数工具协议类型。
 	ToolChoiceAuto   = "auto"     // 允许模型在已注册工具中自行选择是否调用。
+	ToolChoiceNone   = "none"     // 禁止模型调用工具，只允许直接回答。
 )
 
 // Message 保留模型原始 assistant 消息，回传历史时不丢失扩展字段或 null。
@@ -83,7 +84,7 @@ type Request struct {
 	Model          string           `json:"model"`                     // 目标模型名称，由模型客户端适配。
 	Messages       []Message        `json:"messages"`                  // 按对话顺序排列的消息历史。
 	Tools          []ToolDefinition `json:"tools,omitempty"`           // 当前允许模型选择的工具定义。
-	ToolChoice     string           `json:"tool_choice,omitempty"`     // 工具选择策略，auto 允许模型自行决定是否调用。
+	ToolChoice     string           `json:"tool_choice,omitempty"`     // 工具选择策略，auto 允许自行选择，none 禁止调用。
 	ResponseFormat *ResponseFormat  `json:"response_format,omitempty"` // 非 nil 时要求模型输出 JSON 对象。
 	Thinking       struct {
 		Type string `json:"type"` // 思考模式类型，由模型客户端适配。

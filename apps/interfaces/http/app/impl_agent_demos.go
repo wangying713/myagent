@@ -23,9 +23,7 @@ func newImplAgentDemos(agentCli *agent.Client) *ImplAgentDemos {
 
 // Overview 演示Agent 到底是什么。 @alias=/api/agent-demos/overview
 func (a *ImplAgentDemos) Overview(ctx context.Context, req *proto.DemosOverviewReq) (*proto.DemosOverviewRsp, error) {
-	result, err := a.agentCli.DemoOverview(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoOverview(ctx, req.GetQuestion())
 	return &proto.DemosOverviewRsp{
 		Direct:    demoExecution(result.Direct),
 		WithTools: demoExecution(result.WithTools),
@@ -34,8 +32,14 @@ func (a *ImplAgentDemos) Overview(ctx context.Context, req *proto.DemosOverviewR
 
 // Chat 演示普通聊天。 @alias=/api/agent-demos/chat
 func (a *ImplAgentDemos) Chat(ctx context.Context, req *proto.DemosChatReq) (*proto.DemosChatRsp, error) {
-	result, err := a.agentCli.Chat(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
+	question := req.GetQuestion()
+	if question == "" {
+		question = agent.DemoChatQuestion
+	}
+	result, err := a.agentCli.Chat(ctx, agent.ChatReq{
+		Question:   question,
+		Prompt:     agent.DemoChatPrompt,
+		ToolChoice: agent.ToolChoiceNone,
 	})
 	return &proto.DemosChatRsp{
 		Execution: demoExecution(result),
@@ -63,9 +67,7 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *proto.DemosToolsReq) (*
 
 // Structured 演示结构化输出。 @alias=/api/agent-demos/structured
 func (a *ImplAgentDemos) Structured(ctx context.Context, req *proto.DemosStructuredReq) (*proto.DemosStructuredRsp, error) {
-	result, err := a.agentCli.DemoStructured(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoStructured(ctx, req.GetQuestion())
 	return &proto.DemosStructuredRsp{
 		Execution: demoExecution(result.Execution),
 		Product:   result.Order.Product,
@@ -75,9 +77,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *proto.DemosStructu
 
 // MultipleTools 演示多个工具协作。 @alias=/api/agent-demos/multiple-tools
 func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *proto.DemosMultipleToolsReq) (*proto.DemosMultipleToolsRsp, error) {
-	result, err := a.agentCli.DemoMultipleTools(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoMultipleTools(ctx, req.GetQuestion())
 	return &proto.DemosMultipleToolsRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -110,9 +110,7 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *proto.DemosReliab
 
 // Retrieval 演示检索与记忆。 @alias=/api/agent-demos/retrieval
 func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *proto.DemosRetrievalReq) (*proto.DemosRetrievalRsp, error) {
-	result, err := a.agentCli.DemoRetrieval(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoRetrieval(ctx, req.GetQuestion())
 	sources := make([]*proto.DemosSource, 0, len(result.Sources))
 	for _, source := range result.Sources {
 		sources = append(sources, &proto.DemosSource{
@@ -129,9 +127,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *proto.DemosRetrieva
 
 // Workflow 演示工作流。 @alias=/api/agent-demos/workflow
 func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowReq) (*proto.DemosWorkflowRsp, error) {
-	result, err := a.agentCli.DemoWorkflow(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoWorkflow(ctx, req.GetQuestion())
 	stages := make([]*proto.DemosStage, 0, len(result.Stages))
 	for _, stage := range result.Stages {
 		stages = append(stages, &proto.DemosStage{
@@ -147,7 +143,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *proto.DemosWorkflowR
 
 // Observation 演示日志与观测。 @alias=/api/agent-demos/observation
 func (a *ImplAgentDemos) Observation(ctx context.Context, req *proto.DemosObservationReq) (*proto.DemosObservationRsp, error) {
-	result, err := a.agentCli.DemoObservation(ctx, req.GetQuestion())
+	result, err := a.agentCli.Run(ctx, req.GetQuestion())
 	return &proto.DemosObservationRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -175,9 +171,7 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *proto.DemosEvaluat
 
 // Delivery 演示综合练习。 @alias=/api/agent-demos/delivery
 func (a *ImplAgentDemos) Delivery(ctx context.Context, req *proto.DemosDeliveryReq) (*proto.DemosDeliveryRsp, error) {
-	result, err := a.agentCli.DemoDelivery(ctx, agent.ChatInput{
-		Question: req.GetQuestion(),
-	})
+	result, err := a.agentCli.DemoDelivery(ctx, req.GetQuestion())
 	return &proto.DemosDeliveryRsp{
 		Execution: demoExecution(result),
 	}, err
@@ -214,7 +208,7 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *proto.DemosStreamReq) 
 }
 
 // demoExecution 只转换共用的执行记录，各业务响应仍由对应方法分别组装。
-func demoExecution(result agent.Result) *proto.DemosExecution {
+func demoExecution(result agent.ChatRsp) *proto.DemosExecution {
 	return &proto.DemosExecution{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,

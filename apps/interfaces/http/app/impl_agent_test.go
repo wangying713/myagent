@@ -20,11 +20,11 @@ import (
 func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 	for _, endpoint := range []struct {
 		path     string // 普通 API 或 Demo 的请求地址。
-		fallback string // 该接口在问题为空时使用的领域默认值。
+		fallback string // 该接口在问题为空时使用的学习示例。
 	}{
 		{
 			path:     "/api/agent/chat",
-			fallback: agent.ChatQuestion,
+			fallback: agent.DemoChatQuestion,
 		},
 		{
 			path:     "/api/agent/run",
@@ -32,7 +32,7 @@ func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 		},
 		{
 			path:     "/api/agent-demos/chat",
-			fallback: agent.ChatQuestion,
+			fallback: agent.DemoChatQuestion,
 		},
 		{
 			path:     "/api/agent-demos/tools",
@@ -50,12 +50,12 @@ func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 				question: "  请计算 17×23，保留这句话。  ",
 			},
 			{
-				name:     "省略问题交给领域默认值",
+				name:     "省略问题使用接口默认示例",
 				body:     `{}`,
 				question: endpoint.fallback,
 			},
 			{
-				name:     "空字符串交给领域默认值",
+				name:     "空字符串使用接口默认示例",
 				body:     `{"question":""}`,
 				question: endpoint.fallback,
 			},

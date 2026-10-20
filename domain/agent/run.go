@@ -10,11 +10,11 @@ const (
 
 // Run 通过受预算约束的循环调用模型和已注册的乘法工具。
 // question 为空字符串时使用 AgentQuestion。
-func (c *Client) Run(ctx context.Context, question string) (Result, error) {
+func (c *Client) Run(ctx context.Context, question string) (ChatRsp, error) {
 	if question == "" {
 		question = AgentQuestion
 	}
-	return c.chatWithTools(ctx, chatWithToolsReq{
+	return c.Chat(ctx, ChatReq{
 		Operation: OperationRun,
 		Tools:     MultiplyTools{},
 		Question:  question,

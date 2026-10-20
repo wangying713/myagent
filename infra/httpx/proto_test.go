@@ -78,6 +78,13 @@ func TestDecodeProtoJSONContract(t *testing.T) {
 			code:        "invalid_input",
 		},
 		{
+			name:        "不完整对象",
+			body:        `{`,
+			contentType: "application/json",
+			status:      400,
+			code:        "invalid_input",
+		},
+		{
 			name:        "数组",
 			body:        `[]`,
 			contentType: "application/json",

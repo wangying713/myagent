@@ -166,7 +166,7 @@ func (r *runObservation) TraceID() string {
 	return r.span.SpanContext().TraceID().String()
 }
 
-func (r *runObservation) End(result agent.Result, err error) {
+func (r *runObservation) End(result agent.ChatRsp, err error) {
 	output := runOutput{
 		Operation:     result.Operation,
 		Completed:     result.Completed,

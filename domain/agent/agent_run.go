@@ -2,22 +2,26 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"math"
 	"time"
 )
 
-// agentRun 保存这一次 Agent 运行的模型、结果和开始时间，负责结束时收尾。
+// agentRun 保存这一次 Agent 运行的数据，负责调用模型和工具、记录结果及结束时收尾。
 // 每次运行单独创建，调用结束后不再复用。
 type agentRun struct {
-	observer Observer        // 隐藏最终回答中的敏感内容。
-	result   *Result         // 保存这次运行的回答、步骤和统计。
-	chatCli  *recordingModel // 每次请求模型时，记录调用次数、用量和步骤。
-	run      RunObservation  // 这次运行的链路记录，结束时一并收尾。
-	started  time.Time       // 记下开始时间，用来计算总耗时。
+	observer Observer       // 负责执行记录的脱敏和最终回答的清理。
+	result   *ChatRsp       // 保存这次运行的回答、步骤和统计。
+	chatCli  ChatClient     // 实际发起模型请求的客户端。
+	limits   Limits         // 本次运行允许的调用次数与 token 上限。
+	run      RunObservation // 这次运行的链路记录，结束时一并收尾。
+	started  time.Time      // 记下开始时间，用来计算总耗时。
 }
 
-// prepareRun 检查问题，创建运行记录，并准备能记录调用次数和用量的模型客户端。
+// prepareRun 检查问题，创建运行记录，并保存本次使用的客户端和预算。
 // 模型请求由调用方随后发起，执行结束后由 end 收尾。
-func (c *Client) prepareRun(ctx context.Context, result *Result, req RunDetails) (context.Context, *agentRun, error) {
+func (c *Client) prepareRun(ctx context.Context, result *ChatRsp, req RunDetails) (context.Context, *agentRun, error) {
 	// 统一在这里检查，调用方补好默认问题即可，避免新增入口时漏掉校验。
 	if len(req.Questions) == 0 {
 		return ctx, nil, ErrInput
@@ -42,15 +46,96 @@ func (c *Client) prepareRun(ctx context.Context, result *Result, req RunDetails)
 	return ctx, &agentRun{
 		observer: c.observer,
 		result:   result,
+		chatCli:  c.chatCli,
+		limits:   c.limits,
 		run:      run,
 		started:  time.Now(),
-		// 给模型加上记账功能，每次调用都把用量和执行结果写进同一份 result。
-		chatCli: &recordingModel{
-			chatCli:  c.chatCli,
-			observer: c.observer,
-			result:   result,
-			limits:   c.limits,
-		},
+	}, nil
+}
+
+// callModel 先检查预算，再请求模型，并记下用量、结果和耗时；失败时也保留记录。
+func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error) {
+	if err := ctx.Err(); err != nil {
+		return Response{}, err
+	}
+	if r.result.ModelCalls >= r.limits.ModelCalls || r.result.KnownTokens >= r.limits.Tokens {
+		return Response{}, ErrBudgetExceeded
+	}
+	started := time.Now()
+	r.result.ModelCalls++
+	response, err := r.chatCli.Chat(ctx, req)
+	if err == nil {
+		err = response.Validate()
+	}
+	if total, known := response.Usage.Total(); known && total <= math.MaxInt-r.result.KnownTokens {
+		r.result.KnownTokens += total
+	} else {
+		r.result.UsageComplete = false
+	}
+	request := response.RequestJSON
+	if len(request) == 0 {
+		// Request 仅包含可编码的协议字段；失败时也不能丢失业务错误。
+		if encoded, encodeErr := json.Marshal(req); encodeErr == nil {
+			request = encoded
+		}
+	}
+	step := ExecutionStep{
+		Kind:         StepKindModel,
+		Name:         fmt.Sprintf("第 %d 次模型请求", r.result.ModelCalls),
+		Request:      r.observer.Safe(request),
+		Response:     r.observer.Safe(response.Raw),
+		ElapsedMS:    time.Since(started).Milliseconds(),
+		FinishReason: response.FinishReason,
+		Usage:        &response.Usage,
+	}
+	if err != nil {
+		step.Error = "模型调用未完成"
+	}
+	r.result.Steps = append(r.result.Steps, step)
+	return response, err
+}
+
+// callTool 执行工具，记录调用次数、结果和耗时，再把结果整理成模型能继续读取的消息。
+func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (message Message, err error) {
+	if err := ctx.Err(); err != nil {
+		return Message{}, err
+	}
+	ctx, observation := r.observer.StartTool(ctx, req)
+	started := time.Now()
+	var output ToolResult
+	// 无论执行成功还是中途出错，都用最终结果和错误结束记录。
+	defer func() {
+		observation.End(output, err)
+	}()
+	r.result.ToolCalls++
+	// ToolCall 只包含字符串和简单结构体，可以直接编码。
+	request, _ := json.Marshal(req)
+	output, err = tools.Dispatch(ctx, req)
+	// 编码后的完整结果发给模型，展示记录另做脱敏，避免改变后续对话内容。
+	response, encodeErr := json.Marshal(output)
+	if encodeErr != nil {
+		return Message{}, fmt.Errorf("记录工具结果: %w", encodeErr)
+	}
+	step := ExecutionStep{
+		Kind:      StepKindTool,
+		Name:      r.observer.Clean(req.Function.Name),
+		Request:   r.observer.Safe(request),
+		Response:  r.observer.Safe(response),
+		ElapsedMS: time.Since(started).Milliseconds(),
+	}
+	if err != nil {
+		step.Error = "工具执行未完成"
+	} else if !output.OK {
+		step.Error = r.observer.Clean(output.Error)
+	}
+	r.result.Steps = append(r.result.Steps, step)
+	if err != nil {
+		return Message{}, err
+	}
+	return Message{
+		Role:       RoleTool,
+		ToolCallID: req.ID,
+		Content:    string(response),
 	}, nil
 }
 

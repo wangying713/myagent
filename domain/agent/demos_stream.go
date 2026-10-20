@@ -25,7 +25,7 @@ type DemoStreamInput struct {
 }
 
 // DemoStream 沿用当前请求上下文实时生成，失败时保留已经收到的文字与执行记录。
-func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Result, err error) {
+func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result ChatRsp, err error) {
 	if req.Question == "" {
 		req.Question = "用生活中的例子解释 Go 的 context，分三点说明。"
 	}
@@ -36,10 +36,10 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Re
 	if !ok {
 		return result, errors.New("模型客户端不支持流式回答")
 	}
-	result = NewResult(DemoStream, c.observer.Enabled())
+	result = NewChatRsp(DemoStream, c.observer.Enabled())
 	ctx, run, err := c.prepareRun(ctx, &result, RunDetails{
 		Questions: []string{req.Question},
-		Prompt:    ChatPrompt,
+		Prompt:    DemoChatPrompt,
 	})
 	if err != nil {
 		return result, err
@@ -51,7 +51,7 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Re
 	result.ModelCalls = 1
 	response, err := chatCli.Stream(ctx, StreamInput{
 		Request: Request{
-			Messages: demoMessages(ChatPrompt, req.Question),
+			Messages: chatMessages(DemoChatPrompt, req.Question),
 		},
 		Emit: func(text string) error {
 			if err := ctx.Err(); err != nil {

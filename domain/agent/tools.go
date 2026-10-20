@@ -18,7 +18,7 @@ type Tools interface {
 // ToolNameMultiply 是乘法工具在声明和调用校验中共用的协议名称。
 const ToolNameMultiply = "multiply"
 
-// MultiplyTools 是当前唯一可用的工具集；不会执行模型生成的函数或文本。
+// MultiplyTools 只提供已注册的乘法工具，不执行模型生成的函数或文本。
 type MultiplyTools struct{}
 
 // multiplyArgs 同时定义乘法工具的参数类型和执行时使用的数据。

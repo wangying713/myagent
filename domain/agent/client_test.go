@@ -40,7 +40,7 @@ func (o *testObserver) StartTool(ctx context.Context, _ ToolCall) (context.Conte
 type testRunObservation struct {
 	operation string     // 本次观测对应的业务标识。
 	details   RunDetails // 启动观测时收到的问题和实际预算。
-	result    Result     // 结束观测时收到的业务结果。
+	result    ChatRsp    // 结束观测时收到的业务结果。
 	err       error      // 结束观测时收到的业务错误。
 	ended     bool       // 是否已调用结束方法。
 }
@@ -48,7 +48,7 @@ type testRunObservation struct {
 func (*testRunObservation) TraceID() string {
 	return "test-trace"
 }
-func (r *testRunObservation) End(result Result, err error) {
+func (r *testRunObservation) End(result ChatRsp, err error) {
 	r.result, r.err, r.ended = result, err, true
 }
 
@@ -75,8 +75,8 @@ func newTestClient(t *testing.T, chatCli ChatClient, observer *testObserver, lim
 func TestClientChatRecordsSafeCopy(t *testing.T) {
 	observer := &testObserver{}
 	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
-		if len(req.Messages) != 2 || req.Messages[1].Content != ChatQuestion {
-			t.Fatalf("实际默认请求 %+v，预期默认聊天问题", req.Messages)
+		if len(req.Messages) != 2 || req.Messages[0].Content != "按调用方的要求回答" || req.Messages[1].Content != "  调用方的问题  " {
+			t.Fatalf("实际请求 %+v，预期保留调用方的问题和提示词", req.Messages)
 		}
 		return Response{
 			Message: Message{
@@ -87,7 +87,10 @@ func TestClientChatRecordsSafeCopy(t *testing.T) {
 			Raw:          []byte(`{"answer":"本机密钥"}`),
 		}, nil
 	})
-	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Chat(context.Background(), ChatInput{})
+	result, err := newTestClient(t, chatCli, observer, DefaultLimits()).Chat(context.Background(), ChatReq{
+		Question: "  调用方的问题  ",
+		Prompt:   "按调用方的要求回答",
+	})
 	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Steps) != 1 || result.UsageComplete {
 		t.Fatalf("聊天结果不符合契约：%+v，错误 %v", result, err)
 	}
@@ -196,7 +199,7 @@ func TestClientInputAndCancellation(t *testing.T) {
 		"  ",
 		strings.Repeat("字", 4097),
 	} {
-		if _, err := agentCli.Chat(context.Background(), ChatInput{
+		if _, err := agentCli.Chat(context.Background(), ChatReq{
 			Question: question,
 		}); !errors.Is(err, ErrInput) {
 			t.Errorf("聊天实际错误 %v，预期 ErrInput", err)
@@ -228,7 +231,9 @@ func TestClientInputAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := agentCli.Chat(ctx, ChatInput{})
+	result, err := agentCli.Chat(ctx, ChatReq{
+		Question: "这是一次已取消的问题",
+	})
 	if !errors.Is(err, context.Canceled) || result.ModelCalls != 0 || result.Completed || !observer.runs[0].ended {
 		t.Fatalf("取消执行错误：%+v，错误 %v", result, err)
 	}

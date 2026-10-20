@@ -16,8 +16,8 @@ type MessagesInput struct {
 
 // Messages 顺序执行两轮，第二轮携带第一轮实际返回的 assistant 消息。
 // 第二轮失败时仍返回第一轮已完成的回答、步骤和已知用量。
-func (c *Client) Messages(ctx context.Context, req MessagesInput) (result Result, err error) {
-	result = NewResult(OperationMessages, c.observer.Enabled())
+func (c *Client) Messages(ctx context.Context, req MessagesInput) (result ChatRsp, err error) {
+	result = NewChatRsp(OperationMessages, c.observer.Enabled())
 	if req.Questions == nil {
 		req.Questions = []string{
 			FirstQuestion,
@@ -48,7 +48,7 @@ func (c *Client) Messages(ctx context.Context, req MessagesInput) (result Result
 			Role:    RoleUser,
 			Content: question,
 		})
-		response, callErr := run.chatCli.Chat(ctx, Request{
+		response, callErr := run.callModel(ctx, Request{
 			Messages: messages,
 		})
 		if callErr != nil {

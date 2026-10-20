@@ -6,11 +6,11 @@ import (
 	"unicode/utf8"
 )
 
-// ErrInput 表示问题内容或固定两轮消息的数量不符合业务要求。
+// ErrInput 表示问题、消息数量、工具策略或其他业务输入不符合要求。
 var ErrInput = errors.New("Agent 输入无效")
 
 const (
-	OperationChat     = "chat"     // 单轮聊天，沿用接口与观测中的既有取值。
+	OperationChat     = "chat"     // 聊天操作，默认用于普通问答。
 	OperationMessages = "messages" // 固定两轮的消息历史调用。
 	OperationRun      = "agent"    // 工具循环，保留既有协议值 agent。
 )

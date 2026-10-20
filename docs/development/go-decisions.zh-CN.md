@@ -109,8 +109,8 @@ type Message struct {
 - 同一行声明的多个字段可以共用能明确对应各字段的说明；含义不同、需要分别解释时拆成独立字段声明，保持字段顺序与类型不变。
 
 ```go
-// Result 保存本次业务执行的结果。
-type Result struct {
+// ChatRsp 保存本次业务执行的结果。
+type ChatRsp struct {
 	Completed bool  // 本次业务是否成功完成。
 	ElapsedMS int64 // 本次运行耗时，单位为毫秒。
 }
@@ -126,30 +126,43 @@ type Result struct {
 - `context.Context` 仍单独作为首参；同一次操作要用的模型、工具等依赖也可以放进输入结构体，通过具名字段明确传入。不把无关数据塞进大结构体，不通过全局变量、`map[string]any` 或可变参数绕过数量限制。
 - 实现标准库、第三方接口或使用其规定的回调签名时，按外部要求保留签名；只有确实需要匹配外部约定时才适用此例外。
 
-例如带工具对话将问题、提示词、工具和单次预算放在请求里，模型客户端和默认预算由 `Client` 提供，调用时只传 `ctx` 和这份输入：
+例如对话将问题、提示词、工具策略和单次预算放在请求里，模型客户端和默认预算由 `Client` 提供，调用时只传 `ctx` 和这份输入：
 
 ```go
-// chatWithToolsReq 保存本次工具对话的业务输入。
-type chatWithToolsReq struct {
-	Operation string // 本次业务标识。
-	Tools     Tools  // 本次允许执行的工具。
-	Question  string // 用户要问的问题。
-	Prompt    string // 系统提示词。
-	Limits    Limits // 全零使用客户端默认预算，覆盖时各值须为正数。
+// ChatReq 保存普通问答和工具对话的业务输入。
+type ChatReq struct {
+	Operation  string // 本次业务标识。
+	Tools      Tools  // 可选工具，不提供时禁止调用。
+	ToolChoice string // auto 允许模型选择，none 禁止调用。
+	Question   string // 调用方提供的问题，不能为空或只有空白。
+	Prompt     string // 调用方提供的提示词；为空时不添加系统消息。
+	Limits     Limits // 全零使用客户端默认预算，覆盖时各值须为正数。
 }
 
-// chatWithTools 执行模型与工具对话，并统一记录和汇总结果。
-func (c *Client) chatWithTools(ctx context.Context, req chatWithToolsReq) (Result, error)
+// Chat 统一处理普通问答和工具对话，并记录和汇总结果。
+func (c *Client) Chat(ctx context.Context, req ChatReq) (ChatRsp, error)
 ```
+
+示例问题和提示词由具体 API 或 Demo 调用方准备，通用 `Client.Chat` 不内置课程内容。普通聊天不提供工具；需要工具时传入工具集，`ToolChoice` 可用 `auto` 或 `none` 指定允许或禁止。禁用时，即使模型返回工具调用也会拒绝执行。
 
 这是本项目为方便阅读设定的数量限制，不是 Google Go 的通用要求；分组思路见 [函数参数与可选配置](google-go-best-practices.zh-CN.md#六函数参数与可选配置)。
 
+## 函数与方法行数
+
+- 新增或修改的手写 Go 函数和方法**最多 90 行**；匿名函数、测试函数和测试辅助函数同样遵循。生成文件、第三方代码和 `old` 历史归档不手改。
+- 按 `gofmt` 后的实际源码行数计算：从函数签名所在行到函数体结束大括号所在行，两端都计入，包含内部空行、注释、嵌套代码及匿名函数；声明上方的文档注释不计。嵌套匿名函数也单独检查，不能用它绕过外层行数限制。
+- 接近或超过上限时，按实际职责拆分，例如参数准备、消息构造和执行过程。函数名应能说明拆出的步骤，不新增没有实际作用的转发层，也不为满足行数引入无关结构体或接口。
+- 不通过压缩代码块、合并语句、挤在一行初始化字段，或删除必要注释、空行来凑行数；继续遵循代码块与复合字面量换行规则。
+- 存量超限函数在后续涉及该函数时按职责治理；本规则不要求在无关任务中重写整个仓库。
+
+90 行是本项目的可读性限制，不是 Google Go 的官方硬性要求。
+
 ## 请求参数命名
 
-- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `chatWithTools(ctx context.Context, req chatWithToolsReq)`、`Chat(ctx context.Context, req Request)`。
+- 函数、方法只有一个业务请求或执行输入对象时，参数统一命名为 `req`；例如 `Chat(ctx context.Context, req ChatReq)`、`Chat(ctx context.Context, req Request)`。
 - `ctx` 仍单独作为首参；另有模型、工具等依赖参数时，唯一的业务请求参数仍叫 `req`。领域方法、接口声明、模型与工具实现、相关测试替身和回调保持一致。
 - 这项约定针对请求或执行输入对象。配置仍可叫 `cfg`，响应叫 `rsp`，依赖及普通辅助值按含义命名，例如 `tools`、`question`、`timeout`、`err`；只有 `ctx` 的方法仍使用 `ctx`。同一函数里的 HTTP 请求和业务请求需要区分时，HTTP 请求使用 `httpReq`。
-- 只统一参数变量名，不因此修改 `ChatInput`、`chatWithToolsReq` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
+- 只统一参数变量名，不因此修改 `MessagesInput`、`ChatReq` 等已有类型名，不把多个含义不同的输入硬合并。生成文件和 `old` 历史归档不手改。
 
 这是本项目的命名偏好，目的是让同类方法使用相同写法，不是 Google Go 对所有单参数函数的要求。
 
@@ -230,7 +243,7 @@ impl := &ImplAgent{
 - 个别字面量可以保留：空串、直观的 0/1 和索引、局部结构的固定数量、只出现一次且语义明确的文案或局部值，以及 JSON 标签、JSON Schema、显式路由等协议声明。是否提取以含义、复用和维护成本判断，不要求消除所有字面量。
 - 测试中的独立协议样本、边界输入和预期值可保留字面量，以验证线上取值不变；不要把所有预期都改成生产常量，导致常量改错时测试也同步放行。生成文件继续交给生成器处理。
 
-例如 `NewResult(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
+例如 `NewChatRsp(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
 
 ## HTTP API 方法签名
 

@@ -257,8 +257,8 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 				runAttrs[string(attr.Key)] = attr.Value.AsString()
 			}
 			input := map[string]any{
-				"question": agent.ChatQuestion,
-				"prompt":   agent.ChatPrompt,
+				"question": agent.DemoChatQuestion,
+				"prompt":   agent.DemoChatPrompt,
 				"limits": map[string]int{
 					"model_calls": 5,
 					"tool_calls":  8,

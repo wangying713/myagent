@@ -4,7 +4,7 @@ package saklay.http.agent;
 
 option go_package = "saklay/ai/apps/interfaces/http/proto";
 
-// ChatReq 对应 POST /api/agent/chat；省略或空字符串交给领域层使用默认问题。
+// ChatReq 对应 POST /api/agent/chat；省略或空字符串时，接口传入默认学习示例。
 message ChatReq {
   optional string question = 1;
 }

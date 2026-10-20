@@ -64,7 +64,7 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 					FinishReason: FinishReasonStop,
 				}, nil
 			})
-			result, err := newTestClient(t, chatCli, &testObserver{}, DefaultLimits()).DemoStructured(context.Background(), ChatInput{})
+			result, err := newTestClient(t, chatCli, &testObserver{}, DefaultLimits()).DemoStructured(context.Background(), "")
 			if (err == nil) != tc.valid || result.Execution.Completed != tc.valid {
 				t.Fatalf("实际完成 %v、错误 %v，预期有效 %v", result.Execution.Completed, err, tc.valid)
 			}
@@ -93,7 +93,7 @@ func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	limits := DefaultLimits()
 	limits.ModelCalls = 2
 	agentCli := newTestClient(t, chatCli, &testObserver{}, limits)
-	result, err := agentCli.DemoWorkflow(context.Background(), ChatInput{})
+	result, err := agentCli.DemoWorkflow(context.Background(), "")
 	if !errors.Is(err, ErrBudgetExceeded) || len(result.Stages) != 2 || result.Execution.Completed || result.Execution.ModelCalls != 2 {
 		t.Fatalf("预算失败未保留已完成阶段：%+v，错误 %v", result, err)
 	}
