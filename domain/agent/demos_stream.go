@@ -69,8 +69,8 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 	} else {
 		result.UsageComplete = false
 	}
-	step := ExecutionStep{
-		Kind:         StepKindModel,
+	record := CallRecord{
+		Kind:         CallKindModel,
 		Name:         "实时流式模型请求",
 		Request:      c.observer.Safe(response.RequestJSON),
 		Response:     c.observer.Safe(response.Raw),
@@ -79,8 +79,8 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 		Usage:        &response.Usage,
 	}
 	if err != nil {
-		step.Error = "流式回答未完成，已保留收到的内容"
+		record.Error = "流式回答未完成，已保留收到的内容"
 	}
-	result.Steps = append(result.Steps, step)
+	result.Calls = append(result.Calls, record)
 	return result, err
 }

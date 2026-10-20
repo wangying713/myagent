@@ -211,7 +211,7 @@ func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	if err != nil || result.Answer != "391 和 6 [REDACTED]" || calls != 2 {
 		t.Fatalf("运行结果 %+v/%v，调用 %d 次", result, err, calls)
 	}
-	if !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 2 || len(result.Steps) != 4 || result.TraceID != "test-trace" {
+	if !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 2 || len(result.Calls) != 4 || result.TraceID != "test-trace" {
 		t.Fatalf("模型和工具调用未统一记录：%+v", result)
 	}
 	if len(observer.runs) != 1 || !observer.runs[0].ended || observer.runs[0].result.Answer != result.Answer || len(observer.tools) != 2 {
@@ -402,79 +402,17 @@ func TestMultiplyStopsOnCancellation(t *testing.T) {
 	}
 }
 
+// chatFailureCase 保存预算与协议错误场景的模型输入和预期。
+type chatFailureCase struct {
+	name   string   // 场景名称。
+	limits Limits   // 本次运行预算。
+	ids    []string // 模型提出的工具调用 ID。
+	tokens int      // 模型报告的单次 token 用量。
+	want   error    // 预期错误。
+}
+
 func TestChatBudgetsAndProtocolErrors(t *testing.T) {
-	for _, tc := range []struct {
-		name   string   // 用例名称。
-		limits Limits   // 本用例采用的运行预算。
-		ids    []string // 模拟模型提出的工具调用 ID 列表。
-		tokens int      // 模拟模型报告的单次 token 用量。
-		want   error    // 预期返回的预算或协议错误。
-	}{
-		{
-			"模型预算",
-			Limits{
-				1,
-				8,
-				8000,
-			},
-			[]string{"one"},
-			0,
-			ErrBudgetExceeded,
-		},
-		{
-			"工具预算",
-			Limits{
-				5,
-				1,
-				8000,
-			},
-			[]string{
-				"one",
-				"two",
-			},
-			0,
-			ErrBudgetExceeded,
-		},
-		{
-			"token 软预算",
-			Limits{
-				5,
-				8,
-				10,
-			},
-			[]string{"one"},
-			10,
-			ErrBudgetExceeded,
-		},
-		{
-			"token 超额仍停止下一轮",
-			Limits{
-				5,
-				8,
-				10,
-			},
-			[]string{"one"},
-			math.MaxInt,
-			ErrBudgetExceeded,
-		},
-		{
-			"重复 ID",
-			DefaultLimits(),
-			[]string{
-				"one",
-				"one",
-			},
-			0,
-			ErrInvalidResponse,
-		},
-		{
-			"缺少 ID",
-			DefaultLimits(),
-			[]string{""},
-			0,
-			ErrInvalidResponse,
-		},
-	} {
+	for _, tc := range chatFailureCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
 			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
@@ -516,11 +454,14 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 			if calls != 1 {
 				t.Fatalf("不应继续调用模型，实际 %d 次", calls)
 			}
-			if result.Completed || result.ModelCalls != 1 || len(result.Steps) == 0 || !observer.runs[0].ended || !errors.Is(observer.runs[0].err, tc.want) {
+			if result.Completed || result.ModelCalls != 1 || len(result.Calls) == 0 || !observer.runs[0].ended || !errors.Is(observer.runs[0].err, tc.want) {
 				t.Fatalf("失败后没有保留记录或正确收尾：%+v，错误 %v", result, err)
 			}
 		})
 	}
+}
+
+func TestChatCanceledBeforeModelCall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
@@ -537,6 +478,71 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 	})
 	if !errors.Is(err, context.Canceled) || result.ModelCalls != 0 || !observer.runs[0].ended {
 		t.Fatalf("取消后实际结果 %+v、错误 %v，预期不调用模型并结束记录", result, err)
+	}
+}
+
+func chatFailureCases() []chatFailureCase {
+	return []chatFailureCase{
+		{
+			name: "模型预算",
+			limits: Limits{
+				ModelCalls: 1,
+				ToolCalls:  8,
+				Tokens:     8000,
+			},
+			ids:  []string{"one"},
+			want: ErrBudgetExceeded,
+		},
+		{
+			name: "工具预算",
+			limits: Limits{
+				ModelCalls: 5,
+				ToolCalls:  1,
+				Tokens:     8000,
+			},
+			ids: []string{
+				"one",
+				"two",
+			},
+			want: ErrBudgetExceeded,
+		},
+		{
+			name: "token 软预算",
+			limits: Limits{
+				ModelCalls: 5,
+				ToolCalls:  8,
+				Tokens:     10,
+			},
+			ids:    []string{"one"},
+			tokens: 10,
+			want:   ErrBudgetExceeded,
+		},
+		{
+			name: "token 超额仍停止下一轮",
+			limits: Limits{
+				ModelCalls: 5,
+				ToolCalls:  8,
+				Tokens:     10,
+			},
+			ids:    []string{"one"},
+			tokens: math.MaxInt,
+			want:   ErrBudgetExceeded,
+		},
+		{
+			name:   "重复 ID",
+			limits: DefaultLimits(),
+			ids: []string{
+				"one",
+				"one",
+			},
+			want: ErrInvalidResponse,
+		},
+		{
+			name:   "缺少 ID",
+			limits: DefaultLimits(),
+			ids:    []string{""},
+			want:   ErrInvalidResponse,
+		},
 	}
 }
 
@@ -580,7 +586,7 @@ func TestChatCountsToolBudgetAcrossRounds(t *testing.T) {
 	if !errors.Is(err, ErrBudgetExceeded) || calls != 2 || result.ToolCalls != 1 || len(observer.tools) != 1 || result.Completed {
 		t.Fatalf("跨轮次没有正确累计工具预算：%+v，错误 %v，模型请求 %d 次", result, err, calls)
 	}
-	if len(result.Steps) != 3 || !observer.tools[0].ended || !observer.runs[0].ended {
+	if len(result.Calls) != 3 || !observer.tools[0].ended || !observer.runs[0].ended {
 		t.Fatalf("预算停止时没有保留记录并收尾：%+v", result)
 	}
 }

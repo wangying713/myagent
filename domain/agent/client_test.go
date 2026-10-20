@@ -91,10 +91,10 @@ func TestClientChatRecordsSafeCopy(t *testing.T) {
 		Question: "  调用方的问题  ",
 		Prompt:   "按调用方的要求回答",
 	})
-	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Steps) != 1 || result.UsageComplete {
+	if err != nil || !result.Completed || result.Answer != "回答包含[REDACTED]" || result.ModelCalls != 1 || len(result.Calls) != 1 || result.UsageComplete {
 		t.Fatalf("聊天结果不符合契约：%+v，错误 %v", result, err)
 	}
-	if strings.Contains(result.Steps[0].Response, "本机密钥") || result.TraceID != "test-trace" || !observer.runs[0].ended || !observer.runs[0].result.Completed {
+	if strings.Contains(result.Calls[0].Response, "本机密钥") || result.TraceID != "test-trace" || !observer.runs[0].ended || !observer.runs[0].result.Completed {
 		t.Fatalf("脱敏或运行结束记录错误：%+v", result)
 	}
 }
@@ -186,7 +186,7 @@ func TestClientChatRecordsTool(t *testing.T) {
 		Question:  AgentQuestion,
 		Prompt:    AgentPrompt,
 	})
-	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Steps) != 3 || result.Steps[1].Kind != "tool" {
+	if err != nil || !result.Completed || result.ModelCalls != 2 || result.ToolCalls != 1 || len(result.Calls) != 3 || result.Calls[1].Kind != "tool" {
 		t.Fatalf("工具执行记录错误：%+v，错误 %v", result, err)
 	}
 	if len(observer.tools) != 1 || !observer.tools[0].ended || !observer.tools[0].output.OK || observer.tools[0].output.Result != float64(391) {

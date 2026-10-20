@@ -79,8 +79,8 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error)
 			request = encoded
 		}
 	}
-	step := ExecutionStep{
-		Kind:         StepKindModel,
+	record := CallRecord{
+		Kind:         CallKindModel,
 		Name:         fmt.Sprintf("第 %d 次模型请求", r.result.ModelCalls),
 		Request:      r.observer.Safe(request),
 		Response:     r.observer.Safe(response.Raw),
@@ -89,9 +89,9 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error)
 		Usage:        &response.Usage,
 	}
 	if err != nil {
-		step.Error = "模型调用未完成"
+		record.Error = "模型调用未完成"
 	}
-	r.result.Steps = append(r.result.Steps, step)
+	r.result.Calls = append(r.result.Calls, record)
 	return response, err
 }
 
@@ -116,19 +116,19 @@ func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (mes
 	if encodeErr != nil {
 		return Message{}, fmt.Errorf("记录工具结果: %w", encodeErr)
 	}
-	step := ExecutionStep{
-		Kind:      StepKindTool,
+	record := CallRecord{
+		Kind:      CallKindTool,
 		Name:      r.observer.Clean(req.Function.Name),
 		Request:   r.observer.Safe(request),
 		Response:  r.observer.Safe(response),
 		ElapsedMS: time.Since(started).Milliseconds(),
 	}
 	if err != nil {
-		step.Error = "工具执行未完成"
+		record.Error = "工具执行未完成"
 	} else if !output.OK {
-		step.Error = r.observer.Clean(output.Error)
+		record.Error = r.observer.Clean(output.Error)
 	}
-	r.result.Steps = append(r.result.Steps, step)
+	r.result.Calls = append(r.result.Calls, record)
 	if err != nil {
 		return Message{}, err
 	}

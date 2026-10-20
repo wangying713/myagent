@@ -33,7 +33,7 @@ type Rsp = entity.Rsp[struct {
 	ModelCalls  int               `json:"model_calls"`  // 已发起的模型调用次数。
 	ToolCalls   int               `json:"tool_calls"`   // 已发起的工具调用次数。
 	KnownTokens int               `json:"known_tokens"` // 可确认的累计 token 用量。
-	Steps       []json.RawMessage `json:"steps"`        // 按执行顺序保存的模型与工具调用记录。
+	Calls       []json.RawMessage `json:"steps"`        // 按执行顺序保存的模型与工具调用记录。
 }]
 
 // memoryExporter 保存测试 span 并可模拟导出失败。
@@ -135,6 +135,15 @@ func reply(w http.ResponseWriter, message any, reason string) {
 	})
 }
 
+// lessonCheck 保存一次课程请求的实际结果和预期调用统计。
+type lessonCheck struct {
+	lesson   string // 课程操作标识。
+	response Rsp    // HTTP 实际响应。
+	models   int    // 预期模型调用次数。
+	tools    int    // 预期工具调用次数。
+	spans    int    // 预期链路 span 总数。
+}
+
 func TestThreeLessonsAndParentSpans(t *testing.T) {
 	for _, lesson := range []string{
 		"chat",
@@ -143,81 +152,24 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 	} {
 		t.Run(lesson, func(t *testing.T) {
 			exporter := &memoryExporter{}
-			handler, telemetry := setup(t, func(w http.ResponseWriter, r *http.Request) {
-				if r.Header.Get("Authorization") != "Bearer test-api-key" {
-					t.Error("模型鉴权没有由后端发送")
-				}
-				var input agent.Request
-				if json.NewDecoder(r.Body).Decode(&input) != nil {
-					t.Error("模型收到无效请求")
-					w.WriteHeader(400)
-					return
-				}
-				if input.Model != "test-model" || input.Thinking.Type != "disabled" || input.MaxTokens != 512 || input.Stream {
-					t.Errorf("课程模型默认值发生变化：%+v", input)
-				}
-				switch lesson {
-				case "chat":
-					reply(w, map[string]string{
-						"role":    "assistant",
-						"content": "递归是在函数中调用自身。",
-					}, "stop")
-				case "messages":
-					if len(input.Messages) == 2 {
-						reply(w, map[string]string{
-							"role":    "assistant",
-							"content": "记住了豆包。",
-							"extra":   "历史扩展字段",
-						}, "stop")
-						return
-					}
-					if len(input.Messages) != 4 || input.Messages[2].Content != "记住了豆包。" || input.Messages[3].Content != agent.SecondQuestion {
-						t.Errorf("第二轮未携带真实历史：%+v", input.Messages)
-					}
-					reply(w, map[string]string{
-						"role":    "assistant",
-						"content": "豆包",
-					}, "stop")
-				case "agent":
-					if len(input.Messages) == 2 {
-						reply(w, map[string]any{
-							"role":    "assistant",
-							"content": nil,
-							"tool_calls": []agent.ToolCall{
-								{
-									ID:   "multiply-1",
-									Type: "function",
-									Function: agent.FunctionCall{
-										Name:      "multiply",
-										Arguments: `{"a":17,"b":23}`,
-									},
-								},
-							},
-						}, "tool_calls")
-						return
-					}
-					last := input.Messages[len(input.Messages)-1]
-					if last.Role != "tool" || last.ToolCallID != "multiply-1" || !strings.Contains(last.Content, "391") {
-						t.Errorf("工具结果没有关联回填：%+v", last)
-					}
-					reply(w, map[string]string{
-						"role":    "assistant",
-						"content": "一共 391 支笔。",
-					}, "stop")
-				}
-			}, routerTestConfig{
+			handler, telemetry := setup(t, lessonModel(t, lesson), routerTestConfig{
 				Limits:  agent.DefaultLimits(),
 				Timeout: time.Second,
 			}, exporter)
 			w, response := invoke(handler, lesson, `{}`)
-			wantModels, wantTools, wantSpans := 1, 0, 3
+			check := lessonCheck{
+				lesson:   lesson,
+				response: response,
+				models:   1,
+				spans:    3,
+			}
 			if lesson == "messages" {
-				wantModels, wantSpans = 2, 4
+				check.models, check.spans = 2, 4
 			}
 			if lesson == "agent" {
-				wantModels, wantTools, wantSpans = 2, 1, 5
+				check.models, check.tools, check.spans = 2, 1, 5
 			}
-			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != wantModels || response.Data.ToolCalls != wantTools || response.Data.KnownTokens != wantModels*10 || len(response.Data.Steps) != wantSpans-2 {
+			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.spans-2 {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
 			}
 			if err := telemetry.Flush(context.Background()); err != nil {
@@ -225,132 +177,224 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			}
 			exporter.mu.Lock()
 			defer exporter.mu.Unlock()
-			if len(exporter.spans) != wantSpans {
-				t.Fatalf("实际 %d 个 span，预期 %d", len(exporter.spans), wantSpans)
+			if len(exporter.spans) != check.spans {
+				t.Fatalf("实际 %d 个 span，预期 %d", len(exporter.spans), check.spans)
 			}
-			var root, requestSpan sdktrace.ReadOnlySpan
-			for _, s := range exporter.spans {
-				if s.Name() == "agent.run" {
-					root = s
-				}
-				if s.SpanKind() == trace.SpanKindServer {
-					requestSpan = s
-				}
-			}
-			if root == nil || requestSpan == nil {
-				t.Fatal("缺少 HTTP 请求或领域运行 span")
-			}
-			path := lesson
-			if path == "agent" {
-				path = "run"
-			}
-			if want := "/api/agent/" + path; requestSpan.Name() != want {
-				t.Errorf("实际入口名称 %q，预期 %q", requestSpan.Name(), want)
-			}
-			if root.Parent().SpanID() != requestSpan.SpanContext().SpanID() || root.SpanContext().TraceID() != requestSpan.SpanContext().TraceID() {
-				t.Error("领域运行没有挂到本次 HTTP 请求链路")
-			}
-			runAttrs := make(map[string]string)
-			for _, attr := range root.Attributes() {
-				runAttrs[string(attr.Key)] = attr.Value.AsString()
-			}
-			input := map[string]any{
-				"question": agent.DemoChatQuestion,
-				"prompt":   agent.DemoChatPrompt,
-				"limits": map[string]int{
-					"model_calls": 5,
-					"tool_calls":  8,
-					"tokens":      8000,
-				},
-				"tools": []agent.ToolDefinition{},
-			}
-			if lesson == "messages" {
-				delete(input, "question")
-				input["questions"] = []string{
-					agent.FirstQuestion,
-					agent.SecondQuestion,
-				}
-				input["prompt"] = agent.MessagesPrompt
-			} else if lesson == "agent" {
-				input["question"] = agent.AgentQuestion
-				input["prompt"] = agent.AgentPrompt
-				input["tools"] = (agent.MultiplyTools{}).Definitions()
-				input["tool_choice"] = "auto"
-			}
-			var actualInput map[string]json.RawMessage
-			if err := json.Unmarshal([]byte(runAttrs["gen_ai.input.messages"]), &actualInput); err != nil {
-				t.Fatal(err)
-			}
-			for key, value := range input {
-				want, err := json.Marshal(value)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var actual any
-				if err := json.Unmarshal(actualInput[key], &actual); err != nil {
-					t.Fatalf("输入预览缺少有效字段 %s：%v", key, err)
-				}
-				var expected any
-				if err := json.Unmarshal(want, &expected); err != nil {
-					t.Fatal(err)
-				}
-				if !reflect.DeepEqual(actual, expected) {
-					t.Errorf("输入预览字段 %s 实际为 %s，预期 %s", key, actualInput[key], want)
-				}
-			}
-			var model struct {
-				Name     string `json:"name"`       // 运行预览记录的模型名称。
-				Endpoint string `json:"endpoint"`   // 模型请求地址。
-				Timeout  int64  `json:"timeout_ms"` // 单次模型调用超时，单位为毫秒。
-			}
-			if err := json.Unmarshal(actualInput["model"], &model); err != nil {
-				t.Fatal(err)
-			}
-			endpoint, err := url.Parse(model.Endpoint)
-			if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || model.Name != "test-model" || model.Timeout != 1000 {
-				t.Errorf("运行预览中的模型信息不正确：%+v", model)
-			}
-			var deadline string
-			if err := json.Unmarshal(actualInput["deadline"], &deadline); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := time.Parse(time.RFC3339Nano, deadline); err != nil {
-				t.Errorf("运行预览的截止时间无效：%q", deadline)
-			}
-			var output struct {
-				Operation  string            `json:"operation"`    // 本次业务操作。
-				Completed  bool              `json:"completed"`    // 是否已经完成。
-				Answer     string            `json:"answer"`       // 最终回答。
-				ModelCalls int               `json:"model_calls"`  // 实际模型调用次数。
-				ToolCalls  int               `json:"tool_calls"`   // 实际工具调用次数。
-				Tokens     int               `json:"known_tokens"` // 已知 token 用量。
-				Steps      []json.RawMessage `json:"steps"`        // 每一步的执行记录。
-			}
-			if err := json.Unmarshal([]byte(runAttrs["gen_ai.output.messages"]), &output); err != nil {
-				t.Fatal(err)
-			}
-			if output.Operation != lesson || output.Completed != response.Data.Completed || output.Answer != response.Data.Answer || output.ModelCalls != wantModels || output.ToolCalls != wantTools || output.Tokens != wantModels*10 || len(output.Steps) != wantSpans-2 {
-				t.Errorf("运行输出预览与实际结果不一致：%+v", output)
-			}
-			for _, s := range exporter.spans {
-				if s.SpanKind() == trace.SpanKindClient {
-					attrs := make(map[string]string)
-					for _, attr := range s.Attributes() {
-						attrs[string(attr.Key)] = attr.Value.AsString()
-					}
-					endpoint, err := url.Parse(attrs["url.full"])
-					if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || s.Name() != endpoint.EscapedPath() || attrs["server.address"] != endpoint.Hostname() || attrs["http.request.method"] != http.MethodPost || attrs["gen_ai.request.model"] != "test-model" {
-						t.Errorf("实际模型 span 名称 %q、属性 %v，预期只展示 URI，并保留完整地址、方法、目标主机及模型名", s.Name(), attrs)
-					}
-				}
-				if s.Name() != "agent.run" && s.SpanKind() != trace.SpanKindServer && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
-					t.Error("模型或工具没有挂到同次运行的根 span")
-				}
-			}
-			if response.TraceID != root.SpanContext().TraceID().String() {
-				t.Error("页面 trace ID 与实际记录不一致")
-			}
+			assertLessonSpans(t, exporter.spans, check)
 		})
+	}
+}
+
+func lessonModel(t *testing.T, lesson string) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-api-key" {
+			t.Error("模型鉴权没有由后端发送")
+		}
+		var input agent.Request
+		if json.NewDecoder(r.Body).Decode(&input) != nil {
+			t.Error("模型收到无效请求")
+			w.WriteHeader(400)
+			return
+		}
+		if input.Model != "test-model" || input.Thinking.Type != "disabled" || input.MaxTokens != 512 || input.Stream {
+			t.Errorf("课程模型默认值发生变化：%+v", input)
+		}
+		switch lesson {
+		case "chat":
+			reply(w, map[string]string{
+				"role":    "assistant",
+				"content": "递归是在函数中调用自身。",
+			}, "stop")
+		case "messages":
+			if len(input.Messages) == 2 {
+				reply(w, map[string]string{
+					"role":    "assistant",
+					"content": "记住了豆包。",
+					"extra":   "历史扩展字段",
+				}, "stop")
+				return
+			}
+			if len(input.Messages) != 4 || input.Messages[2].Content != "记住了豆包。" || input.Messages[3].Content != agent.SecondQuestion {
+				t.Errorf("第二轮未携带真实历史：%+v", input.Messages)
+			}
+			reply(w, map[string]string{
+				"role":    "assistant",
+				"content": "豆包",
+			}, "stop")
+		case "agent":
+			if len(input.Messages) == 2 {
+				reply(w, map[string]any{
+					"role":    "assistant",
+					"content": nil,
+					"tool_calls": []agent.ToolCall{
+						{
+							ID:   "multiply-1",
+							Type: "function",
+							Function: agent.FunctionCall{
+								Name:      "multiply",
+								Arguments: `{"a":17,"b":23}`,
+							},
+						},
+					},
+				}, "tool_calls")
+				return
+			}
+			last := input.Messages[len(input.Messages)-1]
+			if last.Role != "tool" || last.ToolCallID != "multiply-1" || !strings.Contains(last.Content, "391") {
+				t.Errorf("工具结果没有关联回填：%+v", last)
+			}
+			reply(w, map[string]string{
+				"role":    "assistant",
+				"content": "一共 391 支笔。",
+			}, "stop")
+		}
+	}
+}
+
+func assertLessonSpans(t *testing.T, spans []sdktrace.ReadOnlySpan, check lessonCheck) {
+	t.Helper()
+	var root, requestSpan sdktrace.ReadOnlySpan
+	for _, s := range spans {
+		if s.Name() == "agent.run" {
+			root = s
+		}
+		if s.SpanKind() == trace.SpanKindServer {
+			requestSpan = s
+		}
+	}
+	if root == nil || requestSpan == nil {
+		t.Fatal("缺少 HTTP 请求或领域运行 span")
+	}
+	path := check.lesson
+	if path == "agent" {
+		path = "run"
+	}
+	if want := "/api/agent/" + path; requestSpan.Name() != want {
+		t.Errorf("实际入口名称 %q，预期 %q", requestSpan.Name(), want)
+	}
+	if root.Parent().SpanID() != requestSpan.SpanContext().SpanID() || root.SpanContext().TraceID() != requestSpan.SpanContext().TraceID() {
+		t.Error("领域运行没有挂到本次 HTTP 请求链路")
+	}
+	attrs := make(map[string]string)
+	for _, attr := range root.Attributes() {
+		attrs[string(attr.Key)] = attr.Value.AsString()
+	}
+	assertLessonInput(t, attrs, check.lesson)
+	assertLessonOutput(t, attrs, check)
+	for _, s := range spans {
+		if s.SpanKind() == trace.SpanKindClient {
+			attrs := make(map[string]string)
+			for _, attr := range s.Attributes() {
+				attrs[string(attr.Key)] = attr.Value.AsString()
+			}
+			endpoint, err := url.Parse(attrs["url.full"])
+			if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || s.Name() != endpoint.EscapedPath() || attrs["server.address"] != endpoint.Hostname() || attrs["http.request.method"] != http.MethodPost || attrs["gen_ai.request.model"] != "test-model" {
+				t.Errorf("实际模型 span 名称 %q、属性 %v，预期只展示 URI，并保留完整地址、方法、目标主机及模型名", s.Name(), attrs)
+			}
+		}
+		if s.Name() != "agent.run" && s.SpanKind() != trace.SpanKindServer && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
+			t.Error("模型或工具没有挂到同次运行的根 span")
+		}
+	}
+	if check.response.TraceID != root.SpanContext().TraceID().String() {
+		t.Error("页面 trace ID 与实际记录不一致")
+	}
+}
+
+func lessonInput(lesson string) map[string]any {
+	input := map[string]any{
+		"question": agent.DemoChatQuestion,
+		"prompt":   agent.DemoChatPrompt,
+		"limits": map[string]int{
+			"model_calls": 5,
+			"tool_calls":  8,
+			"tokens":      8000,
+		},
+		"tools": []agent.ToolDefinition{},
+	}
+	if lesson == "messages" {
+		delete(input, "question")
+		input["questions"] = []string{
+			agent.FirstQuestion,
+			agent.SecondQuestion,
+		}
+		input["prompt"] = agent.MessagesPrompt
+	} else if lesson == "agent" {
+		input["question"] = agent.AgentQuestion
+		input["prompt"] = agent.AgentPrompt
+		input["tools"] = (agent.MultiplyTools{}).Definitions()
+		input["tool_choice"] = "auto"
+	}
+	return input
+}
+
+func assertLessonInput(t *testing.T, attrs map[string]string, lesson string) {
+	t.Helper()
+	input := lessonInput(lesson)
+	var actualInput map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(attrs["gen_ai.input.messages"]), &actualInput); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range input {
+		want, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual any
+		if err := json.Unmarshal(actualInput[key], &actual); err != nil {
+			t.Fatalf("输入预览缺少有效字段 %s：%v", key, err)
+		}
+		var expected any
+		if err := json.Unmarshal(want, &expected); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(actual, expected) {
+			t.Errorf("输入预览字段 %s 实际为 %s，预期 %s", key, actualInput[key], want)
+		}
+	}
+	assertLessonModelInfo(t, actualInput)
+}
+
+func assertLessonModelInfo(t *testing.T, actualInput map[string]json.RawMessage) {
+	t.Helper()
+	var model struct {
+		Name     string `json:"name"`       // 运行预览记录的模型名称。
+		Endpoint string `json:"endpoint"`   // 模型请求地址。
+		Timeout  int64  `json:"timeout_ms"` // 单次模型调用超时，单位为毫秒。
+	}
+	if err := json.Unmarshal(actualInput["model"], &model); err != nil {
+		t.Fatal(err)
+	}
+	endpoint, err := url.Parse(model.Endpoint)
+	if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || model.Name != "test-model" || model.Timeout != 1000 {
+		t.Errorf("运行预览中的模型信息不正确：%+v", model)
+	}
+	var deadline string
+	if err := json.Unmarshal(actualInput["deadline"], &deadline); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, deadline); err != nil {
+		t.Errorf("运行预览的截止时间无效：%q", deadline)
+	}
+}
+
+func assertLessonOutput(t *testing.T, attrs map[string]string, check lessonCheck) {
+	t.Helper()
+	var output struct {
+		Operation  string            `json:"operation"`    // 本次业务操作。
+		Completed  bool              `json:"completed"`    // 是否已经完成。
+		Answer     string            `json:"answer"`       // 最终回答。
+		ModelCalls int               `json:"model_calls"`  // 实际模型调用次数。
+		ToolCalls  int               `json:"tool_calls"`   // 实际工具调用次数。
+		Tokens     int               `json:"known_tokens"` // 已知 token 用量。
+		Calls      []json.RawMessage `json:"steps"`        // 按顺序记录的模型与工具调用。
+	}
+	if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"]), &output); err != nil {
+		t.Fatal(err)
+	}
+	if output.Operation != check.lesson || output.Completed != check.response.Data.Completed || output.Answer != check.response.Data.Answer || output.ModelCalls != check.models || output.ToolCalls != check.tools || output.Tokens != check.models*10 || len(output.Calls) != check.spans-2 {
+		t.Errorf("运行输出预览与实际结果不一致：%+v", output)
 	}
 }
 
@@ -684,7 +728,7 @@ func TestRecoveryDoesNotExposePanicOrRewriteResponse(t *testing.T) {
 	}
 }
 
-func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
+func TestFailuresKeepCallsAndDoNotLeakCredentials(t *testing.T) {
 	for _, tc := range []struct {
 		name, code string           // 用例名称与预期响应码。
 		status     int              // 预期 HTTP 状态码。
@@ -733,7 +777,7 @@ func TestFailuresKeepStepsAndDoNotLeakCredentials(t *testing.T) {
 				Timeout: time.Second,
 			}, &memoryExporter{})
 			w, response := invoke(handler, "chat", `{}`)
-			if w.Code != tc.status || response.Code != tc.code || response.Data.Completed || len(response.Data.Steps) != 1 {
+			if w.Code != tc.status || response.Code != tc.code || response.Data.Completed || len(response.Data.Calls) != 1 {
 				t.Fatalf("失败响应 %d %s", w.Code, w.Body.String())
 			}
 			if bytes.Contains(w.Body.Bytes(), []byte("test-api-key")) || bytes.Contains(w.Body.Bytes(), []byte("hidden-value")) {
@@ -876,7 +920,7 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 				return
 			}
 			w, response := invoke(handler, "chat", string(body))
-			if w.Code != 200 || response.Data.Answer != question || response.Data.ModelCalls != 1 || len(response.Data.Steps) != 1 {
+			if w.Code != 200 || response.Data.Answer != question || response.Data.ModelCalls != 1 || len(response.Data.Calls) != 1 {
 				t.Errorf("并发运行混入其他结果：%s", w.Body.String())
 			}
 		}()

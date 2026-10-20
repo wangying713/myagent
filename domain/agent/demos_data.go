@@ -185,8 +185,8 @@ func (c *Client) DemoRetrieval(ctx context.Context, question string) (result Dem
 	if err != nil {
 		return result, err
 	}
-	result.Execution.Steps = append(result.Execution.Steps, ExecutionStep{
-		Kind:     StepKindTool,
+	result.Execution.Calls = append(result.Execution.Calls, CallRecord{
+		Kind:     CallKindTool,
 		Name:     "本地关键词检索",
 		Request:  c.observer.Clean(question),
 		Response: c.observer.Safe(raw),
@@ -310,15 +310,15 @@ func (c *Client) DemoEvaluation(ctx context.Context) (result DemoEvaluationResul
 			return result, err
 		}
 		toolCorrect := false
-		for _, step := range item.Execution.Steps {
-			if step.Kind != StepKindTool || step.Name != ToolNameMultiply || step.Error != "" {
+		for _, record := range item.Execution.Calls {
+			if record.Kind != CallKindTool || record.Name != ToolNameMultiply || record.Error != "" {
 				continue
 			}
 			var output struct {
 				OK     bool        `json:"ok"`     // 工具执行是否成功。
 				Result json.Number `json:"result"` // 工具返回的实际数字。
 			}
-			decoder := json.NewDecoder(bytes.NewBufferString(step.Response))
+			decoder := json.NewDecoder(bytes.NewBufferString(record.Response))
 			if decoder.Decode(&output) == nil && output.OK && output.Result.String() == item.Expected {
 				toolCorrect = true
 			}

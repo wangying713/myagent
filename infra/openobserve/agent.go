@@ -113,26 +113,26 @@ type runFunction struct {
 
 // runOutput 保存业务执行结果的观测预览。
 type runOutput struct {
-	Operation     string    `json:"operation"`      // 本次业务操作标识。
-	Completed     bool      `json:"completed"`      // 本次业务是否成功完成。
-	Answer        string    `json:"answer"`         // 脱敏后的回答，失败时保留已有内容。
-	ElapsedMS     int64     `json:"elapsed_ms"`     // 本次运行耗时，单位为毫秒。
-	ModelCalls    int       `json:"model_calls"`    // 已发起的模型调用次数。
-	ToolCalls     int       `json:"tool_calls"`     // 已发起的工具调用次数。
-	KnownTokens   int       `json:"known_tokens"`   // 可确认的累计 token 用量。
-	UsageComplete bool      `json:"usage_complete"` // 所有模型调用的用量是否均已确认并累计。
-	Steps         []runStep `json:"steps"`          // 按执行顺序保存的模型与工具调用记录。
+	Operation     string          `json:"operation"`      // 本次业务操作标识。
+	Completed     bool            `json:"completed"`      // 本次业务是否成功完成。
+	Answer        string          `json:"answer"`         // 脱敏后的回答，失败时保留已有内容。
+	ElapsedMS     int64           `json:"elapsed_ms"`     // 本次运行耗时，单位为毫秒。
+	ModelCalls    int             `json:"model_calls"`    // 已发起的模型调用次数。
+	ToolCalls     int             `json:"tool_calls"`     // 已发起的工具调用次数。
+	KnownTokens   int             `json:"known_tokens"`   // 可确认的累计 token 用量。
+	UsageComplete bool            `json:"usage_complete"` // 所有模型调用的用量是否均已确认并累计。
+	Calls         []runCallRecord `json:"steps"`          // 按执行顺序保存的模型与工具调用记录。
 }
 
-// runStep 保存单次模型或工具调用的观测预览。
-type runStep struct {
-	Kind         string       `json:"kind"`                    // 步骤类型，区分模型调用与工具调用。
+// runCallRecord 保存单次模型或工具调用的观测预览。
+type runCallRecord struct {
+	Kind         string       `json:"kind"`                    // 调用类型，区分模型调用与工具调用。
 	Name         string       `json:"name"`                    // 模型调用说明或工具名称。
 	Request      any          `json:"request"`                 // 展开的请求 JSON，无效或已截断的正文保留为文本。
 	Response     any          `json:"response"`                // 展开的响应 JSON，无效或已截断的正文保留为文本。
-	ElapsedMS    int64        `json:"elapsed_ms"`              // 本步骤耗时，单位为毫秒。
-	FinishReason string       `json:"finish_reason,omitempty"` // 模型结束原因，工具步骤为空。
-	Usage        *agent.Usage `json:"usage,omitempty"`         // 模型返回的 token 用量，工具步骤为 nil。
+	ElapsedMS    int64        `json:"elapsed_ms"`              // 本次调用耗时，单位为毫秒。
+	FinishReason string       `json:"finish_reason,omitempty"` // 模型结束原因，工具调用时为空。
+	Usage        *agent.Usage `json:"usage,omitempty"`         // 模型返回的 token 用量，工具调用时为 nil。
 	Error        string       `json:"error,omitempty"`         // 执行失败或工具拒绝的公开说明。
 }
 
@@ -176,18 +176,18 @@ func (r *runObservation) End(result agent.ChatRsp, err error) {
 		ToolCalls:     result.ToolCalls,
 		KnownTokens:   result.KnownTokens,
 		UsageComplete: result.UsageComplete,
-		Steps:         make([]runStep, 0, len(result.Steps)),
+		Calls:         make([]runCallRecord, 0, len(result.Calls)),
 	}
-	for _, step := range result.Steps {
-		output.Steps = append(output.Steps, runStep{
-			Kind:         step.Kind,
-			Name:         step.Name,
-			Request:      previewJSON(step.Request),
-			Response:     previewJSON(step.Response),
-			ElapsedMS:    step.ElapsedMS,
-			FinishReason: step.FinishReason,
-			Usage:        step.Usage,
-			Error:        step.Error,
+	for _, record := range result.Calls {
+		output.Calls = append(output.Calls, runCallRecord{
+			Kind:         record.Kind,
+			Name:         record.Name,
+			Request:      previewJSON(record.Request),
+			Response:     previewJSON(record.Response),
+			ElapsedMS:    record.ElapsedMS,
+			FinishReason: record.FinishReason,
+			Usage:        record.Usage,
+			Error:        record.Error,
 		})
 	}
 	response, _ := json.Marshal(output)
