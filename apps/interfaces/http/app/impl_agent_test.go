@@ -195,7 +195,7 @@ func basicResponseCases() []responseCase {
 }
 
 func fullResponseCase() responseCase {
-	zero, total := int64(0), int64(12)
+	zero, total := 0, 12
 	steps := []entity.AgentExecutionStep{
 		{
 			Kind:         "model",

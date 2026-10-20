@@ -17,4 +17,4 @@ HTTP 外层由应用的 `entity.Rsp[T]` 定义，`http/app/handler.go` 统一包
 
 总超时从成功解码后开始，父上下文来自 HTTP 请求。处理函数同步调用 API，等待返回后写出响应并释放上下文，保留同时返回的部分结果与错误。HTTP 读取正文的超时仍由入口的 `http.Server` 管理。
 
-`httpx_test.go` 验证响应编码及失败回退，`json_test.go` 和 `json_integer_test.go` 使用手写数据验证严格解码、切片存在性及整数输入兼容。入口的 `app/handle_test.go`、`app/impl_agent_test.go` 与 `app/router_test.go` 验证响应兼容、请求准备、取消、超时、上下文释放及并发隔离。业务字段映射和响应外层留在入口；领域层不导入本包。
+`httpx_test.go` 验证响应编码及失败回退，`json_test.go` 和 `json_integer_test.go` 使用手写数据验证严格解码、切片存在性及整数输入兼容。入口的 `app/handle_test.go`、`app/impl_agent_test.go` 与 `app/router_test.go` 验证响应兼容、默认输入、取消、超时、上下文释放及并发隔离。业务字段映射和响应外层留在入口；领域层不导入本包。

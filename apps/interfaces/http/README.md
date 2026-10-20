@@ -82,7 +82,7 @@ HTTP 失败码：
 
 - `app/router.go` 的 `newRouter` 返回 `*gin.Engine`，显式注册 `/api/agent/chat`、`/api/agent/messages`、`/api/agent/run` 和 `/api/health`。旧 `/api/demos/*` 已移除；不通过循环或课程字符串生成路由。
 - `app/impl_agent.go` 中的 `Chat`、`Messages`、`Run` 使用 `(ctx, req) → (rsp, err)` 签名，分别调用 `domain/agent.Client` 对应方法，返回手写的响应及错误。它们不接收 Gin 上下文或直接写 HTTP 响应。
-- `app/router.go` 通过 `handle(implAgent.Chat)` 这类单参数调用逐条绑定 API。`app/handler.go` 统一解码、准备请求、管理超时和取消、转换响应及映射错误，失败时保留已有的部分结果；路由只提供具名业务方法。
+- `app/router.go` 通过 `handle(implAgent.Chat)` 这类单参数调用逐条绑定 API。`app/handler.go` 统一解码、管理超时和取消、映射错误及写出响应，失败时保留已有的部分结果；路由只提供具名业务方法。
 - `infra/httpx` 只处理传输契约，不认识问题、模型、工具或 Agent 预算；Agent 业务错误到 HTTP 状态的映射保留在 `app/handler.go`。
 - 用 `gin.New` 显式选择中间件；入口设置 release 模式，不启用默认请求转储或访问日志。异常恢复不输出请求头、panic 原文或堆栈，已写出的响应不会再覆盖。
 - `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
@@ -119,7 +119,7 @@ HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，�
 ```text
 POST /api/agent/chat
   → apps/interfaces/http/app/router.go：handle(implAgent.Chat)
-  → apps/interfaces/http/app/handler.go：调用 httpx.DecodeJSON 解码、准备请求、派生上下文
+  → apps/interfaces/http/app/handler.go：调用 httpx.DecodeJSON 解码、派生上下文
   → apps/interfaces/http/app/impl_agent.go：implAgent.Chat(ctx, req) → (rsp, err)
   → domain/agent/chat.go：Client.Chat
   → infra/deepseek/client.go：Client.Chat
@@ -149,9 +149,9 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
 		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       int64(result.ModelCalls),
-		ToolCalls:        int64(result.ToolCalls),
-		KnownTokens:      int64(result.KnownTokens),
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
 		Steps:            agentSteps(result.Steps),
 	}, err
@@ -182,8 +182,8 @@ router.POST("/api/agent/run", handle(implAgent.Run))
 
 - `question` 使用 `string`，省略和空字符串均由对应 API 补齐默认问题，纯空白或超长问题仍然无效。
 - `questions` 使用 `[]string`；省略保持 nil，显式空数组保持非 nil 空切片，不需要额外字段存在性映射或请求准备函数。
-- `model_calls` 使用 `*int64` 区分省略与明确零值；为保持现有输入兼容，整数允许 JSON 数字、数字字符串和整数值的指数形式，拒绝小数值和溢出。
-- 未知用量使用 `*int64` 表示，nil 输出 null，明确零值输出数字 0。
+- `model_calls` 使用 `*int` 区分省略与明确零值；为保持现有输入兼容，整数允许 JSON 数字、数字字符串和整数值的指数形式，拒绝小数值和溢出。
+- 未知用量使用 `*int` 表示，nil 输出 null，明确零值输出数字 0。
 
 响应直接编码 `entity` 中定义的类型，外层统一为 `code/data/traceID/msg`；保留原字段名、JSON 数字、零值、null、可省略的步骤属性，以及 `steps: null` 与 `steps: []` 的区别。原 API 各自定义响应，按需复用步骤和用量等共用类型；Demo 复用执行记录。领域结果只转换一次，不再经过中间协议类型。后续规则见 [HTTP 共用数据规范](entity/README.md)。
 

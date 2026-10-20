@@ -80,7 +80,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStruct
 	return &entity.DemosStructuredRsp{
 		Execution: demoExecution(result.Execution),
 		Product:   result.Order.Product,
-		Quantity:  int64(result.Order.Quantity),
+		Quantity:  result.Order.Quantity,
 	}, err
 }
 
@@ -94,16 +94,16 @@ func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *entity.DemosMul
 
 // Reliability 演示失败与执行边界。 @alias=/api/agent-demos/reliability
 func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosReliabilityReq) (*entity.DemosReliabilityRsp, error) {
-	calls := int64(1)
+	calls := 1
 	if req.ModelCalls != nil {
 		calls = *req.ModelCalls
 	}
-	if calls < 1 || calls > int64(agent.DefaultLimits().ModelCalls) {
+	if calls < 1 || calls > agent.DefaultLimits().ModelCalls {
 		return nil, agent.ErrInput
 	}
 	result, err := a.agentCli.DemoReliability(ctx, agent.DemoReliabilityInput{
 		Question:   req.Question,
-		ModelCalls: int(calls),
+		ModelCalls: calls,
 	})
 	reason := "已完成，未触发次数限制"
 	if errors.Is(err, agent.ErrBudgetExceeded) {
@@ -182,8 +182,8 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 	}
 	return &entity.DemosEvaluationRsp{
 		Cases:  cases,
-		Passed: int64(result.Passed),
-		Total:  int64(result.Total),
+		Passed: result.Passed,
+		Total:  result.Total,
 	}, err
 }
 
@@ -233,9 +233,9 @@ func demoExecution(result agent.ChatRsp) *entity.AgentExecutionResult {
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
 		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       int64(result.ModelCalls),
-		ToolCalls:        int64(result.ToolCalls),
-		KnownTokens:      int64(result.KnownTokens),
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
 		Steps:            agentSteps(result.Steps),
 	}

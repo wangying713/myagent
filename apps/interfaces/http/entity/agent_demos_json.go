@@ -38,7 +38,7 @@ type DemosStreamReq struct {
 // DemosReliabilityReq 是执行边界演示的请求。
 type DemosReliabilityReq struct {
 	Question   string `json:"question"`    // 用户问题，省略或空字符串使用本章默认示例。
-	ModelCalls *int64 `json:"model_calls"` // 允许的模型调用次数；nil 使用本章默认值。
+	ModelCalls *int   `json:"model_calls"` // 允许的模型调用次数；nil 使用本章默认值。
 }
 
 // DemosRetrievalReq 是检索与记忆演示的请求。
@@ -111,7 +111,7 @@ type DemosToolsRsp struct {
 type DemosStructuredRsp struct {
 	Execution *AgentExecutionResult `json:"execution"` // 实际执行结果。
 	Product   string                `json:"product"`   // 校验通过的商品名称。
-	Quantity  int64                 `json:"quantity"`  // 校验通过的商品数量。
+	Quantity  int                   `json:"quantity"`  // 校验通过的商品数量。
 }
 
 // DemosMultipleToolsRsp 定义多个工具协作的 HTTP JSON 表现。
@@ -152,8 +152,8 @@ type DemosObservationRsp struct {
 // DemosEvaluationRsp 定义评估与回归的 HTTP JSON 表现。
 type DemosEvaluationRsp struct {
 	Cases  []DemoCase `json:"cases"`  // 已运行的固定题目。
-	Passed int64      `json:"passed"` // 通过检查的题数。
-	Total  int64      `json:"total"`  // 固定题集总题数。
+	Passed int        `json:"passed"` // 通过检查的题数。
+	Total  int        `json:"total"`  // 固定题集总题数。
 }
 
 // DemosDeliveryRsp 定义综合练习的 HTTP JSON 表现。

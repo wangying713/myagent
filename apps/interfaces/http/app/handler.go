@@ -35,7 +35,7 @@ func requestTimeout(timeout time.Duration) gin.HandlerFunc {
 }
 
 // handle 将业务方法接入 Gin，须配合 requestTimeout 设置业务超时。
-// 解码及请求准备完成后开始计时，同步等待 API 返回并释放上下文；API 须响应上下文取消。
+// 解码完成后开始计时，同步等待 API 返回并释放上下文；API 须响应上下文取消。
 // 响应与错误可以同时返回，已有结果会继续写入 HTTP data。
 func handle[Req, Rsp any](api func(context.Context, *Req) (Rsp, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {

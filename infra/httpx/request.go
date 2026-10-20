@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -85,9 +84,6 @@ func decodeObject(body io.Reader, fields []string) (map[string]json.RawMessage, 
 		var raw json.RawMessage
 		if err := d.Decode(&raw); err != nil {
 			return nil, err
-		}
-		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-			return nil, invalid
 		}
 		values[name] = raw
 	}

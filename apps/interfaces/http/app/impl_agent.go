@@ -42,9 +42,9 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
 		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       int64(result.ModelCalls),
-		ToolCalls:        int64(result.ToolCalls),
-		KnownTokens:      int64(result.KnownTokens),
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
 		Steps:            agentSteps(result.Steps),
 	}, err
@@ -64,9 +64,9 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
 		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       int64(result.ModelCalls),
-		ToolCalls:        int64(result.ToolCalls),
-		KnownTokens:      int64(result.KnownTokens),
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
 		Steps:            agentSteps(result.Steps),
 	}, err
@@ -93,9 +93,9 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
 		ElapsedMS:        result.ElapsedMS,
-		ModelCalls:       int64(result.ModelCalls),
-		ToolCalls:        int64(result.ToolCalls),
-		KnownTokens:      int64(result.KnownTokens),
+		ModelCalls:       result.ModelCalls,
+		ToolCalls:        result.ToolCalls,
+		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
 		Steps:            agentSteps(result.Steps),
 	}, err
@@ -111,9 +111,9 @@ func agentSteps(steps []agent.ExecutionStep) []entity.AgentExecutionStep {
 		var usage *entity.AgentUsage
 		if step.Usage != nil {
 			usage = &entity.AgentUsage{
-				PromptTokens:     agentTokenValue(step.Usage.PromptTokens),
-				CompletionTokens: agentTokenValue(step.Usage.CompletionTokens),
-				TotalTokens:      agentTokenValue(step.Usage.TotalTokens),
+				PromptTokens:     step.Usage.PromptTokens,
+				CompletionTokens: step.Usage.CompletionTokens,
+				TotalTokens:      step.Usage.TotalTokens,
 			}
 		}
 		data = append(data, entity.AgentExecutionStep{
@@ -128,12 +128,4 @@ func agentSteps(steps []agent.ExecutionStep) []entity.AgentExecutionStep {
 		})
 	}
 	return data
-}
-
-func agentTokenValue(value *int) *int64 {
-	if value == nil {
-		return nil
-	}
-	converted := int64(*value)
-	return &converted
 }

@@ -15,9 +15,6 @@ func decodeJSONInteger(raw json.RawMessage, bits int) (int64, error) {
 		return 0, err
 	}
 	text := number.String()
-	if text == "" || !json.Valid([]byte(text)) {
-		return 0, errors.New("请求整数格式无效")
-	}
 	negative := strings.HasPrefix(text, "-")
 	text = strings.TrimPrefix(text, "-")
 	mantissa, exponent, hasExponent := strings.Cut(strings.ToLower(text), "e")

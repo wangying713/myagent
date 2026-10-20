@@ -259,7 +259,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 
 - API 方法负责参数转换、调用领域服务和返回结果，不接收 `gin.Context`，不解析 HTTP 或直接写出响应。
 - `app/router.go` 逐条声明完整路径，通过 `handle(implAgent.Chat)` 这类单参数调用绑定具体方法；不通过反射扫描方法或解析注释生成路由。
-- 解码、请求准备、超时、取消及响应处理由 `http/app/handler.go` 集中完成。路由初始化通过 `requestTimeout(timeout)` 中间件显式设置当前路由的超时，计时仍从解码及准备完成后开始；配置不放入全局变量。`infra/httpx` 只保留独立的严格解析、传输错误和 JSON 写出，不依赖业务或 `entity`。
+- 解码、超时、取消及响应处理由 `http/app/handler.go` 集中完成。路由初始化通过 `requestTimeout(timeout)` 中间件显式设置当前路由的超时，计时仍从解码完成后开始；配置不放入全局变量。`infra/httpx` 只保留独立的严格解析、传输错误和 JSON 写出，不依赖业务或 `entity`。
 - 接口方法显式组装并返回自己的 HTTP 响应，允许重复字段赋值，不封装统一业务返回函数。输入拒绝返回 nil 数据，其他失败保留已经完成的结果，错误原样返回。
 - 响应和错误可以同时非空，已有的步骤和用量必须保留，不能因错误而统一丢弃响应。
 - 领域层使用自己的输入输出，不依赖 HTTP 数据类型；JSON 解码直接保留省略切片为 nil、显式空数组为非 nil 空切片，可选数值用指针区分省略与零，不藏在上下文中。
