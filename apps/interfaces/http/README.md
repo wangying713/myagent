@@ -17,7 +17,8 @@ http/
   entity/
     response.go
     code.go
-    agent_json.go
+    agent.go
+    agent_demos.go
 ```
 
 

@@ -226,8 +226,8 @@ func (a *ImplAgentDemos) Stream(ctx context.Context, req *entity.DemosStreamReq)
 }
 
 // demoExecution 只转换共用的执行记录，各业务响应仍由对应方法分别组装。
-func demoExecution(result agent.ChatRsp) *entity.AgentExecutionResult {
-	return &entity.AgentExecutionResult{
+func demoExecution(result agent.ChatRsp) *entity.DemoExecution {
+	return &entity.DemoExecution{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,

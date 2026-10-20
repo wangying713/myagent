@@ -284,6 +284,6 @@ HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显�
 
 ## Agent Demos 与文本流式接口
 
-经用户安排，`app/impl_agent_demos.go` 接入 13 个章节的最小演示，`entity/agent_demos_json.go` 分别手写各接口的请求、响应及共用 JSON 数据。原 API 独立保留。
+经用户安排，`app/impl_agent_demos.go` 接入 13 个章节的最小演示，`entity/agent_demos.go` 分别手写各接口的请求、响应及共用 JSON 数据。原 API 独立保留。
 
 普通 Demo 沿用 `(ctx, req) (rsp, error)` 和单参数 `handle`。文本流式接口的响应是同步拉取的 `iter.Seq2`，由专门的 SSE 适配写出；方法不依赖 Gin 或直接写 HTTP。每个事件沿用 `code/data/traceID/msg`，增量使用 `delta`，最终事件 `done=true` 并带完整或部分执行结果。流建立前失败返回普通 JSON；建立后失败用最终事件表达，不能再改 HTTP 状态。缺少最终事件视为中断。

@@ -53,7 +53,7 @@ func TestHandleKeepsResponseWithError(t *testing.T) {
 				return tc.rsp, tc.err
 			}))
 			out, _ := invoke(router, "chat", `{"question":"请求"}`)
-			var rsp entity.Rsp[*entity.AgentExecutionResult]
+			var rsp entity.Rsp[*entity.ChatRsp]
 			if err := json.Unmarshal(out.Body.Bytes(), &rsp); err != nil {
 				t.Fatal(err)
 			}
