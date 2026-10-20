@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/domain/agent"
 )
 
-// ImplAgent 为各接口准备领域输入，并显式组装各自的 Proto 响应。
+// ImplAgent 为各接口准备领域输入，并显式组装各自的 HTTP 响应。
 type ImplAgent struct {
 	agentCli *agent.Client // 由入口注入的 Agent 客户端。
 }
@@ -23,8 +23,8 @@ func newImplAgent(agentCli *agent.Client) (*ImplAgent, error) {
 }
 
 // Chat 执行单轮聊天，省略问题时使用默认问题。 @alias=/api/agent/chat
-func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
-	question := req.GetQuestion()
+func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.ChatRsp, error) {
+	question := req.Question
 	if question == "" {
 		question = agent.DemoChatQuestion
 	}
@@ -36,12 +36,12 @@ func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRs
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
-	return &proto.ChatRsp{
+	return &entity.ChatRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
-		ElapsedMs:        result.ElapsedMS,
+		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       int64(result.ModelCalls),
 		ToolCalls:        int64(result.ToolCalls),
 		KnownTokens:      int64(result.KnownTokens),
@@ -51,19 +51,19 @@ func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRs
 }
 
 // Messages 执行两轮对话，第二轮携带第一轮实际返回的消息。 @alias=/api/agent/messages
-func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*proto.MessagesRsp, error) {
+func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*entity.MessagesRsp, error) {
 	result, err := a.agentCli.Messages(ctx, agent.MessagesInput{
-		Questions: req.GetQuestions(),
+		Questions: req.Questions,
 	})
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
-	return &proto.MessagesRsp{
+	return &entity.MessagesRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
-		ElapsedMs:        result.ElapsedMS,
+		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       int64(result.ModelCalls),
 		ToolCalls:        int64(result.ToolCalls),
 		KnownTokens:      int64(result.KnownTokens),
@@ -73,8 +73,8 @@ func (a *ImplAgent) Messages(ctx context.Context, req *proto.MessagesReq) (*prot
 }
 
 // Run 执行受预算约束的工具调用循环。 @alias=/api/agent/run
-func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, error) {
-	question := req.GetQuestion()
+func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp, error) {
+	question := req.Question
 	if question == "" {
 		question = agent.AgentQuestion
 	}
@@ -87,12 +87,12 @@ func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, 
 	if errors.Is(err, agent.ErrInput) {
 		return nil, err
 	}
-	return &proto.RunRsp{
+	return &entity.RunRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
 		TelemetryEnabled: result.TelemetryEnabled,
-		ElapsedMs:        result.ElapsedMS,
+		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       int64(result.ModelCalls),
 		ToolCalls:        int64(result.ToolCalls),
 		KnownTokens:      int64(result.KnownTokens),
@@ -101,35 +101,27 @@ func (a *ImplAgent) Run(ctx context.Context, req *proto.RunReq) (*proto.RunRsp, 
 	}, err
 }
 
-// prepareAgentMessages 在 HTTP 解码后保留省略与显式空数组的区别。
-// Protobuf repeated 字段不保留存在性，显式空数组必须继续交给业务校验。
-func prepareAgentMessages(req *proto.MessagesReq, present map[string]bool) {
-	if present["questions"] && len(req.Questions) == 0 {
-		req.Questions = []string{}
-	}
-}
-
 // agentSteps 转换接口复用的步骤与用量数据，保留 nil 与空切片的区别。
-func agentSteps(steps []agent.ExecutionStep) []*proto.ExecutionStep {
-	var data []*proto.ExecutionStep
+func agentSteps(steps []agent.ExecutionStep) []entity.AgentExecutionStep {
+	var data []entity.AgentExecutionStep
 	if steps != nil {
-		data = make([]*proto.ExecutionStep, 0, len(steps))
+		data = make([]entity.AgentExecutionStep, 0, len(steps))
 	}
 	for _, step := range steps {
-		var usage *proto.Usage
+		var usage *entity.AgentUsage
 		if step.Usage != nil {
-			usage = &proto.Usage{
+			usage = &entity.AgentUsage{
 				PromptTokens:     agentTokenValue(step.Usage.PromptTokens),
 				CompletionTokens: agentTokenValue(step.Usage.CompletionTokens),
 				TotalTokens:      agentTokenValue(step.Usage.TotalTokens),
 			}
 		}
-		data = append(data, &proto.ExecutionStep{
+		data = append(data, entity.AgentExecutionStep{
 			Kind:         step.Kind,
 			Name:         step.Name,
 			Request:      step.Request,
 			Response:     step.Response,
-			ElapsedMs:    step.ElapsedMS,
+			ElapsedMS:    step.ElapsedMS,
 			FinishReason: step.FinishReason,
 			Usage:        usage,
 			Error:        step.Error,

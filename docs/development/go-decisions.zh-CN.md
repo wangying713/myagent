@@ -8,7 +8,7 @@
 
 1. **标准库（系统）**：Go 标准库，例如 `context`、`net/http`、`time`。
 2. **本项目包（本地）**：当前模块 `saklay/ai` 及其子包，例如 `saklay/ai/apps/config`、`saklay/ai/domain/agent`。
-3. **外部依赖（第三方）**：当前模块以外的依赖，例如 `github.com/gin-gonic/gin`、`google.golang.org/protobuf/proto`。Go 官方维护但不属于标准库的模块，例如 `golang.org/x/sync`，也属于这一组。
+3. **外部依赖（第三方）**：当前模块以外的依赖，例如 `github.com/gin-gonic/gin`、`go.opentelemetry.io/otel/trace`。Go 官方维护但不属于标准库的模块，例如 `golang.org/x/sync`，也属于这一组。
 
 ```go
 import (
@@ -247,30 +247,30 @@ impl := &ImplAgent{
 
 ## HTTP API 方法签名
 
-HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、信号与最终错误输出。服务实现和测试放在 `http/app`（包名 `app`），启动入口为 `Run(ctx, cfg)`，由 `app/run.go` 组装依赖并管理资源。Agent 的处理方法、请求准备和各接口的 Proto 响应组装位于 `http/app/impl_agent.go`，HTTP JSON 适配与错误映射位于 `http/app/handler.go`；后续业务使用 `app/impl_xxx.go`。API 的协议源文件与生成的请求响应类型统一放在 `http/proto`；`http/proto/agent.proto` 定义消息，通过生成脚本输出同目录的 `agent.pb.go`。手写 HTTP 公共外层与 JSON 表现类型放在 `http/entity`。路由与中间件位于 `app/router.go`，服务生命周期位于 `app/server.go`，通用传输能力留在 `infra/httpx`。
+HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、信号与最终错误输出。服务实现和测试放在 `http/app`（包名 `app`），启动入口为 `Run(ctx, cfg)`，由 `app/run.go` 组装依赖并管理资源。Agent 的处理方法、请求准备和各接口的 HTTP 响应组装位于 `http/app/impl_agent.go`，HTTP JSON 适配与错误映射位于 `http/app/handler.go`；后续业务使用 `app/impl_xxx.go`。API 的手写请求、响应、公共外层及共用 JSON 数据统一放在 `http/entity`，按业务分文件。路由与中间件位于 `app/router.go`，服务生命周期位于 `app/server.go`，通用传输能力留在 `infra/httpx`。
 
-后续新增接口继续遵循这一分工：协议源文件与生成的请求响应类型直接放在 `http/proto`，手写 HTTP 公共外层与 JSON 表现类型放在 `entity`，均按业务分文件；接口按需复用步骤、用量等共用消息，响应由各接口独立定义。`entity` 只负责字段与序列化约定，不依赖业务处理包、领域服务、Gin 或基础设施；请求准备和 Proto 响应组装放在对应业务的 `app/impl_xxx.go`；HTTP JSON 适配和错误映射位于 `app/handler.go`。领域层与 `infra/httpx` 不依赖应用的 `entity` 或 `proto` 包。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
+后续新增接口继续遵循这一分工：请求、响应和共用数据放在 `entity` 中，按业务分文件，各接口独立定义响应，按需复用步骤、用量等类型。`entity` 只负责字段和 JSON 标签，不依赖业务处理包、领域服务、Gin 或基础设施；请求准备和响应组装放在对应业务的 `app/impl_xxx.go`；HTTP 解码和错误映射位于 `app/handler.go`。领域层与 `infra/httpx` 不依赖应用的 `entity` 包。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
 
-业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和 `proto` 中生成的请求消息指针作为入参，`proto` 中生成的响应消息指针与 `error` 作为返回值。
+业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和 `entity` 中手写的请求结构体指针作为入参，响应结构体指针与 `error` 作为返回值。
 
 ```go
-func (a *ImplAgent) Chat(ctx context.Context, req *proto.ChatReq) (*proto.ChatRsp, error)
+func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.ChatRsp, error)
 ```
 
 - API 方法负责参数转换、调用领域服务和返回结果，不接收 `gin.Context`，不解析 HTTP 或直接写出响应。
 - `app/router.go` 逐条声明完整路径，通过 `handle(implAgent.Chat)` 这类单参数调用绑定具体方法；不通过反射扫描方法或解析注释生成路由。
 - 解码、请求准备、超时、取消及响应处理由 `http/app/handler.go` 集中完成。路由初始化通过 `requestTimeout(timeout)` 中间件显式设置当前路由的超时，计时仍从解码及准备完成后开始；配置不放入全局变量。`infra/httpx` 只保留独立的严格解析、传输错误和 JSON 写出，不依赖业务或 `entity`。
-- 接口方法显式组装并返回自己的 Proto 响应，允许重复字段赋值，不封装统一业务返回函数。输入拒绝返回 nil 数据，其他失败保留已经完成的结果，错误原样返回。
+- 接口方法显式组装并返回自己的 HTTP 响应，允许重复字段赋值，不封装统一业务返回函数。输入拒绝返回 nil 数据，其他失败保留已经完成的结果，错误原样返回。
 - 响应和错误可以同时非空，已有的步骤和用量必须保留，不能因错误而统一丢弃响应。
-- 领域层使用自己的输入输出，不依赖接口生成类型；解码后需要保留的字段存在性通过显式准备函数转换到请求对象，不藏在上下文中。
+- 领域层使用自己的输入输出，不依赖 HTTP 数据类型；JSON 解码直接保留省略切片为 nil、显式空数组为非 nil 空切片，可选数值用指针区分省略与零，不藏在上下文中。
 
-请求消息统一使用 `Req` 后缀，响应消息使用 `Rsp` 后缀。三个 Agent 接口分别返回 Proto 定义的 `ChatRsp`、`MessagesRsp`、`RunRsp`；业务方法不返回 HTTP 外层结构。
+请求消息统一使用 `Req` 后缀，响应消息使用 `Rsp` 后缀。三个 Agent 接口分别返回 `entity` 定义的 `ChatRsp`、`MessagesRsp`、`RunRsp`；业务方法不返回 HTTP 外层结构。
 
 公共响应码常量定义在 `entity/code.go`，接口适配使用 `entity.CodeInvalidInput` 等具名常量。领域错误判断、HTTP 状态及具体提示保留在 `app/handler.go`，`entity` 不依赖领域或基础设施。
 
 HTTP 统一外层手写于 `entity/response.go`：`Rsp[T]` 包含 `code`、`data`、`traceID`、`msg`。成功为 `code: "ok"`、`msg: "成功"`；失败沿用稳定的字符串错误码及中文说明，同时保留原有 HTTP 状态。解码失败、输入拒绝及其他尚无业务结果的响应使用 `data: null`，部分结果与错误同时返回时保留数据。HTTP handler 负责包装，`httpx.Write` 只编码并写出；编码失败不能先写出成功响应。
 
-HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显式注入私有 TracerProvider、noop MeterProvider 和空传播器，保持服务内链路且不依赖全局观测配置。领域运行作为其子 span，模型和工具仍是领域运行的子 span。通过 otelgin 的名称格式器只展示 URI 路由模板，例如 `/api/agent/chat`；未匹配路由统一为 `[unmatched]`。HTTP 方法保留在属性中，屏蔽默认属性中的原始路径、User-Agent 与客户端地址。启用正文采集时，在根 span 记录实际读写的请求体与最终 HTTP 响应，预览直接显示正文 JSON，不添加角色、消息或 body 包装；方法、路由模板和响应状态保留在 span 属性中，正文复用脱敏、限长及 OpenObserve 原生预览适配；不采集请求头或查询字符串，不预读请求。公共响应处理继续将 4xx 和 5xx 标记为失败。外层 `traceID` 来自实际请求链路，业务 Proto 响应不再重复携带；关闭观测或服务退出闸门尚未进入路由时为空，不伪造 ID。
+HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显式注入私有 TracerProvider、noop MeterProvider 和空传播器，保持服务内链路且不依赖全局观测配置。领域运行作为其子 span，模型和工具仍是领域运行的子 span。通过 otelgin 的名称格式器只展示 URI 路由模板，例如 `/api/agent/chat`；未匹配路由统一为 `[unmatched]`。HTTP 方法保留在属性中，屏蔽默认属性中的原始路径、User-Agent 与客户端地址。启用正文采集时，在根 span 记录实际读写的请求体与最终 HTTP 响应，预览直接显示正文 JSON，不添加角色、消息或 body 包装；方法、路由模板和响应状态保留在 span 属性中，正文复用脱敏、限长及 OpenObserve 原生预览适配；不采集请求头或查询字符串，不预读请求。公共响应处理继续将 4xx 和 5xx 标记为失败。外层 `traceID` 来自实际请求链路，业务响应不再重复携带；关闭观测或服务退出闸门尚未进入路由时为空，不伪造 ID。
 
 实现与使用说明见 [HTTP API](../../apps/interfaces/http/README.md) 和 [通用 HTTP 能力](../../infra/httpx/README.md)。
 
@@ -278,12 +278,12 @@ HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显�
 
 ## 第三方能力选择
 
-通用框架能力优先复用当前依赖，新增依赖须能减少维护成本并保留现有契约。HTTP 请求链路使用 `otelgin`，Proto 解码使用官方 `protojson`；严格字段检查和 HTTP JSON 表现继续由入口适配。
+通用框架能力优先复用当前依赖，新增依赖须能减少维护成本并保留现有契约。HTTP 请求链路使用 `otelgin`，请求通过 `httpx.DecodeJSON` 按 JSON 标签严格解码，响应由 `encoding/json` 编码；保留已有字段检查及数字、零值、null 和空数组表现。
 
 配置文件已使用 `godotenv.Read`。当前环境解析保留显式实现：显式空值优先于文件与默认值，布尔值仅接受规范化后的 true/false，整数沿用本机 int 范围。`caarlos0/env/v11` 的默认值与类型转换语义不同，当前规模下接入还需自定义解析及错误翻译，暂不增加该依赖。服务生命周期继续使用标准库，模型客户端保留原始 assistant 消息、取消与无重试语义。
 
 ## Agent Demos 与文本流式接口
 
-经用户安排，`app/impl_agent_demos.go` 接入 13 个章节的最小演示，`proto/agent_demos.proto` 分别定义各接口的请求和响应，JSON 表现位于 `entity/agent_demos_json.go`。生成脚本统一检查 `http/proto` 中的所有协议。原 API 独立保留。
+经用户安排，`app/impl_agent_demos.go` 接入 13 个章节的最小演示，`entity/agent_demos_json.go` 分别手写各接口的请求、响应及共用 JSON 数据。原 API 独立保留。
 
 普通 Demo 沿用 `(ctx, req) (rsp, error)` 和单参数 `handle`。文本流式接口的响应是同步拉取的 `iter.Seq2`，由专门的 SSE 适配写出；方法不依赖 Gin 或直接写 HTTP。每个事件沿用 `code/data/traceID/msg`，增量使用 `delta`，最终事件 `done=true` 并带完整或部分执行结果。流建立前失败返回普通 JSON；建立后失败用最终事件表达，不能再改 HTTP 状态。缺少最终事件视为中断。

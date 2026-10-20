@@ -1,7 +1,22 @@
 // Package entity 定义手写的 HTTP 共用数据与 JSON 表现类型，不承担业务处理或传输行为。
 package entity
 
-// AgentExecutionResult 是三个 Agent 接口共用的 HTTP JSON 响应数据。
+// ChatReq 是普通聊天请求，省略或空问题使用默认学习示例。
+type ChatReq struct {
+	Question string `json:"question"` // 用户问题，空字符串使用接口默认问题。
+}
+
+// MessagesReq 是两轮消息请求，省略问题列表使用默认示例，显式空数组无效。
+type MessagesReq struct {
+	Questions []string `json:"questions"` // 两轮问题；nil 表示省略，非 nil 空切片表示显式空数组。
+}
+
+// RunReq 是受控工具调用请求，省略或空问题使用默认学习示例。
+type RunReq struct {
+	Question string `json:"question"` // 用户问题，空字符串使用接口默认问题。
+}
+
+// AgentExecutionResult 是 Agent Demos 共用的 HTTP JSON 执行记录。
 // 整数输出为 JSON 数字；Steps 为 nil 和空切片时分别输出 null 和空数组。
 type AgentExecutionResult struct {
 	Lesson           string               `json:"lesson"`            // 业务操作标识，对应 chat、messages 或 agent。
@@ -33,4 +48,46 @@ type AgentExecutionStep struct {
 	FinishReason string      `json:"finish_reason,omitempty"` // 模型结束原因，工具步骤为空。
 	Usage        *AgentUsage `json:"usage,omitempty"`         // 模型返回的 token 用量，工具步骤为 nil。
 	Error        string      `json:"error,omitempty"`         // 执行失败或工具拒绝的公开说明。
+}
+
+// ChatRsp 是普通聊天接口的业务响应，公共外层由 HTTP handler 包装。
+type ChatRsp struct {
+	Lesson           string               `json:"lesson"`            // 业务操作标识，对应 chat、messages 或 agent。
+	Completed        bool                 `json:"completed"`         // 本次业务是否成功完成。
+	Answer           string               `json:"answer"`            // 脱敏后的回答，失败时保留已有内容。
+	TelemetryEnabled bool                 `json:"telemetry_enabled"` // 是否启用链路观测。
+	ElapsedMS        int64                `json:"elapsed_ms"`        // 本次运行耗时，单位为毫秒。
+	ModelCalls       int64                `json:"model_calls"`       // 已发起的模型调用次数。
+	ToolCalls        int64                `json:"tool_calls"`        // 已发起的工具调用次数。
+	KnownTokens      int64                `json:"known_tokens"`      // 可确认的累计 token 用量。
+	UsageComplete    bool                 `json:"usage_complete"`    // 所有模型调用的用量是否均已确认并累计。
+	Steps            []AgentExecutionStep `json:"steps"`             // 按执行顺序保存的模型与工具调用记录。
+}
+
+// MessagesRsp 是两轮消息接口的业务响应，公共外层由 HTTP handler 包装。
+type MessagesRsp struct {
+	Lesson           string               `json:"lesson"`            // 业务操作标识，对应 chat、messages 或 agent。
+	Completed        bool                 `json:"completed"`         // 本次业务是否成功完成。
+	Answer           string               `json:"answer"`            // 脱敏后的回答，失败时保留已有内容。
+	TelemetryEnabled bool                 `json:"telemetry_enabled"` // 是否启用链路观测。
+	ElapsedMS        int64                `json:"elapsed_ms"`        // 本次运行耗时，单位为毫秒。
+	ModelCalls       int64                `json:"model_calls"`       // 已发起的模型调用次数。
+	ToolCalls        int64                `json:"tool_calls"`        // 已发起的工具调用次数。
+	KnownTokens      int64                `json:"known_tokens"`      // 可确认的累计 token 用量。
+	UsageComplete    bool                 `json:"usage_complete"`    // 所有模型调用的用量是否均已确认并累计。
+	Steps            []AgentExecutionStep `json:"steps"`             // 按执行顺序保存的模型与工具调用记录。
+}
+
+// RunRsp 是受控工具调用接口的业务响应，公共外层由 HTTP handler 包装。
+type RunRsp struct {
+	Lesson           string               `json:"lesson"`            // 业务操作标识，对应 chat、messages 或 agent。
+	Completed        bool                 `json:"completed"`         // 本次业务是否成功完成。
+	Answer           string               `json:"answer"`            // 脱敏后的回答，失败时保留已有内容。
+	TelemetryEnabled bool                 `json:"telemetry_enabled"` // 是否启用链路观测。
+	ElapsedMS        int64                `json:"elapsed_ms"`        // 本次运行耗时，单位为毫秒。
+	ModelCalls       int64                `json:"model_calls"`       // 已发起的模型调用次数。
+	ToolCalls        int64                `json:"tool_calls"`        // 已发起的工具调用次数。
+	KnownTokens      int64                `json:"known_tokens"`      // 可确认的累计 token 用量。
+	UsageComplete    bool                 `json:"usage_complete"`    // 所有模型调用的用量是否均已确认并累计。
+	Steps            []AgentExecutionStep `json:"steps"`             // 按执行顺序保存的模型与工具调用记录。
 }

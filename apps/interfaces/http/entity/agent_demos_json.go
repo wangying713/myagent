@@ -1,5 +1,69 @@
 package entity
 
+// DemosOverviewReq 是 Agent 概览演示的请求。
+type DemosOverviewReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosChatReq 是普通聊天演示的请求。
+type DemosChatReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosMessagesReq 是消息历史演示的请求。
+type DemosMessagesReq struct {
+	Questions []string `json:"questions"` // 两轮问题；nil 使用默认示例，显式空数组交由业务拒绝。
+}
+
+// DemosToolsReq 是工具调用与循环演示的请求。
+type DemosToolsReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosStructuredReq 是结构化输出演示的请求。
+type DemosStructuredReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosMultipleToolsReq 是多个工具协作演示的请求。
+type DemosMultipleToolsReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosStreamReq 是流式回答演示的请求。
+type DemosStreamReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosReliabilityReq 是执行边界演示的请求。
+type DemosReliabilityReq struct {
+	Question   string `json:"question"`    // 用户问题，省略或空字符串使用本章默认示例。
+	ModelCalls *int64 `json:"model_calls"` // 允许的模型调用次数；nil 使用本章默认值。
+}
+
+// DemosRetrievalReq 是检索与记忆演示的请求。
+type DemosRetrievalReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosWorkflowReq 是工作流演示的请求。
+type DemosWorkflowReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosObservationReq 是观测演示的请求。
+type DemosObservationReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
+// DemosEvaluationReq 是评估与回归演示的请求。
+type DemosEvaluationReq struct{}
+
+// DemosDeliveryReq 是综合练习演示的请求。
+type DemosDeliveryReq struct {
+	Question string `json:"question"` // 用户问题，省略或空字符串使用本章默认示例。
+}
+
 // DemoSource 是提供给页面核对的资料片段。
 type DemoSource struct {
 	ID    string `json:"id"`    // 本地资料编号。

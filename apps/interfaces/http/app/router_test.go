@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/entity"
-	"saklay/ai/apps/interfaces/http/proto"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/deepseek"
 	"saklay/ai/infra/openobserve"
@@ -25,7 +24,6 @@ import (
 	"github.com/gin-gonic/gin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Rsp 按管理台接收的 HTTP JSON 解码，避免用生成类型掩盖线上的格式变化。
@@ -870,8 +868,8 @@ func TestConcurrentRunsDoNotShareHistory(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			body, err := protojson.Marshal(&proto.ChatReq{
-				Question: &question,
+			body, err := json.Marshal(&entity.ChatReq{
+				Question: question,
 			})
 			if err != nil {
 				t.Errorf("编码聊天请求：%v", err)

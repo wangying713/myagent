@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"saklay/ai/apps/interfaces/http/proto"
+	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/domain/agent"
 
 	"github.com/gin-gonic/gin"
@@ -100,128 +100,29 @@ func TestAgentQuestionPassThroughAndDefaults(t *testing.T) {
 	}
 }
 
+// responseCase 保存三个独立 API 的响应及其共同的 JSON 预期。
+type responseCase struct {
+	name     string              // 场景名称。
+	chat     *entity.ChatRsp     // 聊天接口的模拟响应；nil 表示无结果。
+	messages *entity.MessagesRsp // 消息历史接口的模拟响应；nil 表示无结果。
+	run      *entity.RunRsp      // 工具循环接口的模拟响应；nil 表示无结果。
+	want     string              // 预期 HTTP JSON 正文。
+}
+
 func TestResponseJSONCompatibility(t *testing.T) {
-	zero, total := int64(0), int64(12)
-	steps := []*proto.ExecutionStep{
-		{
-			Kind:         "model",
-			Name:         "模型",
-			Request:      "请求",
-			Response:     "回答",
-			ElapsedMs:    11,
-			FinishReason: "stop",
-			Usage: &proto.Usage{
-				PromptTokens: &zero,
-				TotalTokens:  &total,
-			},
-		},
-		{
-			Kind:      "tool",
-			Name:      "multiply",
-			Request:   `{"a":17,"b":23}`,
-			Response:  "391",
-			ElapsedMs: 1,
-			Error:     "步骤说明",
-		},
-	}
-	for _, tc := range []struct {
-		name     string             // 用例名称。
-		chat     *proto.ChatRsp     // 聊天接口的模拟 Proto 响应。
-		messages *proto.MessagesRsp // 消息历史接口的模拟 Proto 响应。
-		run      *proto.RunRsp      // 工具循环接口的模拟 Proto 响应。
-		want     string             // 预期 HTTP JSON 响应正文。
-	}{
-		{
-			name: "空响应",
-			want: `{"code":"ok","traceID":"","msg":"成功","data":null}`,
-		},
-		{
-			name:     "零值响应",
-			chat:     &proto.ChatRsp{},
-			messages: &proto.MessagesRsp{},
-			run:      &proto.RunRsp{},
-			want:     `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":0,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
-		},
-		{
-			name: "业务开始后的空步骤",
-			chat: &proto.ChatRsp{
-				Lesson:        "chat",
-				UsageComplete: true,
-				Steps:         []*proto.ExecutionStep{},
-			},
-			messages: &proto.MessagesRsp{
-				Lesson:        "chat",
-				UsageComplete: true,
-				Steps:         []*proto.ExecutionStep{},
-			},
-			run: &proto.RunRsp{
-				Lesson:        "chat",
-				UsageComplete: true,
-				Steps:         []*proto.ExecutionStep{},
-			},
-			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"chat","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":0,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":true,"steps":[]}}`,
-		},
-		{
-			name: "完整字段与部分未知用量",
-			chat: &proto.ChatRsp{
-				Lesson:           "agent",
-				Completed:        true,
-				Answer:           "结果为 391",
-				TelemetryEnabled: true,
-				ElapsedMs:        42,
-				ModelCalls:       2,
-				ToolCalls:        1,
-				KnownTokens:      12,
-				Steps:            steps,
-			},
-			messages: &proto.MessagesRsp{
-				Lesson:           "agent",
-				Completed:        true,
-				Answer:           "结果为 391",
-				TelemetryEnabled: true,
-				ElapsedMs:        42,
-				ModelCalls:       2,
-				ToolCalls:        1,
-				KnownTokens:      12,
-				Steps:            steps,
-			},
-			run: &proto.RunRsp{
-				Lesson:           "agent",
-				Completed:        true,
-				Answer:           "结果为 391",
-				TelemetryEnabled: true,
-				ElapsedMs:        42,
-				ModelCalls:       2,
-				ToolCalls:        1,
-				KnownTokens:      12,
-				Steps:            steps,
-			},
-			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"agent","completed":true,"answer":"结果为 391","telemetry_enabled":true,"elapsed_ms":42,"model_calls":2,"tool_calls":1,"known_tokens":12,"usage_complete":false,"steps":[{"kind":"model","name":"模型","request":"请求","response":"回答","elapsed_ms":11,"finish_reason":"stop","usage":{"prompt_tokens":0,"completion_tokens":null,"total_tokens":12}},{"kind":"tool","name":"multiply","request":"{\"a\":17,\"b\":23}","response":"391","elapsed_ms":1,"error":"步骤说明"}]}}`,
-		},
-		{
-			name: "大整数保留 JSON 数字",
-			chat: &proto.ChatRsp{
-				ElapsedMs: 9007199254740993,
-			},
-			messages: &proto.MessagesRsp{
-				ElapsedMs: 9007199254740993,
-			},
-			run: &proto.RunRsp{
-				ElapsedMs: 9007199254740993,
-			},
-			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":9007199254740993,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
-		},
-	} {
+	cases := basicResponseCases()
+	cases = append(cases, fullResponseCase(), largeIntegerResponseCase())
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
 			router.Use(requestTimeout(time.Second))
-			router.POST("/chat", handle(func(context.Context, *proto.ChatReq) (*proto.ChatRsp, error) {
+			router.POST("/chat", handle(func(context.Context, *entity.ChatReq) (*entity.ChatRsp, error) {
 				return tc.chat, nil
 			}))
-			router.POST("/messages", handle(func(context.Context, *proto.MessagesReq) (*proto.MessagesRsp, error) {
+			router.POST("/messages", handle(func(context.Context, *entity.MessagesReq) (*entity.MessagesRsp, error) {
 				return tc.messages, nil
 			}))
-			router.POST("/run", handle(func(context.Context, *proto.RunReq) (*proto.RunRsp, error) {
+			router.POST("/run", handle(func(context.Context, *entity.RunReq) (*entity.RunRsp, error) {
 				return tc.run, nil
 			}))
 			for _, path := range []string{
@@ -255,5 +156,119 @@ func TestResponseJSONCompatibility(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func basicResponseCases() []responseCase {
+	return []responseCase{
+		{
+			name: "空响应",
+			want: `{"code":"ok","traceID":"","msg":"成功","data":null}`,
+		},
+		{
+			name:     "零值响应",
+			chat:     &entity.ChatRsp{},
+			messages: &entity.MessagesRsp{},
+			run:      &entity.RunRsp{},
+			want:     `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":0,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
+		},
+		{
+			name: "业务开始后的空步骤",
+			chat: &entity.ChatRsp{
+				Lesson:        "chat",
+				UsageComplete: true,
+				Steps:         []entity.AgentExecutionStep{},
+			},
+			messages: &entity.MessagesRsp{
+				Lesson:        "chat",
+				UsageComplete: true,
+				Steps:         []entity.AgentExecutionStep{},
+			},
+			run: &entity.RunRsp{
+				Lesson:        "chat",
+				UsageComplete: true,
+				Steps:         []entity.AgentExecutionStep{},
+			},
+			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"chat","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":0,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":true,"steps":[]}}`,
+		},
+	}
+}
+
+func fullResponseCase() responseCase {
+	zero, total := int64(0), int64(12)
+	steps := []entity.AgentExecutionStep{
+		{
+			Kind:         "model",
+			Name:         "模型",
+			Request:      "请求",
+			Response:     "回答",
+			ElapsedMS:    11,
+			FinishReason: "stop",
+			Usage: &entity.AgentUsage{
+				PromptTokens: &zero,
+				TotalTokens:  &total,
+			},
+		},
+		{
+			Kind:      "tool",
+			Name:      "multiply",
+			Request:   `{"a":17,"b":23}`,
+			Response:  "391",
+			ElapsedMS: 1,
+			Error:     "步骤说明",
+		},
+	}
+	return responseCase{
+		name: "完整字段与部分未知用量",
+		chat: &entity.ChatRsp{
+			Lesson:           "agent",
+			Completed:        true,
+			Answer:           "结果为 391",
+			TelemetryEnabled: true,
+			ElapsedMS:        42,
+			ModelCalls:       2,
+			ToolCalls:        1,
+			KnownTokens:      12,
+			Steps:            steps,
+		},
+		messages: &entity.MessagesRsp{
+			Lesson:           "agent",
+			Completed:        true,
+			Answer:           "结果为 391",
+			TelemetryEnabled: true,
+			ElapsedMS:        42,
+			ModelCalls:       2,
+			ToolCalls:        1,
+			KnownTokens:      12,
+			Steps:            steps,
+		},
+		run: &entity.RunRsp{
+			Lesson:           "agent",
+			Completed:        true,
+			Answer:           "结果为 391",
+			TelemetryEnabled: true,
+			ElapsedMS:        42,
+			ModelCalls:       2,
+			ToolCalls:        1,
+			KnownTokens:      12,
+			Steps:            steps,
+		},
+		want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"agent","completed":true,"answer":"结果为 391","telemetry_enabled":true,"elapsed_ms":42,"model_calls":2,"tool_calls":1,"known_tokens":12,"usage_complete":false,"steps":[{"kind":"model","name":"模型","request":"请求","response":"回答","elapsed_ms":11,"finish_reason":"stop","usage":{"prompt_tokens":0,"completion_tokens":null,"total_tokens":12}},{"kind":"tool","name":"multiply","request":"{\"a\":17,\"b\":23}","response":"391","elapsed_ms":1,"error":"步骤说明"}]}}`,
+	}
+}
+
+func largeIntegerResponseCase() responseCase {
+	return responseCase{
+		name: "大整数保留 JSON 数字",
+		chat: &entity.ChatRsp{
+			ElapsedMS: 9007199254740993,
+		},
+		messages: &entity.MessagesRsp{
+			ElapsedMS: 9007199254740993,
+		},
+		run: &entity.RunRsp{
+			ElapsedMS: 9007199254740993,
+		},
+		want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":9007199254740993,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":false,"steps":null}}`,
 	}
 }

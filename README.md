@@ -48,7 +48,7 @@ Go 工具链为 1.27.2，模块为 `saklay/ai`。`./scripts/go` 使用项目现�
 apps/
   config/            # 显式文件与环境变量配置
   interfaces/
-    http/            # 启动入口、显式路由；agent 放接口适配，entity 放请求响应类型，proto 放协议源文件
+    http/            # 启动入口、显式路由；app 放接口适配，entity 放手写请求响应类型
     console/         # 通用管理台；agent-development 为 13 章 Demo 页面
     cli/             # 预留，本次不新增 CLI 课程
 domain/agent/        # 基础流程、13 章最小演示、执行记录、协议和有限工具循环
@@ -65,7 +65,7 @@ docs/
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 
-HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/agent.proto)，生成到 [proto/agent.pb.go](apps/interfaces/http/proto/agent.pb.go)，API 方法使用 `proto` 中的 `ChatReq/ChatRsp`、`MessagesReq/MessagesRsp`、`RunReq/RunRsp`，各自显式组装响应；HTTP handler 统一包装 `code/data/traceID/msg`，trace ID 不再位于业务 data。修改协议后执行 `./scripts/generate-proto`，使用 `./scripts/generate-proto --check` 检查生成一致性；已检入生成文件，普通运行无需安装编译器。工具版本和现有 JSON 兼容说明见 [Proto 消息说明](apps/interfaces/http/README.md)。
+HTTP 请求、响应和公共外层统一定义在 [entity](apps/interfaces/http/entity/README.md)，API 方法使用手写的 `ChatReq/ChatRsp`、`MessagesReq/MessagesRsp`、`RunReq/RunRsp`，各自显式组装响应；HTTP handler 统一包装 `code/data/traceID/msg`，trace ID 只位于外层。请求按 JSON 标签严格解码，响应直接编码，保留数字、零值、null 与空数组等表现。具体见 [HTTP 接口说明](apps/interfaces/http/README.md)。
 
 ## 观测与边界
 
@@ -78,7 +78,6 @@ HTTP 请求与响应消息定义在 [agent.proto](apps/interfaces/http/proto/age
 ## 验证
 
 ```sh
-./scripts/generate-proto --check
 ./scripts/go vet ./...
 ./scripts/go test ./...
 ./scripts/go test -race ./...

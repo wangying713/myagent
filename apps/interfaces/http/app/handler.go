@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"saklay/ai/apps/interfaces/http/entity"
-	"saklay/ai/apps/interfaces/http/proto"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/httpx"
 
@@ -22,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	pb "google.golang.org/protobuf/proto"
 )
 
 // requestTimeoutKey 隔离 Gin 请求作用域中的业务超时配置。
@@ -36,16 +34,10 @@ func requestTimeout(timeout time.Duration) gin.HandlerFunc {
 	}
 }
 
-// protoRequest 限定可独立分配的 Protobuf 消息指针，避免在请求间复用消息状态。
-type protoRequest[Req any] interface {
-	*Req
-	pb.Message
-}
-
 // handle 将业务方法接入 Gin，须配合 requestTimeout 设置业务超时。
 // 解码及请求准备完成后开始计时，同步等待 API 返回并释放上下文；API 须响应上下文取消。
 // 响应与错误可以同时返回，已有结果会继续写入 HTTP data。
-func handle[Req, Rsp any, PReq protoRequest[Req]](api func(context.Context, PReq) (Rsp, error)) gin.HandlerFunc {
+func handle[Req, Rsp any](api func(context.Context, *Req) (Rsp, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		timeout := c.GetDuration(requestTimeoutKey{})
 		if timeout <= 0 {
@@ -55,18 +47,11 @@ func handle[Req, Rsp any, PReq protoRequest[Req]](api func(context.Context, PReq
 			})
 			return
 		}
-		req := PReq(new(Req))
-		present, err := httpx.DecodeProtoJSON(c, req)
-		if err != nil {
+		req := new(Req)
+		if err := httpx.DecodeJSON(c, req); err != nil {
 			status, failure := httpx.ClassifyReqError(err)
 			writeHTTPRsp(c, status, nil, failure)
 			return
-		}
-		if messages, ok := any(req).(*proto.MessagesReq); ok {
-			prepareAgentMessages(messages, present)
-		}
-		if messages, ok := any(req).(*proto.DemosMessagesReq); ok && present["questions"] && len(messages.Questions) == 0 {
-			messages.Questions = []string{}
 		}
 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
@@ -75,56 +60,13 @@ func handle[Req, Rsp any, PReq protoRequest[Req]](api func(context.Context, PReq
 	}
 }
 
-// writeAPIResult 集中选择各接口的 HTTP JSON 表现，并保留错误同时返回的部分结果。
+// writeAPIResult 统一映射业务错误并写出响应，保留错误同时返回的部分结果。
 func writeAPIResult(c *gin.Context, rsp any, err error) {
-	var data any
-	switch rsp := rsp.(type) {
-	case nil:
-	case *proto.ChatRsp:
-		data = chatRspJSON(rsp)
-	case *proto.MessagesRsp:
-		data = messagesRspJSON(rsp)
-	case *proto.RunRsp:
-		data = runRspJSON(rsp)
-	case *proto.DemosOverviewRsp:
-		data = demosOverviewRspJSON(rsp)
-	case *proto.DemosChatRsp:
-		data = demosChatRspJSON(rsp)
-	case *proto.DemosMessagesRsp:
-		data = demosMessagesRspJSON(rsp)
-	case *proto.DemosToolsRsp:
-		data = demosToolsRspJSON(rsp)
-	case *proto.DemosStructuredRsp:
-		data = demosStructuredRspJSON(rsp)
-	case *proto.DemosMultipleToolsRsp:
-		data = demosMultipleToolsRspJSON(rsp)
-	case *proto.DemosStreamRsp:
-		data = demosStreamRspJSON(rsp)
-	case *proto.DemosReliabilityRsp:
-		data = demosReliabilityRspJSON(rsp)
-	case *proto.DemosRetrievalRsp:
-		data = demosRetrievalRspJSON(rsp)
-	case *proto.DemosWorkflowRsp:
-		data = demosWorkflowRspJSON(rsp)
-	case *proto.DemosObservationRsp:
-		data = demosObservationRspJSON(rsp)
-	case *proto.DemosEvaluationRsp:
-		data = demosEvaluationRspJSON(rsp)
-	case *proto.DemosDeliveryRsp:
-		data = demosDeliveryRspJSON(rsp)
-	default:
-		// 新增协议须显式配置 HTTP 表现，避免标准 ProtoJSON 或生成标签改变契约。
-		writeHTTPRsp(c, http.StatusInternalServerError, nil, &httpx.Error{
-			Code:    entity.CodeInternalError,
-			Message: "响应编码失败",
-		})
-		return
-	}
 	status, failure := classifyAgentError(err)
 	if errors.Is(err, agent.ErrInput) && strings.HasPrefix(c.FullPath(), "/api/agent-demos/") {
 		failure.Message = "参数不符合本章要求，请对照默认示例检查问题、两轮消息或调用次数"
 	}
-	writeHTTPRsp(c, status, data, failure)
+	writeHTTPRsp(c, status, rsp, failure)
 }
 
 // httpObserver 由入口显式注入，HTTP 处理不依赖具体的观测实现。
@@ -204,92 +146,6 @@ func writeHTTPRsp(c *gin.Context, status int, data any, failure *httpx.Error) {
 			Msg:     "响应编码失败",
 		})
 	}
-}
-
-// chatRspJSON 保留本接口的 HTTP JSON 字段、数字与零值表现。
-func chatRspJSON(rsp *proto.ChatRsp) any {
-	if rsp == nil {
-		return nil
-	}
-	return entity.AgentExecutionResult{
-		Lesson:           rsp.GetLesson(),
-		Completed:        rsp.GetCompleted(),
-		Answer:           rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(),
-		ElapsedMS:        rsp.GetElapsedMs(),
-		ModelCalls:       rsp.GetModelCalls(),
-		ToolCalls:        rsp.GetToolCalls(),
-		KnownTokens:      rsp.GetKnownTokens(),
-		UsageComplete:    rsp.GetUsageComplete(),
-		Steps:            agentStepsJSON(rsp.GetSteps()),
-	}
-}
-
-// messagesRspJSON 保留本接口的 HTTP JSON 字段、数字与零值表现。
-func messagesRspJSON(rsp *proto.MessagesRsp) any {
-	if rsp == nil {
-		return nil
-	}
-	return entity.AgentExecutionResult{
-		Lesson:           rsp.GetLesson(),
-		Completed:        rsp.GetCompleted(),
-		Answer:           rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(),
-		ElapsedMS:        rsp.GetElapsedMs(),
-		ModelCalls:       rsp.GetModelCalls(),
-		ToolCalls:        rsp.GetToolCalls(),
-		KnownTokens:      rsp.GetKnownTokens(),
-		UsageComplete:    rsp.GetUsageComplete(),
-		Steps:            agentStepsJSON(rsp.GetSteps()),
-	}
-}
-
-// runRspJSON 保留本接口的 HTTP JSON 字段、数字与零值表现。
-func runRspJSON(rsp *proto.RunRsp) any {
-	if rsp == nil {
-		return nil
-	}
-	return entity.AgentExecutionResult{
-		Lesson:           rsp.GetLesson(),
-		Completed:        rsp.GetCompleted(),
-		Answer:           rsp.GetAnswer(),
-		TelemetryEnabled: rsp.GetTelemetryEnabled(),
-		ElapsedMS:        rsp.GetElapsedMs(),
-		ModelCalls:       rsp.GetModelCalls(),
-		ToolCalls:        rsp.GetToolCalls(),
-		KnownTokens:      rsp.GetKnownTokens(),
-		UsageComplete:    rsp.GetUsageComplete(),
-		Steps:            agentStepsJSON(rsp.GetSteps()),
-	}
-}
-
-// agentStepsJSON 保留共享步骤的 null、空数组、可选字段与未知用量语义。
-func agentStepsJSON(steps []*proto.ExecutionStep) []entity.AgentExecutionStep {
-	var data []entity.AgentExecutionStep
-	if steps != nil {
-		data = make([]entity.AgentExecutionStep, 0, len(steps))
-	}
-	for _, step := range steps {
-		var usage *entity.AgentUsage
-		if step.GetUsage() != nil {
-			usage = &entity.AgentUsage{
-				PromptTokens:     step.Usage.PromptTokens,
-				CompletionTokens: step.Usage.CompletionTokens,
-				TotalTokens:      step.Usage.TotalTokens,
-			}
-		}
-		data = append(data, entity.AgentExecutionStep{
-			Kind:         step.GetKind(),
-			Name:         step.GetName(),
-			Request:      step.GetRequest(),
-			Response:     step.GetResponse(),
-			ElapsedMS:    step.GetElapsedMs(),
-			FinishReason: step.GetFinishReason(),
-			Usage:        usage,
-			Error:        step.GetError(),
-		})
-	}
-	return data
 }
 
 // classifyAgentError 在响应处理侧将 Agent 业务错误映射为 HTTP 错误。

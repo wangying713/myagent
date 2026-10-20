@@ -11,28 +11,27 @@ import (
 	"time"
 
 	"saklay/ai/apps/interfaces/http/entity"
-	"saklay/ai/apps/interfaces/http/proto"
 
 	"github.com/gin-gonic/gin"
 )
 
 func TestHandleKeepsResponseWithError(t *testing.T) {
 	for _, tc := range []struct {
-		name   string         // 用例名称。
-		rsp    *proto.ChatRsp // 模拟 API 返回的完整或部分结果。
-		err    error          // 模拟 API 同时返回的错误。
-		status int            // 预期 HTTP 状态码。
+		name   string          // 用例名称。
+		rsp    *entity.ChatRsp // 模拟 API 返回的完整或部分结果。
+		err    error           // 模拟 API 同时返回的错误。
+		status int             // 预期 HTTP 状态码。
 	}{
 		{
 			name: "成功",
-			rsp: &proto.ChatRsp{
+			rsp: &entity.ChatRsp{
 				Answer: "完整结果",
 			},
 			status: 200,
 		},
 		{
 			name: "部分结果",
-			rsp: &proto.ChatRsp{
+			rsp: &entity.ChatRsp{
 				Answer: "已完成部分",
 			},
 			err:    errors.New("内部敏感错误"),
@@ -47,9 +46,9 @@ func TestHandleKeepsResponseWithError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
 			router.Use(requestTimeout(time.Second))
-			router.POST("/api/agent/chat", handle(func(_ context.Context, req *proto.ChatReq) (*proto.ChatRsp, error) {
-				if req.GetQuestion() != "请求" {
-					t.Errorf("实际问题 %q，预期 请求", req.GetQuestion())
+			router.POST("/api/agent/chat", handle(func(_ context.Context, req *entity.ChatReq) (*entity.ChatRsp, error) {
+				if req.Question != "请求" {
+					t.Errorf("实际问题 %q，预期 请求", req.Question)
 				}
 				return tc.rsp, tc.err
 			}))
@@ -73,7 +72,7 @@ func TestHandleKeepsResponseWithError(t *testing.T) {
 
 func TestHandleUsesRouterTimeoutAndReleasesContext(t *testing.T) {
 	var apiContext context.Context
-	api := handle(func(ctx context.Context, _ *proto.ChatReq) (*proto.ChatRsp, error) {
+	api := handle(func(ctx context.Context, _ *entity.ChatReq) (*entity.ChatRsp, error) {
 		apiContext = ctx
 		return nil, nil
 	})
@@ -121,23 +120,23 @@ func TestHandleUsesRouterTimeoutAndReleasesContext(t *testing.T) {
 	}
 }
 
-func TestHandleRejectsMissingTimeoutAndUnsupportedResponse(t *testing.T) {
+func TestHandleRejectsMissingTimeoutAndUnencodableResponse(t *testing.T) {
 	for _, configured := range []bool{
 		false,
 		true,
 	} {
 		t.Run(map[bool]string{
 			false: "缺少超时配置",
-			true:  "未适配响应类型",
+			true:  "响应无法编码",
 		}[configured], func(t *testing.T) {
 			router := gin.New()
 			if configured {
 				router.Use(requestTimeout(time.Second))
 			}
 			called := false
-			router.POST("/unsupported", handle(func(context.Context, *proto.ChatReq) (*proto.Usage, error) {
+			router.POST("/unsupported", handle(func(context.Context, *entity.ChatReq) (chan int, error) {
 				called = true
-				return &proto.Usage{}, nil
+				return make(chan int), nil
 			}))
 			req := httptest.NewRequest(http.MethodPost, "/unsupported", strings.NewReader(`{}`))
 			req.Header.Set("Content-Type", "application/json")

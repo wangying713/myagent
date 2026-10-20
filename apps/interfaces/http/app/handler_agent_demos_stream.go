@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"saklay/ai/apps/interfaces/http/entity"
-	"saklay/ai/apps/interfaces/http/proto"
 	"saklay/ai/infra/httpx"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +16,7 @@ import (
 
 // handleAgentDemosStream 只适配 SSE 传输；参数、超时和错误仍沿用普通接口的约定。
 // 每个 data 事件都是统一响应外层，最终事件的 done=true；断流不能视为成功。
-func handleAgentDemosStream(api func(context.Context, *proto.DemosStreamReq) (iter.Seq2[*proto.DemosStreamRsp, error], error)) gin.HandlerFunc {
+func handleAgentDemosStream(api func(context.Context, *entity.DemosStreamReq) (iter.Seq2[*entity.DemosStreamRsp, error], error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		timeout := c.GetDuration(requestTimeoutKey{})
 		if timeout <= 0 {
@@ -27,8 +26,8 @@ func handleAgentDemosStream(api func(context.Context, *proto.DemosStreamReq) (it
 			})
 			return
 		}
-		req := &proto.DemosStreamReq{}
-		if _, err := httpx.DecodeProtoJSON(c, req); err != nil {
+		req := &entity.DemosStreamReq{}
+		if err := httpx.DecodeJSON(c, req); err != nil {
 			status, failure := httpx.ClassifyReqError(err)
 			writeHTTPRsp(c, status, nil, failure)
 			return
@@ -52,7 +51,7 @@ func handleAgentDemosStream(api func(context.Context, *proto.DemosStreamReq) (it
 			_, failure := classifyAgentError(err)
 			envelope := entity.Rsp[any]{
 				Code:    entity.CodeOK,
-				Data:    demosStreamRspJSON(rsp),
+				Data:    rsp,
 				TraceID: traceID,
 				Msg:     "成功",
 			}
