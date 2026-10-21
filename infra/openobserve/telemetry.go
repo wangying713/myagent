@@ -35,9 +35,9 @@ type Config struct {
 	Secrets  []string // 展示正文时需要遮盖的额外敏感值。
 }
 
-// Telemetry 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。
-// 调用方应在业务请求结束后调用 Close，完成有界刷新并释放观测资源。
-type Telemetry struct {
+// Client 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。
+// 应用退出且请求结束后调用 Close，完成有界刷新并释放观测资源。
+type Client struct {
 	config   Config                   // 构造时保存的私有观测配置。
 	tracer   trace.Tracer             // 为业务、模型与工具创建 span 的追踪器。
 	provider *sdktrace.TracerProvider // 私有追踪提供方，关闭观测时为 nil。
@@ -68,90 +68,90 @@ func (e *reportingExporter) Shutdown(ctx context.Context) error {
 
 // New 校验服务名和正文上限，创建私有观测组件；关闭观测时仍提供正文脱敏。
 // 启用观测且 exporter 为 nil 时使用标准 OTLP/HTTP，也可注入内存实现供离线测试。
-// 启用观测时接管导出器并在 Telemetry.Close 中关闭；warnings 为 nil 时不输出失败提示。
-func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnings io.Writer) (*Telemetry, error) {
+// 启用观测时接管导出器并在 Client.Close 中关闭；warnings 为 nil 时不输出失败提示。
+func New(ctx context.Context, cfg Config, exporter sdktrace.SpanExporter, warnings io.Writer) (*Client, error) {
 	if cfg.MaxChars < 256 || cfg.ServiceName == "" {
 		return nil, fmt.Errorf("观测服务名不能为空，正文上限至少为 256 字符")
 	}
 	if warnings == nil {
 		warnings = io.Discard
 	}
-	t := &Telemetry{
+	observeCli := &Client{
 		config: cfg,
 		tracer: noop.NewTracerProvider().Tracer("go-demos"),
 	}
-	t.secrets = append(t.secrets, cfg.Secrets...)
+	observeCli.secrets = append(observeCli.secrets, cfg.Secrets...)
 	for _, value := range cfg.Headers {
-		t.secrets = append(t.secrets, value)
+		observeCli.secrets = append(observeCli.secrets, value)
 		if _, token, ok := strings.Cut(value, " "); ok {
-			t.secrets = append(t.secrets, token)
+			observeCli.secrets = append(observeCli.secrets, token)
 		}
 	}
-	sort.Slice(t.secrets, func(i, j int) bool {
-		return len(t.secrets[i]) > len(t.secrets[j])
+	sort.Slice(observeCli.secrets, func(i, j int) bool {
+		return len(observeCli.secrets[i]) > len(observeCli.secrets[j])
 	})
 	if !cfg.Enabled {
-		return t, nil
+		return observeCli, nil
 	}
 	if exporter == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
-		t.httpCli = &http.Client{
+		observeCli.httpCli = &http.Client{
 			Transport: transport,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
 		}
 		var err error
-		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(t.httpCli), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
+		exporter, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(cfg.Endpoint), otlptracehttp.WithHeaders(cfg.Headers), otlptracehttp.WithHTTPClient(observeCli.httpCli), otlptracehttp.WithTimeout(3*time.Second), otlptracehttp.WithRetry(otlptracehttp.RetryConfig{
 			Enabled: false,
 		}))
 		if err != nil {
-			t.httpCli.CloseIdleConnections()
+			observeCli.httpCli.CloseIdleConnections()
 			return nil, fmt.Errorf("创建 OTLP 导出器失败，请检查观测配置")
 		}
 	}
-	t.provider = sdktrace.NewTracerProvider(sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", cfg.ServiceName))), sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithBatcher(&reportingExporter{
+	observeCli.provider = sdktrace.NewTracerProvider(sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", cfg.ServiceName))), sdktrace.WithSampler(sdktrace.AlwaysSample()), sdktrace.WithBatcher(&reportingExporter{
 		inner:    exporter,
 		warnings: warnings,
 	}, sdktrace.WithBatchTimeout(time.Second), sdktrace.WithMaxQueueSize(256), sdktrace.WithMaxExportBatchSize(32)))
-	t.tracer = t.provider.Tracer("go-demos")
-	return t, nil
+	observeCli.tracer = observeCli.provider.Tracer("go-demos")
+	return observeCli, nil
 }
 
 // Start 沿用 ctx 的父链路创建 span；调用方负责结束返回的 span。
-func (t *Telemetry) Start(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
-	return t.tracer.Start(ctx, name, trace.WithAttributes(attrs...))
+func (c *Client) Start(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
+	return c.tracer.Start(ctx, name, trace.WithAttributes(attrs...))
 }
 
 // StartClient 创建客户端 span；调用方负责结束返回的 span。
-func (t *Telemetry) StartClient(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
-	return t.tracer.Start(ctx, name, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
+func (c *Client) StartClient(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
+	return c.tracer.Start(ctx, name, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attrs...))
 }
 
 // Enabled 报告配置是否启用观测，不表示导出器可达或数据已入库。
-func (t *Telemetry) Enabled() bool {
-	return t.config.Enabled
+func (c *Client) Enabled() bool {
+	return c.config.Enabled
 }
 
 // Flush 在 ctx 允许的时间内刷新队列，保留 provider 供后续请求使用。
 // 上报失败通过 warnings 提示，返回 nil 不能证明观测数据已入库。
-func (t *Telemetry) Flush(ctx context.Context) error {
-	if t.provider == nil {
+func (c *Client) Flush(ctx context.Context) error {
+	if c.provider == nil {
 		return nil
 	}
-	return t.provider.ForceFlush(ctx)
+	return c.provider.ForceFlush(ctx)
 }
 
 // Close 在 ctx 允许的时间内关闭 provider 及导出器，并释放空闲 HTTP 连接。
-func (t *Telemetry) Close(ctx context.Context) error {
-	if t.httpCli != nil {
-		defer t.httpCli.CloseIdleConnections()
+func (c *Client) Close(ctx context.Context) error {
+	if c.httpCli != nil {
+		defer c.httpCli.CloseIdleConnections()
 	}
-	if t.provider == nil {
+	if c.provider == nil {
 		return nil
 	}
-	return t.provider.Shutdown(ctx)
+	return c.provider.Shutdown(ctx)
 }
 
 // End 记录耗时和固定错误状态后结束 span，错误正文不会写入属性。
@@ -169,8 +169,8 @@ var authValue = regexp.MustCompile(`(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+
 var jsonSecret = regexp.MustCompile(`(?i)("(?:authorization|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)"\s*:\s*)("(?:\\.|[^"\\])*"|[^,}\]\s]+)`)
 
 // Clean 遮盖已配置密钥及常见鉴权文本，返回展示副本，不限制正文长度。
-func (t *Telemetry) Clean(text string) string {
-	for _, secret := range t.secrets {
+func (c *Client) Clean(text string) string {
+	for _, secret := range c.secrets {
 		if secret != "" {
 			text = strings.ReplaceAll(text, secret, "[REDACTED]")
 		}
@@ -178,7 +178,7 @@ func (t *Telemetry) Clean(text string) string {
 	return jsonSecret.ReplaceAllString(authValue.ReplaceAllString(text, "[REDACTED]"), `${1}"[REDACTED]"`)
 }
 
-func (t *Telemetry) clean(value any, depth int) any {
+func (c *Client) clean(value any, depth int) any {
 	if depth >= 32 {
 		return "[REDACTED]"
 	}
@@ -188,53 +188,53 @@ func (t *Telemetry) clean(value any, depth int) any {
 			if sensitiveKey.MatchString(key) {
 				v[key] = "[REDACTED]"
 			} else {
-				v[key] = t.clean(child, depth+1)
+				v[key] = c.clean(child, depth+1)
 			}
 		}
 	case []any:
 		for i, child := range v {
-			v[i] = t.clean(child, depth+1)
+			v[i] = c.clean(child, depth+1)
 		}
 	case string:
 		var nested any
 		d := json.NewDecoder(strings.NewReader(v))
 		d.UseNumber()
 		if d.Decode(&nested) == nil && d.Decode(new(any)) == io.EOF {
-			encoded, err := json.Marshal(t.clean(nested, depth+1))
+			encoded, err := json.Marshal(c.clean(nested, depth+1))
 			if err == nil {
 				return string(encoded)
 			}
 		}
-		return t.Clean(v)
+		return c.Clean(v)
 	}
 	return value
 }
 
 // Safe 返回脱敏、限长的展示副本，不修改实际请求、响应或回填消息。
-func (t *Telemetry) Safe(raw []byte) string {
+func (c *Client) Safe(raw []byte) string {
 	var value any
 	text := string(raw)
 	d := json.NewDecoder(strings.NewReader(text))
 	d.UseNumber()
 	if d.Decode(&value) == nil && d.Decode(new(any)) == io.EOF {
-		if encoded, err := json.Marshal(t.clean(value, 0)); err == nil {
+		if encoded, err := json.Marshal(c.clean(value, 0)); err == nil {
 			text = string(encoded)
 		}
 	}
-	text = t.Clean(text)
+	text = c.Clean(text)
 	runes := []rune(text)
-	if len(runes) > t.config.MaxChars {
-		return string(runes[:t.config.MaxChars]) + "…[TRUNCATED]"
+	if len(runes) > c.config.MaxChars {
+		return string(runes[:c.config.MaxChars]) + "…[TRUNCATED]"
 	}
 	return text
 }
 
 // Payload 在启用正文采集时记录脱敏、限长的正文和截断标记，不修改 raw。
-func (t *Telemetry) Payload(span trace.Span, key string, raw []byte) {
-	if !t.config.CaptureContent {
+func (c *Client) Payload(span trace.Span, key string, raw []byte) {
+	if !c.config.CaptureContent {
 		return
 	}
-	text := t.Safe(raw)
+	text := c.Safe(raw)
 	span.SetAttributes(attribute.String(key, text), attribute.Bool(key+".truncated", strings.HasSuffix(text, "…[TRUNCATED]")))
 	if key == "app.request" || key == "app.response" {
 		previewKey := "gen_ai.input.messages"

@@ -23,7 +23,7 @@ import (
 
 func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 	exporter := &memoryExporter{}
-	handler, telemetry := setup(t, func(w http.ResponseWriter, _ *http.Request) {
+	handler, observeCli := setup(t, func(w http.ResponseWriter, _ *http.Request) {
 		reply(w, map[string]string{
 			"role":    "assistant",
 			"content": "回答",
@@ -35,11 +35,77 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 	handler.GET("/bad-json", func(c *gin.Context) {
 		writeHTTPRsp(c, http.StatusOK, make(chan int), nil)
 	})
-	for _, tc := range []struct {
-		name, method, path, body, code string // 用例名称、HTTP 方法、路径、请求体及预期响应码。
-		status                         int    // 预期 HTTP 状态码。
-		hasData                        bool   // 预期响应是否包含业务数据。
-	}{
+	for _, tc := range httpRspEnvelopeCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			out := httptest.NewRecorder()
+			handler.ServeHTTP(out, req)
+			var rsp entity.Rsp[json.RawMessage]
+			if err := json.Unmarshal(out.Body.Bytes(), &rsp); err != nil {
+				t.Fatal(err)
+			}
+			if out.Code != tc.status || rsp.Code != tc.code || rsp.Msg == "" || len(rsp.TraceID) != 32 {
+				t.Fatalf("实际响应 %d %s，预期 HTTP %d、code=%s 且有说明与真实 trace ID", out.Code, out.Body.String(), tc.status, tc.code)
+			}
+			if (string(rsp.Data) != "null") != tc.hasData {
+				t.Fatalf("实际 data=%s，预期有结果=%v", rsp.Data, tc.hasData)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(out.Body.Bytes(), &fields); err != nil {
+				t.Fatal(err)
+			}
+			if len(fields) != 4 || fields["code"] == nil || fields["data"] == nil || fields["traceID"] == nil || fields["msg"] == nil {
+				t.Errorf("实际外层字段 %v，预期恰好 code/data/traceID/msg", fields)
+			}
+			if tc.hasData {
+				var data map[string]json.RawMessage
+				if err := json.Unmarshal(rsp.Data, &data); err != nil {
+					t.Fatal(err)
+				}
+				if data["trace_id"] != nil || data["traceID"] != nil {
+					t.Error("业务 data 中不应重复携带 HTTP trace ID")
+				}
+			}
+			if err := observeCli.Flush(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			exporter.mu.Lock()
+			defer exporter.mu.Unlock()
+			found := false
+			for _, span := range exporter.spans {
+				if span.SpanKind() == trace.SpanKindServer && span.SpanContext().TraceID().String() == rsp.TraceID {
+					found = true
+					wantName := "[unmatched]"
+					if tc.status != 404 && tc.status != 405 {
+						wantName = tc.path
+					}
+					if span.Name() != wantName {
+						t.Errorf("实际入口名称 %q，预期 %q", span.Name(), wantName)
+					}
+					if tc.status >= 400 && span.Status().Code != codes.Error {
+						t.Error("HTTP 失败未标记到请求 span")
+					}
+					checkHTTPPreview(t, span, tc.body, out)
+				}
+			}
+			if !found {
+				t.Error("响应 trace ID 未对应到实际 HTTP span")
+			}
+		})
+	}
+}
+
+// httpRspEnvelopeCase 保存 HTTP 外层响应和入口链路的检查场景。
+type httpRspEnvelopeCase struct {
+	name, method, path, body, code string // 用例名称、HTTP 方法、路径、请求体及预期响应码。
+	status                         int    // 预期 HTTP 状态码。
+	hasData                        bool   // 预期响应是否包含业务数据。
+}
+
+// httpRspEnvelopeCases 列出成功、输入拒绝、路由错误和编码失败的契约。
+func httpRspEnvelopeCases() []httpRspEnvelopeCase {
+	return []httpRspEnvelopeCase{
 		{
 			name:    "成功",
 			method:  "POST",
@@ -110,64 +176,6 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 			code:   "internal_error",
 			status: 500,
 		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
-			req.Header.Set("Content-Type", "application/json")
-			out := httptest.NewRecorder()
-			handler.ServeHTTP(out, req)
-			var rsp entity.Rsp[json.RawMessage]
-			if err := json.Unmarshal(out.Body.Bytes(), &rsp); err != nil {
-				t.Fatal(err)
-			}
-			if out.Code != tc.status || rsp.Code != tc.code || rsp.Msg == "" || len(rsp.TraceID) != 32 {
-				t.Fatalf("实际响应 %d %s，预期 HTTP %d、code=%s 且有说明与真实 trace ID", out.Code, out.Body.String(), tc.status, tc.code)
-			}
-			if (string(rsp.Data) != "null") != tc.hasData {
-				t.Fatalf("实际 data=%s，预期有结果=%v", rsp.Data, tc.hasData)
-			}
-			var fields map[string]json.RawMessage
-			if err := json.Unmarshal(out.Body.Bytes(), &fields); err != nil {
-				t.Fatal(err)
-			}
-			if len(fields) != 4 || fields["code"] == nil || fields["data"] == nil || fields["traceID"] == nil || fields["msg"] == nil {
-				t.Errorf("实际外层字段 %v，预期恰好 code/data/traceID/msg", fields)
-			}
-			if tc.hasData {
-				var data map[string]json.RawMessage
-				if err := json.Unmarshal(rsp.Data, &data); err != nil {
-					t.Fatal(err)
-				}
-				if data["trace_id"] != nil || data["traceID"] != nil {
-					t.Error("业务 data 中不应重复携带 HTTP trace ID")
-				}
-			}
-			if err := telemetry.Flush(t.Context()); err != nil {
-				t.Fatal(err)
-			}
-			exporter.mu.Lock()
-			defer exporter.mu.Unlock()
-			found := false
-			for _, span := range exporter.spans {
-				if span.SpanKind() == trace.SpanKindServer && span.SpanContext().TraceID().String() == rsp.TraceID {
-					found = true
-					wantName := "[unmatched]"
-					if tc.status != 404 && tc.status != 405 {
-						wantName = tc.path
-					}
-					if span.Name() != wantName {
-						t.Errorf("实际入口名称 %q，预期 %q", span.Name(), wantName)
-					}
-					if tc.status >= 400 && span.Status().Code != codes.Error {
-						t.Error("HTTP 失败未标记到请求 span")
-					}
-					checkHTTPPreview(t, span, tc.body, out)
-				}
-			}
-			if !found {
-				t.Error("响应 trace ID 未对应到实际 HTTP span")
-			}
-		})
 	}
 }
 
@@ -223,7 +231,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			false: "关闭正文",
 		}[capture], func(t *testing.T) {
 			exporter := &memoryExporter{}
-			telemetry, err := openobserve.New(t.Context(), openobserve.Config{
+			observeCli, err := openobserve.New(t.Context(), openobserve.Config{
 				Enabled:        true,
 				ServiceName:    "test",
 				MaxChars:       256,
@@ -236,12 +244,12 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			t.Cleanup(func() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
-				if err := telemetry.Close(ctx); err != nil {
+				if err := observeCli.Close(ctx); err != nil {
 					t.Error(err)
 				}
 			})
 			handler := gin.New()
-			handler.Use(traceHTTP(telemetry), previewHTTP(telemetry))
+			handler.Use(traceHTTP(observeCli), previewHTTP(observeCli))
 			const request = `{"password":"input-secret","id":9007199254740993}`
 			response := `{"secret":"output-secret","text":"configured-secret ` + strings.Repeat("中", 2000) + `"}`
 			handler.POST("/preview", func(c *gin.Context) {
@@ -256,7 +264,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			if out.Body.String() != response {
 				t.Fatal("正文预览改变了实际 HTTP 响应")
 			}
-			if err := telemetry.Flush(t.Context()); err != nil {
+			if err := observeCli.Flush(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()
@@ -297,7 +305,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 }
 
 func TestHTTPRspEncodingFallbackAndDisabledTrace(t *testing.T) {
-	telemetry, err := openobserve.New(context.Background(), openobserve.Config{
+	observeCli, err := openobserve.New(context.Background(), openobserve.Config{
 		ServiceName: "test",
 		MaxChars:    256,
 	}, nil, io.Discard)
@@ -305,12 +313,12 @@ func TestHTTPRspEncodingFallbackAndDisabledTrace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := telemetry.Close(t.Context()); err != nil {
+		if err := observeCli.Close(t.Context()); err != nil {
 			t.Error(err)
 		}
 	})
 	handler := gin.New()
-	handler.Use(traceHTTP(telemetry))
+	handler.Use(traceHTTP(observeCli))
 	handler.GET("/bad", func(c *gin.Context) {
 		writeHTTPRsp(c, http.StatusOK, make(chan int), nil)
 	})
@@ -326,7 +334,7 @@ func TestHTTPRspEncodingFallbackAndDisabledTrace(t *testing.T) {
 
 func TestHTTPTraceDoesNotCaptureRawRequestMetadata(t *testing.T) {
 	exporter := &memoryExporter{}
-	handler, telemetry := setup(t, func(http.ResponseWriter, *http.Request) {
+	handler, observeCli := setup(t, func(http.ResponseWriter, *http.Request) {
 		t.Error("元数据检查不应调用模型")
 	}, routerTestConfig{
 		Limits:  agent.DefaultLimits(),
@@ -347,7 +355,7 @@ func TestHTTPTraceDoesNotCaptureRawRequestMetadata(t *testing.T) {
 	if out.Code != http.StatusOK {
 		t.Fatalf("元数据检查实际 HTTP %d，预期 200", out.Code)
 	}
-	if err := telemetry.Flush(t.Context()); err != nil {
+	if err := observeCli.Flush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()

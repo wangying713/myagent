@@ -11,8 +11,8 @@ import (
 
 // demoOverviewResult 把同一个问题的两种真实执行结果放在一起比较。
 type demoOverviewResult struct {
-	Direct    agent.ChatRsp // 不调用工具的一次回答。
-	WithTools agent.ChatRsp // 允许调用乘法工具的执行过程。
+	Direct    *agent.ChatRsp // 不调用工具的一次回答；未开始时为 nil。
+	WithTools *agent.ChatRsp // 允许调用乘法工具的执行过程；未开始时为 nil。
 }
 
 // demoReliabilityInput 控制本次任务的模型调用次数，不影响其他请求。
@@ -23,11 +23,11 @@ type demoReliabilityInput struct {
 
 // demoCase 保存一道固定评估题及可核对的实际执行结果。
 type demoCase struct {
-	Question  string        // 本题的固定输入。
-	Expected  string        // 预期的乘法结果。
-	Passed    bool          // 工具结果和最终回答是否都包含正确结果。
-	Execution agent.ChatRsp // 本题的真实执行记录。
-	Error     string        // 本题失败的公开说明。
+	Question  string         // 本题的固定输入。
+	Expected  string         // 预期的乘法结果。
+	Passed    bool           // 工具结果和最终回答是否都包含正确结果。
+	Execution *agent.ChatRsp // 本题的真实执行记录；未开始时为 nil。
+	Error     string         // 本题失败的公开说明。
 }
 
 // demoEvaluationResult 是一次有界小题集的汇总，不代表通用质量评分。
@@ -38,77 +38,83 @@ type demoEvaluationResult struct {
 }
 
 // DemoStructured 观测结构化提取，并对展示的商品名称脱敏。
-func (a *agentService) DemoStructured(ctx context.Context, question string) (result agent.DemoStructuredResult, err error) {
-	result.Execution = agent.NewChatRsp(agent.DemoStructured)
+func (a *agentService) DemoStructured(ctx context.Context, question string) (rsp *agent.DemoStructuredResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
-		return result, err
+		return nil, err
 	}
-	ctx, run := a.telemetry.StartRun(ctx, agent.DemoStructured, &a.model)
+	var result agent.DemoStructuredResult
+	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStructured, &a.model)
 	defer func() {
 		a.finishRun(run, &result.Execution, err)
 	}()
 	result, err = a.agentCli.DemoStructured(ctx, question)
-	result.Order.Product = a.telemetry.Clean(result.Order.Product)
-	return result, err
+	result.Order.Product = a.observeCli.Clean(result.Order.Product)
+	return &result, err
 }
 
 // DemoRetrieval 观测检索与回答，实际资料选择仍由领域层处理。
-func (a *agentService) DemoRetrieval(ctx context.Context, question string) (result agent.DemoRetrievalResult, err error) {
-	result.Execution = agent.NewChatRsp(agent.DemoRetrieval)
+func (a *agentService) DemoRetrieval(ctx context.Context, question string) (rsp *agent.DemoRetrievalResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
-		return result, err
+		return nil, err
 	}
-	ctx, run := a.telemetry.StartRun(ctx, agent.DemoRetrieval, &a.model)
+	var result agent.DemoRetrievalResult
+	ctx, run := a.observeCli.StartRun(ctx, agent.DemoRetrieval, &a.model)
 	defer func() {
 		a.finishRun(run, &result.Execution, err)
 	}()
-	return a.agentCli.DemoRetrieval(ctx, question)
+	result, err = a.agentCli.DemoRetrieval(ctx, question)
+	return &result, err
 }
 
 // DemoWorkflow 观测整个工作流，阶段之间始终传递原始模型输出。
-func (a *agentService) DemoWorkflow(ctx context.Context, question string) (result agent.DemoWorkflowResult, err error) {
-	result.Execution = agent.NewChatRsp(agent.DemoWorkflow)
+func (a *agentService) DemoWorkflow(ctx context.Context, question string) (rsp *agent.DemoWorkflowResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
-		return result, err
+		return nil, err
 	}
-	ctx, run := a.telemetry.StartRun(ctx, agent.DemoWorkflow, &a.model)
+	var result agent.DemoWorkflowResult
+	ctx, run := a.observeCli.StartRun(ctx, agent.DemoWorkflow, &a.model)
 	defer func() {
 		a.finishRun(run, &result.Execution, err)
 	}()
 	result, err = a.agentCli.DemoWorkflow(ctx, question)
 	for i := range result.Stages {
-		result.Stages[i].Content = a.telemetry.Clean(result.Stages[i].Content)
+		result.Stages[i].Content = a.observeCli.Clean(result.Stages[i].Content)
 	}
-	return result, err
+	return &result, err
 }
 
 // DemoStream 在同步消费期间保持运行观测，不创建后台生成协程。
-func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput) (result agent.ChatRsp, err error) {
+func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput) (rsp *agent.ChatRsp, err error) {
 	if err := validateDemoQuestion(req.Question); err != nil {
-		return agent.NewChatRsp(agent.DemoStream), err
+		return nil, err
 	}
 	if req.Emit == nil {
-		return result, agent.ErrInput
+		return nil, agent.ErrInput
 	}
-	ctx, run := a.telemetry.StartRun(ctx, agent.DemoStream, &a.model)
+	var result agent.ChatRsp
+	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStream, &a.model)
 	defer func() {
 		a.finishRun(run, &result, err)
 	}()
-	return a.agentCli.DemoStream(ctx, req)
+	result, err = a.agentCli.DemoStream(ctx, req)
+	return &result, err
 }
 
 // DemoOverview 对同一问题分别执行普通聊天与工具循环，不编造步骤。
-func (a *agentService) DemoOverview(ctx context.Context, question string) (demoOverviewResult, error) {
+func (a *agentService) DemoOverview(ctx context.Context, question string) (*demoOverviewResult, error) {
 	if question == "" {
 		question = agent.AgentQuestion
 	}
-	var result demoOverviewResult
+	result := &demoOverviewResult{}
 	var err error
 	result.Direct, err = a.Chat(ctx, agent.ChatReq{
 		Question:   question,
 		Prompt:     agent.DemoChatPrompt,
 		ToolChoice: agent.ToolChoiceNone,
 	})
+	if result.Direct == nil {
+		return nil, err
+	}
 	if err != nil {
 		return result, err
 	}
@@ -122,7 +128,7 @@ func (a *agentService) DemoOverview(ctx context.Context, question string) (demoO
 }
 
 // DemoMultipleTools 让模型查询内置商品资料，再用乘法算总价。
-func (a *agentService) DemoMultipleTools(ctx context.Context, question string) (agent.ChatRsp, error) {
+func (a *agentService) DemoMultipleTools(ctx context.Context, question string) (*agent.ChatRsp, error) {
 	if question == "" {
 		question = "买 4 本笔记本，一共多少钱？"
 	}
@@ -135,12 +141,12 @@ func (a *agentService) DemoMultipleTools(ctx context.Context, question string) (
 }
 
 // DemoReliability 真实执行受次数限制的工具循环；超过限制时返回部分步骤和预算错误。
-func (a *agentService) DemoReliability(ctx context.Context, req demoReliabilityInput) (agent.ChatRsp, error) {
+func (a *agentService) DemoReliability(ctx context.Context, req demoReliabilityInput) (*agent.ChatRsp, error) {
 	if req.Question == "" {
 		req.Question = agent.AgentQuestion
 	}
 	if req.ModelCalls < 1 || req.ModelCalls > a.limits.ModelCalls {
-		return agent.ChatRsp{}, agent.ErrInput
+		return nil, agent.ErrInput
 	}
 	limits := a.limits
 	limits.ModelCalls = req.ModelCalls
@@ -154,7 +160,7 @@ func (a *agentService) DemoReliability(ctx context.Context, req demoReliabilityI
 }
 
 // DemoDelivery 把本地商品资料、价格查询和乘法组合成一个只读商品助手。
-func (a *agentService) DemoDelivery(ctx context.Context, question string) (agent.ChatRsp, error) {
+func (a *agentService) DemoDelivery(ctx context.Context, question string) (*agent.ChatRsp, error) {
 	if question == "" {
 		question = "买 4 本笔记本多少钱？保修多久？请注明资料出处。"
 	}
@@ -167,8 +173,10 @@ func (a *agentService) DemoDelivery(ctx context.Context, question string) (agent
 }
 
 // DemoEvaluation 执行三道固定题，检查真实乘法工具结果和最终回答，不用另一个模型打分。
-func (a *agentService) DemoEvaluation(ctx context.Context) (result demoEvaluationResult, err error) {
-	result.Cases = []demoCase{}
+func (a *agentService) DemoEvaluation(ctx context.Context) (result *demoEvaluationResult, err error) {
+	result = &demoEvaluationResult{
+		Cases: []demoCase{},
+	}
 	cases := []demoCase{
 		{
 			Question: "用乘法工具计算 17×23。",
@@ -186,6 +194,9 @@ func (a *agentService) DemoEvaluation(ctx context.Context) (result demoEvaluatio
 	result.Total = len(cases)
 	for _, item := range cases {
 		if err := ctx.Err(); err != nil {
+			if len(result.Cases) == 0 {
+				return nil, err
+			}
 			return result, err
 		}
 		item.Execution, err = a.Chat(ctx, agent.ChatReq{

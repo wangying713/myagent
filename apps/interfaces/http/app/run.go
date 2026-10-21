@@ -23,18 +23,18 @@ const telemetryFlushTimeout = 5 * time.Second
 func Run(ctx context.Context, cfg config.Settings) error {
 	// 应用启动时设置运行模式，路由构造不修改框架全局状态。
 	gin.SetMode(gin.ReleaseMode)
-	telemetry, err := openobserve.New(ctx, cfg.Observe, nil, os.Stderr)
+	observeCli, err := openobserve.New(ctx, cfg.Observe, nil, os.Stderr)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(context.Background(), telemetryFlushTimeout)
 		defer cancel()
-		if telemetry.Close(flushCtx) != nil {
+		if observeCli.Close(flushCtx) != nil {
 			fmt.Fprintln(os.Stderr, "[观测] 退出刷新未完成，请按 trace ID 核查")
 		}
 	}()
-	chatCli, err := deepseek.New(cfg.Model, telemetry, nil)
+	chatCli, err := deepseek.New(cfg.Model, observeCli, nil)
 	if err != nil {
 		return err
 	}
@@ -43,11 +43,11 @@ func Run(ctx context.Context, cfg config.Settings) error {
 	if err != nil {
 		return err
 	}
-	service, err := newAgentService(agentCli, telemetry, chatCli.ModelInfo(), cfg.Limits)
+	service, err := newAgentService(agentCli, observeCli, chatCli.ModelInfo(), cfg.Limits)
 	if err != nil {
 		return err
 	}
-	handler, err := newRouter(service, cfg.HTTP.RunTimeout, telemetry)
+	handler, err := newRouter(service, cfg.HTTP.RunTimeout, observeCli)
 	if err != nil {
 		return err
 	}

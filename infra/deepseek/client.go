@@ -35,9 +35,9 @@ const (
 
 // Client 执行模型请求并记录脱敏观测；构造后可并发调用。
 type Client struct {
-	config    Config                 // 构造时保存的模型服务配置。
-	httpCli   *http.Client           // 发送模型请求的 HTTP 客户端。
-	telemetry *openobserve.Telemetry // 记录调用链路及脱敏正文的观测组件。
+	config     Config              // 构造时保存的模型服务配置。
+	httpCli    *http.Client        // 发送模型请求的 HTTP 客户端。
+	observeCli *openobserve.Client // 记录调用链路及脱敏正文的观测组件。
 }
 
 // ModelError 保存模型服务的非 2xx 状态码，调用方可用 errors.As 识别。
@@ -52,7 +52,7 @@ func (e *ModelError) Error() string {
 
 // New 校验配置并创建客户端，httpCli 为 nil 时使用独立的 HTTP Transport。
 // 传入 httpCli 时复用其 Transport；调用方应在业务结束后调用 Client.Close。
-func New(cfg Config, telemetry *openobserve.Telemetry, httpCli *http.Client) (*Client, error) {
+func New(cfg Config, observeCli *openobserve.Client, httpCli *http.Client) (*Client, error) {
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("模型地址应为不含凭据和查询参数的 HTTP(S) URL")
@@ -60,7 +60,7 @@ func New(cfg Config, telemetry *openobserve.Telemetry, httpCli *http.Client) (*C
 	if cfg.APIKey == "" || cfg.APIKey == "put-your-key-here" {
 		return nil, errors.New("请填写 DEEPSEEK_API_KEY")
 	}
-	if cfg.Model == "" || cfg.Timeout <= 0 || telemetry == nil {
+	if cfg.Model == "" || cfg.Timeout <= 0 || observeCli == nil {
 		return nil, errors.New("模型名、超时与观测依赖无效")
 	}
 	if httpCli == nil {
@@ -75,9 +75,9 @@ func New(cfg Config, telemetry *openobserve.Telemetry, httpCli *http.Client) (*C
 		return http.ErrUseLastResponse
 	}
 	return &Client{
-		config:    cfg,
-		httpCli:   &copiedHTTPCli,
-		telemetry: telemetry,
+		config:     cfg,
+		httpCli:    &copiedHTTPCli,
+		observeCli: observeCli,
 	}, nil
 }
 
@@ -132,12 +132,12 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.telemetry.StartClient(ctx, httpReq.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
+	ctx, span := c.observeCli.StartClient(ctx, httpReq.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
 	started := time.Now()
 	defer func() {
 		openobserve.End(span, started, err)
 	}()
-	c.telemetry.Payload(span, "app.request", raw)
+	c.observeCli.Payload(span, "app.request", raw)
 	span.SetAttributes(attribute.String("http.request.method", "POST"), attribute.String("server.address", httpReq.URL.Hostname()), attribute.String("url.full", httpReq.URL.String()))
 	resp, err := c.httpCli.Do(httpReq.WithContext(ctx))
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 	span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
 	const responseLimit = 4 << 20
 	result.Raw, err = io.ReadAll(io.LimitReader(resp.Body, responseLimit+1))
-	c.telemetry.Payload(span, "app.response", result.Raw)
+	c.observeCli.Payload(span, "app.response", result.Raw)
 	if err != nil {
 		return result, fmt.Errorf("读取模型响应: %w", err)
 	}

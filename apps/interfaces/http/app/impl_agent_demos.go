@@ -24,6 +24,9 @@ func newImplAgentDemos(agentCli *agentService) *ImplAgentDemos {
 // Overview 演示Agent 到底是什么。 @alias=/api/agent-demos/overview
 func (a *ImplAgentDemos) Overview(ctx context.Context, req *entity.DemosOverviewReq) (*entity.DemosOverviewRsp, error) {
 	result, err := a.agentCli.DemoOverview(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosOverviewRsp{
 		Direct:    a.agentCli.agentResult(result.Direct),
 		WithTools: a.agentCli.agentResult(result.WithTools),
@@ -41,6 +44,9 @@ func (a *ImplAgentDemos) Chat(ctx context.Context, req *entity.DemosChatReq) (*e
 		Prompt:     agent.DemoChatPrompt,
 		ToolChoice: agent.ToolChoiceNone,
 	})
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosChatRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err
@@ -58,6 +64,9 @@ func (a *ImplAgentDemos) Tools(ctx context.Context, req *entity.DemosToolsReq) (
 		Question:  question,
 		Prompt:    agent.AgentPrompt,
 	})
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosToolsRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err
@@ -69,6 +78,9 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 	result, err := a.agentCli.Messages(ctx, agent.MessagesInput{
 		Questions: questions,
 	})
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosMessagesRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err
@@ -77,8 +89,11 @@ func (a *ImplAgentDemos) Messages(ctx context.Context, req *entity.DemosMessages
 // Structured 演示结构化输出。 @alias=/api/agent-demos/structured
 func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStructuredReq) (*entity.DemosStructuredRsp, error) {
 	result, err := a.agentCli.DemoStructured(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosStructuredRsp{
-		Execution: a.agentCli.agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(&result.Execution),
 		Product:   result.Order.Product,
 		Quantity:  result.Order.Quantity,
 	}, err
@@ -87,6 +102,9 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStruct
 // MultipleTools 演示多个工具协作。 @alias=/api/agent-demos/multiple-tools
 func (a *ImplAgentDemos) MultipleTools(ctx context.Context, req *entity.DemosMultipleToolsReq) (*entity.DemosMultipleToolsRsp, error) {
 	result, err := a.agentCli.DemoMultipleTools(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosMultipleToolsRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err
@@ -105,6 +123,9 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 		Question:   req.Question,
 		ModelCalls: calls,
 	})
+	if result == nil {
+		return nil, err
+	}
 	reason := "已完成，未触发次数限制"
 	if errors.Is(err, agent.ErrBudgetExceeded) {
 		reason = "已达到本次模型调用次数上限；前面的执行记录仍然保留"
@@ -120,6 +141,9 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 // Retrieval 演示检索与记忆。 @alias=/api/agent-demos/retrieval
 func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetrievalReq) (*entity.DemosRetrievalRsp, error) {
 	result, err := a.agentCli.DemoRetrieval(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	sources := make([]entity.DemoSource, 0, len(result.Sources))
 	for _, source := range result.Sources {
 		sources = append(sources, entity.DemoSource{
@@ -129,7 +153,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetriev
 		})
 	}
 	return &entity.DemosRetrievalRsp{
-		Execution: a.agentCli.agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(&result.Execution),
 		Sources:   sources,
 	}, err
 }
@@ -137,6 +161,9 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetriev
 // Workflow 演示工作流。 @alias=/api/agent-demos/workflow
 func (a *ImplAgentDemos) Workflow(ctx context.Context, req *entity.DemosWorkflowReq) (*entity.DemosWorkflowRsp, error) {
 	result, err := a.agentCli.DemoWorkflow(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	stages := make([]entity.DemoStage, 0, len(result.Stages))
 	for _, stage := range result.Stages {
 		stages = append(stages, entity.DemoStage{
@@ -145,7 +172,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *entity.DemosWorkflow
 		})
 	}
 	return &entity.DemosWorkflowRsp{
-		Execution: a.agentCli.agentResult(result.Execution),
+		Execution: a.agentCli.agentResult(&result.Execution),
 		Stages:    stages,
 	}, err
 }
@@ -162,6 +189,9 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *entity.DemosObser
 		Question:  question,
 		Prompt:    agent.AgentPrompt,
 	})
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosObservationRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err
@@ -170,6 +200,9 @@ func (a *ImplAgentDemos) Observation(ctx context.Context, req *entity.DemosObser
 // Evaluation 演示评估与回归。 @alias=/api/agent-demos/evaluation
 func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvaluationReq) (*entity.DemosEvaluationRsp, error) {
 	result, err := a.agentCli.DemoEvaluation(ctx)
+	if result == nil {
+		return nil, err
+	}
 	cases := make([]entity.DemoCase, 0, len(result.Cases))
 	for _, item := range result.Cases {
 		cases = append(cases, entity.DemoCase{
@@ -190,6 +223,9 @@ func (a *ImplAgentDemos) Evaluation(ctx context.Context, req *entity.DemosEvalua
 // Delivery 演示综合练习。 @alias=/api/agent-demos/delivery
 func (a *ImplAgentDemos) Delivery(ctx context.Context, req *entity.DemosDeliveryReq) (*entity.DemosDeliveryRsp, error) {
 	result, err := a.agentCli.DemoDelivery(ctx, req.Question)
+	if result == nil {
+		return nil, err
+	}
 	return &entity.DemosDeliveryRsp{
 		Execution: a.agentCli.agentResult(result),
 	}, err

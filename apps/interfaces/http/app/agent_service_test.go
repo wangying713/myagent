@@ -17,7 +17,7 @@ import (
 func TestMessagesRedactsOutputWithoutChangingHistory(t *testing.T) {
 	var calls atomic.Int32
 	exporter := &memoryExporter{}
-	handler, telemetry := setup(t, func(w http.ResponseWriter, r *http.Request) {
+	handler, observeCli := setup(t, func(w http.ResponseWriter, r *http.Request) {
 		var req agent.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
@@ -43,7 +43,7 @@ func TestMessagesRedactsOutputWithoutChangingHistory(t *testing.T) {
 	if strings.Contains(out.Body.String(), "test-api-key") {
 		t.Fatal("HTTP 回答或调用记录泄漏原始内容")
 	}
-	if err := telemetry.Flush(t.Context()); err != nil {
+	if err := observeCli.Flush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()
@@ -102,7 +102,7 @@ func TestCompositeDemosKeepIndividualRunSpans(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			var calls atomic.Int32
 			exporter := &memoryExporter{}
-			handler, telemetry := setup(t, demosModel(t, &calls), routerTestConfig{
+			handler, observeCli := setup(t, demosModel(t, &calls), routerTestConfig{
 				Limits:  agent.DefaultLimits(),
 				Timeout: time.Second,
 			}, exporter)
@@ -113,7 +113,7 @@ func TestCompositeDemosKeepIndividualRunSpans(t *testing.T) {
 			if out.Code != http.StatusOK {
 				t.Fatalf("实际 HTTP %d、响应 %s，预期案例成功", out.Code, out.Body.String())
 			}
-			if err := telemetry.Flush(t.Context()); err != nil {
+			if err := observeCli.Flush(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()

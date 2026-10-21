@@ -49,13 +49,13 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result agen
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.telemetry.StartClient(ctx, "/chat/completions", attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.Bool("app.stream", true))
+	ctx, span := c.observeCli.StartClient(ctx, "/chat/completions", attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.Bool("app.stream", true))
 	started := time.Now()
 	defer func() {
-		c.telemetry.Payload(span, "app.response", result.Raw)
+		c.observeCli.Payload(span, "app.response", result.Raw)
 		openobserve.End(span, started, err)
 	}()
-	c.telemetry.Payload(span, "app.request", raw)
+	c.observeCli.Payload(span, "app.request", raw)
 	response, err := c.httpCli.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return result, fmt.Errorf("请求模型文本流: %w", err)

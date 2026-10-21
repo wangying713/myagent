@@ -77,9 +77,9 @@ type httpObserver interface {
 }
 
 // traceHTTP 在解码前建立请求链路，显式使用私有观测配置并屏蔽敏感请求属性。
-func traceHTTP(observer httpObserver) gin.HandlerFunc {
+func traceHTTP(observeCli httpObserver) gin.HandlerFunc {
 	return otelgin.Middleware("http",
-		otelgin.WithTracerProvider(observer.TracerProvider()),
+		otelgin.WithTracerProvider(observeCli.TracerProvider()),
 		otelgin.WithSpanNameFormatter(func(c *gin.Context) string {
 			if route := c.FullPath(); route != "" {
 				return route
@@ -99,13 +99,13 @@ func traceHTTP(observer httpObserver) gin.HandlerFunc {
 }
 
 // previewHTTP 在请求 span 结束前记录实际 HTTP 正文，复用观测组件的脱敏与预览适配。
-func previewHTTP(observer httpObserver) gin.HandlerFunc {
+func previewHTTP(observeCli httpObserver) gin.HandlerFunc {
 	// 一个 Unicode 字符最多占四字节；有界读写副本不额外消耗请求正文。
-	limit := min(observer.ContentLimit(), math.MaxInt/utf8.UTFMax) * utf8.UTFMax
+	limit := min(observeCli.ContentLimit(), math.MaxInt/utf8.UTFMax) * utf8.UTFMax
 	capture := httpx.CaptureBodies(limit, func(c *gin.Context, request, response []byte) {
 		span := trace.SpanFromContext(c.Request.Context())
-		observer.Payload(span, "app.request", request)
-		observer.Payload(span, "app.response", response)
+		observeCli.Payload(span, "app.request", request)
+		observeCli.Payload(span, "app.response", response)
 	})
 	return func(c *gin.Context) {
 		if !trace.SpanFromContext(c.Request.Context()).IsRecording() {

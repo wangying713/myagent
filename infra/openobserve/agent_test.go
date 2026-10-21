@@ -17,10 +17,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func newRunTelemetry(t *testing.T, capture bool, maxChars int) (*Telemetry, *tracetest.InMemoryExporter) {
+func newTestClient(t *testing.T, capture bool, maxChars int) (*Client, *tracetest.InMemoryExporter) {
 	t.Helper()
 	exporter := tracetest.NewInMemoryExporter()
-	telemetry, err := New(t.Context(), Config{
+	observeCli, err := New(t.Context(), Config{
 		Enabled:        true,
 		ServiceName:    "test",
 		CaptureContent: capture,
@@ -33,16 +33,16 @@ func newRunTelemetry(t *testing.T, capture bool, maxChars int) (*Telemetry, *tra
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		if err := telemetry.Close(ctx); err != nil {
+		if err := observeCli.Close(ctx); err != nil {
 			t.Error(err)
 		}
 	})
-	return telemetry, exporter
+	return observeCli, exporter
 }
 
-func runAttributes(t *testing.T, telemetry *Telemetry, exporter *tracetest.InMemoryExporter) (map[string]attribute.Value, codes.Code) {
+func runAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter) (map[string]attribute.Value, codes.Code) {
 	t.Helper()
-	if err := telemetry.Flush(t.Context()); err != nil {
+	if err := observeCli.Flush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	spans := exporter.GetSpans()
@@ -56,9 +56,9 @@ func runAttributes(t *testing.T, telemetry *Telemetry, exporter *tracetest.InMem
 	return attrs, spans[0].Status.Code
 }
 
-func toolAttributes(t *testing.T, telemetry *Telemetry, exporter *tracetest.InMemoryExporter) map[string]attribute.Value {
+func toolAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter) map[string]attribute.Value {
 	t.Helper()
-	if err := telemetry.Flush(t.Context()); err != nil {
+	if err := observeCli.Flush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	spans := exporter.GetSpans()
@@ -102,9 +102,9 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			telemetry, exporter := newRunTelemetry(t, true, 4096)
+			observeCli, exporter := newTestClient(t, true, 4096)
 			original := slices.Clone(tc.questions)
-			_, run := telemetry.StartRun(t.Context(), tc.operation, nil)
+			_, run := observeCli.StartRun(t.Context(), tc.operation, nil)
 			input := agent.RunInput{
 				Questions: tc.questions,
 				Prompt:    "提示 configured-secret",
@@ -123,7 +123,7 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 				UsageComplete: true,
 			}
 			run.End(result, tc.err)
-			attrs, status := runAttributes(t, telemetry, exporter)
+			attrs, status := runAttributes(t, observeCli, exporter)
 			assertRunPreviews(t, attrs, tc.wantInput, result)
 
 			if (status == codes.Error) != (tc.err != nil) {
@@ -201,8 +201,8 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 			true:  "采集并截断",
 			false: "关闭正文采集",
 		}[capture], func(t *testing.T) {
-			telemetry, exporter := newRunTelemetry(t, capture, 256)
-			_, run := telemetry.StartRun(t.Context(), "chat", nil)
+			observeCli, exporter := newTestClient(t, capture, 256)
+			_, run := observeCli.StartRun(t.Context(), "chat", nil)
 			run.End(agent.ChatRsp{
 				Input: agent.RunInput{
 					Questions: []string{strings.Repeat("输入", 200)},
@@ -210,7 +210,7 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 				Completed: true,
 				Answer:    strings.Repeat("输出", 200),
 			}, nil)
-			attrs, _ := runAttributes(t, telemetry, exporter)
+			attrs, _ := runAttributes(t, observeCli, exporter)
 			for _, pair := range [][2]string{
 				{
 					"gen_ai.input.messages",
@@ -240,8 +240,8 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 }
 
 func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
-	telemetry, exporter := newRunTelemetry(t, true, 4096)
-	_, tool := telemetry.StartTool(t.Context(), agent.ToolCall{
+	observeCli, exporter := newTestClient(t, true, 4096)
+	_, tool := observeCli.StartTool(t.Context(), agent.ToolCall{
 		ID:   "call_1",
 		Type: agent.ToolTypeFunction,
 		Function: agent.FunctionCall{
@@ -253,7 +253,7 @@ func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
 		OK:     true,
 		Result: 391,
 	}, nil)
-	attrs := toolAttributes(t, telemetry, exporter)
+	attrs := toolAttributes(t, observeCli, exporter)
 	const wantInput = `{"arguments":{"a":17,"b":23},"id":"call_1","name":"multiply","type":"function"}`
 	if attrs["app.request"].AsString() != wantInput {
 		t.Errorf("实际输入预览 %s，预期平铺调用并展开参数 %s", attrs["app.request"].AsString(), wantInput)
@@ -291,8 +291,8 @@ func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			telemetry, exporter := newRunTelemetry(t, true, tc.maxChars)
-			_, tool := telemetry.StartTool(t.Context(), agent.ToolCall{
+			observeCli, exporter := newTestClient(t, true, tc.maxChars)
+			_, tool := observeCli.StartTool(t.Context(), agent.ToolCall{
 				ID:   "call_1",
 				Type: agent.ToolTypeFunction,
 				Function: agent.FunctionCall{
@@ -304,7 +304,7 @@ func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 				OK:     true,
 				Result: 391,
 			}, nil)
-			attrs := toolAttributes(t, telemetry, exporter)
+			attrs := toolAttributes(t, observeCli, exporter)
 			preview := attrs["gen_ai.input.messages"].AsString()
 			if attrs["app.request"].AsString() != preview {
 				t.Error("输入预览未直接复用 app.request")

@@ -270,6 +270,10 @@ func TestAgentDemosRejectInvalidRequestsWithoutCallingModel(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			out := httptest.NewRecorder()
 			router.ServeHTTP(out, req)
+			var rsp entity.Rsp[json.RawMessage]
+			if err := json.Unmarshal(out.Body.Bytes(), &rsp); err != nil || string(rsp.Data) != "null" {
+				t.Fatalf("实际响应 %s，预期无结果时 data 为 null", out.Body.String())
+			}
 			if out.Code != 400 || strings.HasPrefix(out.Header().Get("Content-Type"), "text/event-stream") {
 				t.Fatalf("无效参数实际返回 HTTP %d、%s，预期流建立前返回 400 JSON", out.Code, out.Body.String())
 			}

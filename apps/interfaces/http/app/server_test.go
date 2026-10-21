@@ -317,7 +317,7 @@ func TestRunHTTPPreservesListenError(t *testing.T) {
 func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	exporter := &memoryExporter{}
-	handler, telemetry := setup(t, func(w http.ResponseWriter, r *http.Request) {
+	handler, observeCli := setup(t, func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(io.Discard, r.Body)
 		close(started)
 		select {
@@ -342,7 +342,7 @@ func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 	waitSignal(t, call.done, "聊天请求结束")
 	flushCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if err := telemetry.Flush(flushCtx); err != nil {
+	if err := observeCli.Flush(flushCtx); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()

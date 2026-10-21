@@ -24,14 +24,14 @@ type ModelInfo struct {
 }
 
 // StartRun 建立业务运行 span，应用层在执行结束后提交实际输入和结果。
-func (t *Telemetry) StartRun(ctx context.Context, operation string, model *ModelInfo) (context.Context, *Run) {
-	ctx, span := t.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
+func (c *Client) StartRun(ctx context.Context, operation string, model *ModelInfo) (context.Context, *Run) {
+	ctx, span := c.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
 	run := &Run{
-		telemetry: t,
-		span:      span,
-		started:   time.Now(),
-		operation: operation,
-		model:     model,
+		observeCli: c,
+		span:       span,
+		started:    time.Now(),
+		operation:  operation,
+		model:      model,
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		run.deadline = deadline.UTC().Format(time.RFC3339Nano)
@@ -80,7 +80,7 @@ func (r *Run) recordInput(req agent.RunInput) {
 	}
 	// 预览只包含白名单标量及已校验的 JSON；无效协议片段按文本记录，不影响业务。
 	request, _ := json.Marshal(input)
-	r.telemetry.Payload(r.span, "app.request", request)
+	r.observeCli.Payload(r.span, "app.request", request)
 }
 
 // runInput 保存业务输入的观测预览，不承担领域或 HTTP 序列化契约。
@@ -171,12 +171,12 @@ func previewJSON(text string) any {
 
 // Run 持有单次业务运行的观测资源，由应用层负责结束。
 type Run struct {
-	telemetry *Telemetry // 负责记录正文与脱敏的观测组件。
-	span      trace.Span // 本次调用的链路 span。
-	started   time.Time  // 本次调用的开始时间，用于统计耗时。
-	operation string     // 本次业务操作标识。
-	model     *ModelInfo // 模型公开配置；nil 表示未提供。
-	deadline  string     // 本次运行的 UTC 截止时间，无截止时间时为空。
+	observeCli *Client    // 负责记录正文与脱敏的观测组件。
+	span       trace.Span // 本次调用的链路 span。
+	started    time.Time  // 本次调用的开始时间，用于统计耗时。
+	operation  string     // 本次业务操作标识。
+	model      *ModelInfo // 模型公开配置；nil 表示未提供。
+	deadline   string     // 本次运行的 UTC 截止时间，无截止时间时为空。
 }
 
 // End 记录实际输入、完整或部分结果和最终错误，并结束本次运行。
@@ -206,14 +206,14 @@ func (r *Run) End(result agent.ChatRsp, err error) {
 		})
 	}
 	response, _ := json.Marshal(output)
-	r.telemetry.Payload(r.span, "app.response", response)
+	r.observeCli.Payload(r.span, "app.response", response)
 	r.span.SetAttributes(attribute.Int("app.llm_calls", result.ModelCalls), attribute.Int("app.tool_calls", result.ToolCalls), attribute.Int("app.total_tokens", result.KnownTokens), attribute.Bool("app.usage.complete", result.UsageComplete))
 	End(r.span, r.started, err)
 }
 
 // StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
-func (t *Telemetry) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, *toolObservation) {
-	ctx, span := t.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", t.Clean(req.Function.Name)), attribute.String("app.tool.call.id", t.Clean(req.ID)))
+func (c *Client) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, *toolObservation) {
+	ctx, span := c.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", c.Clean(req.Function.Name)), attribute.String("app.tool.call.id", c.Clean(req.ID)))
 	// 展示副本平铺工具调用并展开参数；previewJSON 只在参数为合法 JSON 时返回 RawMessage，因此不会编码失败。
 	request, _ := json.Marshal(toolInput{
 		ID:        req.ID,
@@ -221,28 +221,28 @@ func (t *Telemetry) StartTool(ctx context.Context, req agent.ToolCall) (context.
 		Name:      req.Function.Name,
 		Arguments: previewJSON(req.Function.Arguments),
 	})
-	t.Payload(span, "app.request", request)
+	c.Payload(span, "app.request", request)
 	return ctx, &toolObservation{
-		telemetry: t,
-		span:      span,
-		started:   time.Now(),
+		observeCli: c,
+		span:       span,
+		started:    time.Now(),
 	}
 }
 
 // toolObservation 持有单次工具调用的观测资源。
 type toolObservation struct {
-	telemetry *Telemetry // 负责记录正文与脱敏的观测组件。
-	span      trace.Span // 本次调用的链路 span。
-	started   time.Time  // 本次调用的开始时间，用于统计耗时。
+	observeCli *Client    // 负责记录正文与脱敏的观测组件。
+	span       trace.Span // 本次调用的链路 span。
+	started    time.Time  // 本次调用的开始时间，用于统计耗时。
 }
 
 func (t *toolObservation) End(output agent.ToolResult, err error) {
 	if response, encodeErr := json.Marshal(output); encodeErr == nil {
-		t.telemetry.Payload(t.span, "app.response", response)
+		t.observeCli.Payload(t.span, "app.response", response)
 	}
 	if !output.OK {
 		t.span.SetStatus(codes.Error, "工具调用被拒绝")
-		t.span.SetAttributes(attribute.String("app.tool.error", t.telemetry.Clean(output.Error)))
+		t.span.SetAttributes(attribute.String("app.tool.error", t.observeCli.Clean(output.Error)))
 	}
 	End(t.span, t.started, err)
 }

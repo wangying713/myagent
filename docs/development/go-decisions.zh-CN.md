@@ -262,6 +262,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 - 解码、超时、取消及响应处理由 `http/app/handler.go` 集中完成。路由初始化通过 `requestTimeout(timeout)` 中间件显式设置当前路由的超时，计时仍从解码完成后开始；配置不放入全局变量。`infra/httpx` 只保留独立的严格解析、传输错误和 JSON 写出，不依赖业务或 `entity`。
 - 接口方法显式组装并返回自己的 HTTP 响应，允许重复字段赋值，不封装统一业务返回函数。输入拒绝返回 nil 数据，其他失败保留已经完成的结果，错误原样返回。
 - 响应和错误可以同时非空，已有的步骤和用量必须保留，不能因错误而统一丢弃响应。
+- 应用服务的执行结果使用指针：前置输入校验失败、尚未执行时返回 `nil, err`；执行开始后即使失败，也返回已有结果和错误。HTTP 实现根据结果是否为 nil 决定是否组装 data，不通过 `err != nil` 一律丢弃结果；领域层继续使用自己的值类型。
 - 领域层使用自己的输入输出，不依赖 HTTP 数据类型；JSON 解码直接保留省略切片为 nil、显式空数组为非 nil 空切片，可选数值用指针区分省略与零，不藏在上下文中。
 
 请求消息统一使用 `Req` 后缀，响应消息使用 `Rsp` 后缀。三个 Agent 接口分别返回 `entity` 定义的 `ChatRsp`、`MessagesRsp`、`RunRsp`；业务方法不返回 HTTP 外层结构。
@@ -274,7 +275,7 @@ HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显�
 
 实现与使用说明见 [HTTP API](../../apps/interfaces/http/README.md) 和 [通用 HTTP 能力](../../infra/httpx/README.md)。
 
-应用层 `app/agent_service.go` 在每次业务执行前通过具体的 `infra/openobserve.Telemetry` 建立 `agent.run`，向领域客户端传入派生上下文，并在结束时记录结果。领域层只执行并返回原始回答、调用记录及 `RunInput` 中的实际输入，不定义观测接口，也不处理展示脱敏；`RunInput` 随结果保留已补齐默认值、通过校验的问题和实际工具、预算，观测层不重复推断。`infra/openobserve.Tools` 包装真实工具执行，模型观测仍由 DeepSeek 客户端负责。应用层只对返回展示副本脱敏，模型历史、工具结果和工作流后续输入始终使用原文。组合案例由应用层编排，每次独立业务执行各有自己的运行 span；流式案例在同步消费期间管理同一运行 span。`infra/openobserve` 组装输入与输出预览，保留采集开关、限长、部分结果及错误状态，不记录底层错误正文。
+应用层 `app/agent_service.go` 在每次业务执行前通过具体的 `infra/openobserve.Client` 建立 `agent.run`，向领域客户端传入派生上下文，并在结束时记录结果。领域层只执行并返回原始回答、调用记录及 `RunInput` 中的实际输入，不定义观测接口，也不处理展示脱敏；`RunInput` 随结果保留已补齐默认值、通过校验的问题和实际工具、预算，观测层不重复推断。`infra/openobserve.Tools` 包装真实工具执行，模型观测仍由 DeepSeek 客户端负责。应用层只对返回展示副本脱敏，模型历史、工具结果和工作流后续输入始终使用原文。组合案例由应用层编排，每次独立业务执行各有自己的运行 span；流式案例在同步消费期间管理同一运行 span。`infra/openobserve` 组装输入与输出预览，保留采集开关、限长、部分结果及错误状态，不记录底层错误正文。
 
 ## 第三方能力选择
 

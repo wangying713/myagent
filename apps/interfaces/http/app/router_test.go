@@ -62,11 +62,11 @@ type routerTestConfig struct {
 	Timeout time.Duration // 单次请求允许执行的最长时间。
 }
 
-func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter *memoryExporter) (*gin.Engine, *openobserve.Telemetry) {
+func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter *memoryExporter) (*gin.Engine, *openobserve.Client) {
 	t.Helper()
 	upstream := httptest.NewServer(model)
 	t.Cleanup(upstream.Close)
-	telemetry, err := openobserve.New(context.Background(), openobserve.Config{
+	observeCli, err := openobserve.New(context.Background(), openobserve.Config{
 		Enabled:        true,
 		ServiceName:    "test",
 		MaxChars:       32768,
@@ -79,7 +79,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		if err := telemetry.Close(ctx); err != nil {
+		if err := observeCli.Close(ctx); err != nil {
 			t.Error(err)
 		}
 	})
@@ -88,7 +88,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 		BaseURL: upstream.URL,
 		Model:   "test-model",
 		Timeout: time.Second,
-	}, telemetry, upstream.Client())
+	}, observeCli, upstream.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,15 +97,15 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := newAgentService(agentCli, telemetry, chatCli.ModelInfo(), cfg.Limits)
+	service, err := newAgentService(agentCli, observeCli, chatCli.ModelInfo(), cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := newRouter(service, cfg.Timeout, telemetry)
+	handler, err := newRouter(service, cfg.Timeout, observeCli)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return handler, telemetry
+	return handler, observeCli
 }
 
 func invoke(handler http.Handler, lesson, body string) (*httptest.ResponseRecorder, Rsp) {
@@ -156,7 +156,7 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 	} {
 		t.Run(lesson, func(t *testing.T) {
 			exporter := &memoryExporter{}
-			handler, telemetry := setup(t, lessonModel(t, lesson), routerTestConfig{
+			handler, observeCli := setup(t, lessonModel(t, lesson), routerTestConfig{
 				Limits:  agent.DefaultLimits(),
 				Timeout: time.Second,
 			}, exporter)
@@ -176,7 +176,7 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.spans-2 {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
 			}
-			if err := telemetry.Flush(context.Background()); err != nil {
+			if err := observeCli.Flush(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()
@@ -866,7 +866,7 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 			"content": "记住了豆包。",
 		}, "stop")
 	}
-	handler, telemetry := setup(t, model, routerTestConfig{
+	handler, observeCli := setup(t, model, routerTestConfig{
 		Limits: agent.Limits{
 			ModelCalls: 1,
 			ToolCalls:  8,
@@ -880,7 +880,7 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 	if w.Code != 409 || response.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
 		t.Fatalf("预算未保留已完成第一轮：%s", w.Body.String())
 	}
-	if err := telemetry.Flush(context.Background()); err != nil {
+	if err := observeCli.Flush(context.Background()); err != nil {
 		t.Fatal("上报失败不应改变业务错误")
 	}
 	w, response = invoke(handler, "chat", `{}`)

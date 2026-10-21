@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func newRouter(agentCli *agentService, timeout time.Duration, observer httpObserver) (*gin.Engine, error) {
+func newRouter(agentCli *agentService, timeout time.Duration, observeCli httpObserver) (*gin.Engine, error) {
 	implAgent, err := newImplAgent(agentCli)
 	if err != nil {
 		return nil, err
@@ -19,7 +19,7 @@ func newRouter(agentCli *agentService, timeout time.Duration, observer httpObser
 	if timeout <= 0 {
 		return nil, errors.New("HTTP 请求超时必须为正数")
 	}
-	if observer == nil {
+	if observeCli == nil {
 		return nil, errors.New("HTTP 观测依赖不能为空")
 	}
 	router := gin.New()
@@ -28,7 +28,7 @@ func newRouter(agentCli *agentService, timeout time.Duration, observer httpObser
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return nil, err
 	}
-	router.Use(traceHTTP(observer), previewHTTP(observer), requestTimeout(timeout))
+	router.Use(traceHTTP(observeCli), previewHTTP(observeCli), requestTimeout(timeout))
 	// 不输出请求头、panic 原文或堆栈，且不覆盖已经写出的响应。
 	router.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, _ any) {
 		c.Abort()

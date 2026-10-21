@@ -35,8 +35,8 @@ func TestToolsPreservesResultContextAndCancellation(t *testing.T) {
 			false: "结果原文不被脱敏",
 			true:  "执行中取消并结束观测",
 		}[cancelDuringCall], func(t *testing.T) {
-			telemetry, exporter := newRunTelemetry(t, true, 4096)
-			parentCtx, parent := telemetry.Start(t.Context(), "parent")
+			observeCli, exporter := newTestClient(t, true, 4096)
+			parentCtx, parent := observeCli.Start(t.Context(), "parent")
 			defer parent.End()
 			ctx, cancel := context.WithCancel(parentCtx)
 			defer cancel()
@@ -50,7 +50,7 @@ func TestToolsPreservesResultContextAndCancellation(t *testing.T) {
 			}
 			var toolID trace.SpanID
 			tools := Tools{
-				Telemetry: telemetry,
+				ObserveCli: observeCli,
 				Tools: testTools{
 					dispatch: func(ctx context.Context, actual agent.ToolCall) (agent.ToolResult, error) {
 						toolID = trace.SpanFromContext(ctx).SpanContext().SpanID()
@@ -76,7 +76,7 @@ func TestToolsPreservesResultContextAndCancellation(t *testing.T) {
 			} else if err != nil || result.Result != "configured-secret" {
 				t.Fatalf("实际工具结果 %+v、错误 %v，预期保留原始结果", result, err)
 			}
-			attrs := toolAttributes(t, telemetry, exporter)
+			attrs := toolAttributes(t, observeCli, exporter)
 			span := exporter.GetSpans()[0]
 			if span.Parent.SpanID() != parent.SpanContext().SpanID() || span.SpanContext.SpanID() != toolID || (span.Status.Code == codes.Error) != cancelDuringCall {
 				t.Fatal("工具的父链路、执行上下文或取消状态不符合预期")

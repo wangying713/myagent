@@ -9,7 +9,7 @@ import (
 )
 
 func TestSafePayloadRedactionAndTruncation(t *testing.T) {
-	telemetry, err := New(context.Background(), Config{
+	observeCli, err := New(context.Background(), Config{
 		ServiceName: "test",
 		MaxChars:    256,
 		Secrets:     []string{"real-key"},
@@ -20,7 +20,7 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 	input := `{"api_key":"real-key","arguments":"{\"password\":\"hidden-value\",\"a\":1}","text":"Bearer token-value"}`
 	raw := []byte(input)
 	original := bytes.Clone(raw)
-	safe := telemetry.Safe(raw)
+	safe := observeCli.Safe(raw)
 	for _, secret := range []string{
 		"real-key",
 		"hidden-value",
@@ -33,7 +33,7 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 	if !strings.Contains(safe, "[REDACTED]") {
 		t.Error("缺少脱敏标记")
 	}
-	safe = telemetry.Safe([]byte(strings.Repeat("中文", 200)))
+	safe = observeCli.Safe([]byte(strings.Repeat("中文", 200)))
 	if !strings.HasSuffix(safe, "…[TRUNCATED]") {
 		t.Error("缺少截断标记")
 	}
@@ -43,7 +43,7 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 }
 
 func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
-	telemetry, err := New(t.Context(), Config{
+	observeCli, err := New(t.Context(), Config{
 		ServiceName: "test",
 		MaxChars:    4096,
 	}, nil, nil)
@@ -64,7 +64,7 @@ func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
 			}
 			original := bytes.Clone(raw)
 			var payload map[string]string
-			if err := json.Unmarshal([]byte(telemetry.Safe(raw)), &payload); err != nil {
+			if err := json.Unmarshal([]byte(observeCli.Safe(raw)), &payload); err != nil {
 				t.Fatal(err)
 			}
 			var nested map[string]json.RawMessage

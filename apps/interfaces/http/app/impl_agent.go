@@ -33,14 +33,14 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 		Prompt:     agent.DemoChatPrompt,
 		ToolChoice: agent.ToolChoiceNone,
 	})
-	if errors.Is(err, agent.ErrInput) {
+	if result == nil {
 		return nil, err
 	}
 	return &entity.ChatRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
+		TelemetryEnabled: a.agentCli.observeCli.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -55,14 +55,14 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 	result, err := a.agentCli.Messages(ctx, agent.MessagesInput{
 		Questions: req.Questions,
 	})
-	if errors.Is(err, agent.ErrInput) {
+	if result == nil {
 		return nil, err
 	}
 	return &entity.MessagesRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
+		TelemetryEnabled: a.agentCli.observeCli.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -84,14 +84,14 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 		Question:  question,
 		Prompt:    agent.AgentPrompt,
 	})
-	if errors.Is(err, agent.ErrInput) {
+	if result == nil {
 		return nil, err
 	}
 	return &entity.RunRsp{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: a.agentCli.telemetry.Enabled(),
+		TelemetryEnabled: a.agentCli.observeCli.Enabled(),
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
@@ -102,12 +102,15 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 }
 
 // agentResult 转换共用的 Agent 执行结果，各接口响应仍由对应方法组装。
-func (a *agentService) agentResult(result agent.ChatRsp) *entity.AgentResult {
+func (a *agentService) agentResult(result *agent.ChatRsp) *entity.AgentResult {
+	if result == nil {
+		return nil
+	}
 	return &entity.AgentResult{
 		Lesson:           result.Operation,
 		Completed:        result.Completed,
 		Answer:           result.Answer,
-		TelemetryEnabled: a.telemetry.Enabled() && result.Operation != "",
+		TelemetryEnabled: a.observeCli.Enabled() && result.Operation != "",
 		ElapsedMS:        result.ElapsedMS,
 		ModelCalls:       result.ModelCalls,
 		ToolCalls:        result.ToolCalls,
