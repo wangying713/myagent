@@ -36,11 +36,8 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 	if req.Operation == "" {
 		req.Operation = agent.OperationChat
 	}
-	if err := agent.ValidateQuestion(req.Question); err != nil {
+	if err := a.validCahtReq(req); err != nil {
 		return nil, err
-	}
-	if req.ToolChoice != "" && req.ToolChoice != agent.ToolChoiceAuto && req.ToolChoice != agent.ToolChoiceNone {
-		return nil, agent.ErrInput
 	}
 
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, req.Operation)
@@ -49,6 +46,17 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 	}()
 	result, err = a.agentCli.Chat(ctx, req)
 	return result, err
+}
+
+// validCahtReq 在建立运行观测前校验聊天问题和工具调用策略。
+func (a *agentService) validCahtReq(req agent.ChatReq) error {
+	if err := agent.ValidateQuestion(req.Question); err != nil {
+		return err
+	}
+	if req.ToolChoice != "" && req.ToolChoice != agent.ToolChoiceAuto && req.ToolChoice != agent.ToolChoiceNone {
+		return agent.ErrInput
+	}
+	return nil
 }
 
 // Messages 为整段对话建立一个运行 span，实际历史始终由领域层维护。
