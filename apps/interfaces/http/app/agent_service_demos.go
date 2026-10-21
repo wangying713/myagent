@@ -42,13 +42,13 @@ func (a *agentService) DemoStructured(ctx context.Context, question string) (res
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStructured, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoStructured)
 	defer func() {
 		var execution *agent.ChatRsp
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishRun(run, execution, err)
+		a.finishTrace(runTrace, execution, err)
 	}()
 	result, err = a.agentCli.DemoStructured(ctx, question)
 	if result != nil {
@@ -62,13 +62,13 @@ func (a *agentService) DemoRetrieval(ctx context.Context, question string) (resu
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	ctx, run := a.observeCli.StartRun(ctx, agent.DemoRetrieval, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoRetrieval)
 	defer func() {
 		var execution *agent.ChatRsp
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishRun(run, execution, err)
+		a.finishTrace(runTrace, execution, err)
 	}()
 	result, err = a.agentCli.DemoRetrieval(ctx, question)
 	return result, err
@@ -79,13 +79,13 @@ func (a *agentService) DemoWorkflow(ctx context.Context, question string) (resul
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	ctx, run := a.observeCli.StartRun(ctx, agent.DemoWorkflow, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoWorkflow)
 	defer func() {
 		var execution *agent.ChatRsp
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishRun(run, execution, err)
+		a.finishTrace(runTrace, execution, err)
 	}()
 	result, err = a.agentCli.DemoWorkflow(ctx, question)
 	if result != nil {
@@ -104,9 +104,9 @@ func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput
 	if req.Emit == nil {
 		return nil, agent.ErrInput
 	}
-	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStream, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoStream)
 	defer func() {
-		a.finishRun(run, result, err)
+		a.finishTrace(runTrace, result, err)
 	}()
 	result, err = a.agentCli.DemoStream(ctx, req)
 	return result, err

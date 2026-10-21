@@ -98,7 +98,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := newAgentService(agentCli, observeCli, chatCli.ModelInfo(), cfg.Limits)
+	service, err := newAgentService(agentCli, observeCli, cfg.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,22 +358,8 @@ func assertLessonInput(t *testing.T, attrs map[string]string, lesson string) {
 			t.Errorf("输入预览字段 %s 实际为 %s，预期 %s", key, actualInput[key], want)
 		}
 	}
-	assertLessonModelInfo(t, actualInput)
-}
-
-func assertLessonModelInfo(t *testing.T, actualInput map[string]json.RawMessage) {
-	t.Helper()
-	var model struct {
-		Name     string `json:"name"`       // 运行预览记录的模型名称。
-		Endpoint string `json:"endpoint"`   // 模型请求地址。
-		Timeout  int64  `json:"timeout_ms"` // 单次模型调用超时，单位为毫秒。
-	}
-	if err := json.Unmarshal(actualInput["model"], &model); err != nil {
-		t.Fatal(err)
-	}
-	endpoint, err := url.Parse(model.Endpoint)
-	if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.Path != "/chat/completions" || model.Name != "test-model" || model.Timeout != 1000 {
-		t.Errorf("运行预览中的模型信息不正确：%+v", model)
+	if _, ok := actualInput["model"]; ok {
+		t.Error("运行输入预览不应重复记录模型配置")
 	}
 	var deadline string
 	if err := json.Unmarshal(actualInput["deadline"], &deadline); err != nil {

@@ -43,7 +43,7 @@ func Run(ctx context.Context, cfg config.Settings) error {
 	if err != nil {
 		return err
 	}
-	service, err := newAgentService(agentCli, observeCli, chatCli.ModelInfo(), cfg.Limits)
+	service, err := newAgentService(agentCli, observeCli, cfg.Limits)
 	if err != nil {
 		return err
 	}

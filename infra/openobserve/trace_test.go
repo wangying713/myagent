@@ -17,14 +17,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func runAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter) (map[string]attribute.Value, codes.Code) {
+func traceAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter, spanName string) (map[string]attribute.Value, codes.Code) {
 	t.Helper()
 	if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	spans := exporter.GetSpans()
-	if len(spans) != 1 || spans[0].Name != "agent.run" {
-		t.Fatalf("实际导出 %v，预期一个 agent.run span", spans)
+	if len(spans) != 1 || spans[0].Name != spanName {
+		t.Fatalf("实际导出 %v，预期一个名称为 %q 的 span", spans, spanName)
 	}
 	attrs := make(map[string]attribute.Value)
 	for _, attr := range spans[0].Attributes {
@@ -33,7 +33,7 @@ func runAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemor
 	return attrs, spans[0].Status.Code
 }
 
-func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
+func TestTracePreviewInputsAndPartialOutput(t *testing.T) {
 	for _, tc := range []struct {
 		name, operation, wantInput string   // 用例名称、业务操作标识与预期输入预览。
 		questions                  []string // 传给运行观测的问题列表。
@@ -65,7 +65,7 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			observeCli, exporter := newTestClient(t, true, 4096)
 			original := slices.Clone(tc.questions)
-			_, run := observeCli.StartRun(t.Context(), tc.operation, nil)
+			_, runTrace := observeCli.StartTrace(t.Context(), "agent.run", tc.operation)
 			input := agent.RunInput{
 				Questions: tc.questions,
 				Prompt:    "提示 configured-secret",
@@ -83,9 +83,9 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 				KnownTokens:   10,
 				UsageComplete: true,
 			}
-			run.End(result, tc.err)
-			attrs, status := runAttributes(t, observeCli, exporter)
-			assertRunPreviews(t, attrs, tc.wantInput, result)
+			runTrace.End(result, tc.err)
+			attrs, status := traceAttributes(t, observeCli, exporter, "agent.run")
+			assertTracePreviews(t, attrs, tc.wantInput, result)
 
 			if (status == codes.Error) != (tc.err != nil) {
 				t.Errorf("实际 span 状态 %v，预期失败=%v", status, tc.err != nil)
@@ -119,15 +119,14 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 	}
 }
 
-// assertRunPreviews 检查运行输入预览和脱敏后的输出预览。
-func assertRunPreviews(t *testing.T, attrs map[string]attribute.Value, wantQuestion string, result *agent.ChatRsp) {
+// assertTracePreviews 检查运行输入预览和脱敏后的输出预览。
+func assertTracePreviews(t *testing.T, attrs map[string]attribute.Value, wantQuestion string, result *agent.ChatRsp) {
 	t.Helper()
 	var input map[string]any
 	if err := json.Unmarshal([]byte(wantQuestion), &input); err != nil {
 		t.Fatal(err)
 	}
 	input["prompt"] = "提示 [REDACTED]"
-	input["model"] = nil
 	input["tools"] = []any{}
 	input["limits"] = map[string]int{
 		"model_calls": 2,
@@ -153,7 +152,7 @@ func assertRunPreviews(t *testing.T, attrs map[string]attribute.Value, wantQuest
 	}
 }
 
-func TestRunPreviewContentControlAndTruncation(t *testing.T) {
+func TestTracePreviewContentControlAndTruncation(t *testing.T) {
 	for _, capture := range []bool{
 		true,
 		false,
@@ -163,8 +162,8 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 			false: "关闭正文采集",
 		}[capture], func(t *testing.T) {
 			observeCli, exporter := newTestClient(t, capture, 256)
-			_, run := observeCli.StartRun(t.Context(), "chat", nil)
-			run.End(&agent.ChatRsp{
+			_, runTrace := observeCli.StartTrace(t.Context(), "agent.run", "chat")
+			runTrace.End(&agent.ChatRsp{
 				Input: agent.RunInput{
 					Questions: []string{strings.Repeat("输入", 200)},
 				},
@@ -174,7 +173,7 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 				ToolCalls:   2,
 				KnownTokens: 10,
 			}, nil)
-			attrs, _ := runAttributes(t, observeCli, exporter)
+			attrs, _ := traceAttributes(t, observeCli, exporter, "agent.run")
 			if attrs["app.llm_calls"].AsInt64() != 1 || attrs["app.tool_calls"].AsInt64() != 2 || attrs["app.total_tokens"].AsInt64() != 10 {
 				t.Error("正文采集开关改变了运行统计")
 			}
@@ -206,11 +205,11 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 	}
 }
 
-func TestRunWithoutResultStillEndsObservation(t *testing.T) {
+func TestTraceUsesCallerSpanNameWithoutResult(t *testing.T) {
 	observeCli, exporter := newTestClient(t, true, 4096)
-	_, run := observeCli.StartRun(t.Context(), agent.OperationChat, nil)
-	run.End(nil, agent.ErrInput)
-	attrs, status := runAttributes(t, observeCli, exporter)
+	_, runTrace := observeCli.StartTrace(t.Context(), "chat.failed", agent.OperationChat)
+	runTrace.End(nil, agent.ErrInput)
+	attrs, status := traceAttributes(t, observeCli, exporter, "chat.failed")
 	if status != codes.Error {
 		t.Fatalf("实际状态 %v，预期没有结果的失败仍结束观测并标记错误", status)
 	}
@@ -219,28 +218,16 @@ func TestRunWithoutResultStillEndsObservation(t *testing.T) {
 	}
 }
 
-func TestRunCapturesModelSnapshotAndDeadline(t *testing.T) {
+func TestTraceCapturesDeadline(t *testing.T) {
 	observeCli, exporter := newTestClient(t, true, 4096)
 	deadline := time.Now().Add(time.Minute)
 	ctx, cancel := context.WithDeadline(t.Context(), deadline)
 	defer cancel()
-	model := ModelInfo{
-		Provider: "test-provider",
-		Name:     "original-model",
-		Timeout:  1500 * time.Millisecond,
-		Stream:   true,
-	}
-	_, run := observeCli.StartRun(ctx, agent.OperationChat, &model)
-	model.Name = "changed-model"
-	run.End(&agent.ChatRsp{}, nil)
-	attrs, _ := runAttributes(t, observeCli, exporter)
+	_, runTrace := observeCli.StartTrace(ctx, "agent.run", agent.OperationChat)
+	runTrace.End(&agent.ChatRsp{}, nil)
+	attrs, _ := traceAttributes(t, observeCli, exporter, "agent.run")
 	var input struct {
 		Deadline string `json:"deadline"` // 观测记录中的 UTC 截止时间。
-		Model    struct {
-			Name      string `json:"name"`       // 开始运行时的模型名称。
-			TimeoutMS int64  `json:"timeout_ms"` // 模型超时，单位为毫秒。
-			Stream    bool   `json:"stream"`     // 模型是否使用流式响应。
-		} `json:"model"` // 运行开始时的公开模型配置。
 	}
 	if err := json.Unmarshal([]byte(attrs["app.request"].AsString()), &input); err != nil {
 		t.Fatal(err)
@@ -248,14 +235,11 @@ func TestRunCapturesModelSnapshotAndDeadline(t *testing.T) {
 	if input.Deadline != deadline.UTC().Format(time.RFC3339Nano) {
 		t.Errorf("实际截止时间 %q，预期 %q", input.Deadline, deadline.UTC().Format(time.RFC3339Nano))
 	}
-	if input.Model.Name != "original-model" || input.Model.TimeoutMS != 1500 || !input.Model.Stream {
-		t.Errorf("实际模型配置 %+v，预期保留开始时的名称、1500 毫秒超时和流式选项", input.Model)
-	}
 }
 
-func TestRunCallPreviewPreservesJSONAndPartialText(t *testing.T) {
+func TestTraceCallPreviewPreservesJSONAndPartialText(t *testing.T) {
 	observeCli, exporter := newTestClient(t, true, 4096)
-	_, run := observeCli.StartRun(t.Context(), agent.OperationRun, nil)
+	_, runTrace := observeCli.StartTrace(t.Context(), "agent.run", agent.OperationRun)
 	result := &agent.ChatRsp{
 		Input: agent.RunInput{
 			Tools: []agent.ToolDefinition{
@@ -278,8 +262,8 @@ func TestRunCallPreviewPreservesJSONAndPartialText(t *testing.T) {
 			},
 		},
 	}
-	run.End(result, agent.ErrInvalidResponse)
-	attrs, _ := runAttributes(t, observeCli, exporter)
+	runTrace.End(result, agent.ErrInvalidResponse)
+	attrs, _ := traceAttributes(t, observeCli, exporter, "agent.run")
 	input := attrs["app.request"].AsString()
 	if !strings.Contains(input, `"parameters":{"minimum":9007199254740993}`) {
 		t.Errorf("实际输入 %s，预期工具参数保持对象形式及大整数精度", input)
@@ -299,11 +283,11 @@ func TestRunCallPreviewPreservesJSONAndPartialText(t *testing.T) {
 	}
 }
 
-func TestRunPreviewWithoutCallsUsesEmptyArray(t *testing.T) {
+func TestTracePreviewWithoutCallsUsesEmptyArray(t *testing.T) {
 	observeCli, exporter := newTestClient(t, true, 4096)
-	_, run := observeCli.StartRun(t.Context(), agent.OperationChat, nil)
-	run.End(&agent.ChatRsp{}, nil)
-	attrs, _ := runAttributes(t, observeCli, exporter)
+	_, runTrace := observeCli.StartTrace(t.Context(), "agent.run", agent.OperationChat)
+	runTrace.End(&agent.ChatRsp{}, nil)
+	attrs, _ := traceAttributes(t, observeCli, exporter, "agent.run")
 	if !strings.Contains(attrs["app.response"].AsString(), `"steps":[]`) {
 		t.Errorf("实际输出 %s，预期无调用时 steps 为空数组", attrs["app.response"].AsString())
 	}

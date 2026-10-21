@@ -100,7 +100,7 @@ func newResultTestService(t *testing.T, chatCli agent.ChatClient) *agentService 
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := newAgentService(agentCli, observeCli, openobserve.ModelInfo{}, limits)
+	service, err := newAgentService(agentCli, observeCli, limits)
 	if err != nil {
 		t.Fatal(err)
 	}

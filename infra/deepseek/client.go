@@ -87,19 +87,6 @@ func (c *Client) Close() {
 	c.httpCli.CloseIdleConnections()
 }
 
-// ModelInfo 返回运行观测使用的白名单配置，不暴露鉴权和 HTTP 客户端。
-func (c *Client) ModelInfo() openobserve.ModelInfo {
-	return openobserve.ModelInfo{
-		Provider:     providerName,
-		Name:         c.config.Model,
-		Endpoint:     strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions",
-		Timeout:      c.config.Timeout,
-		MaxTokens:    defaultMaxTokens,
-		ThinkingType: defaultThinkingType,
-		Stream:       false,
-	}
-}
-
 // Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
 // 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
 func (c *Client) Chat(ctx context.Context, req agent.Request) (result *agent.Response, err error) {

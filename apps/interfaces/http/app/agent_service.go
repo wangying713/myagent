@@ -9,23 +9,24 @@ import (
 	"saklay/ai/infra/openobserve"
 )
 
+// runSpanName 是应用层业务运行 span 的稳定名称。
+const runSpanName = "agent.run"
+
 // agentService 在应用边界管理运行观测和展示副本，领域客户端只负责执行。
 type agentService struct {
-	agentCli   *agent.Client         // 执行聊天及各业务案例的领域客户端。
-	observeCli *openobserve.Client   // 具体观测实现，由应用入口管理生命周期。
-	model      openobserve.ModelInfo // 模型客户端的公开配置，不包含凭据。
-	limits     agent.Limits          // 启动时校验的默认执行预算。
+	agentCli   *agent.Client       // 执行聊天及各业务案例的领域客户端。
+	observeCli *openobserve.Client // 具体观测实现，由应用入口管理生命周期。
+	limits     agent.Limits        // 启动时校验的默认执行预算。
 }
 
 // newAgentService 组装执行与观测依赖，不创建额外的观测接口。
-func newAgentService(agentCli *agent.Client, observeCli *openobserve.Client, model openobserve.ModelInfo, limits agent.Limits) (*agentService, error) {
+func newAgentService(agentCli *agent.Client, observeCli *openobserve.Client, limits agent.Limits) (*agentService, error) {
 	if agentCli == nil || observeCli == nil {
 		return nil, errors.New("Agent 应用依赖不能为空")
 	}
 	return &agentService{
 		agentCli:   agentCli,
 		observeCli: observeCli,
-		model:      model,
 		limits:     limits,
 	}, nil
 }
@@ -43,9 +44,9 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 		return nil, agent.ErrInput
 	}
 
-	ctx, run := a.observeCli.StartRun(ctx, req.Operation, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, req.Operation)
 	defer func() {
-		a.finishRun(run, result, err)
+		a.finishTrace(runTrace, result, err)
 	}()
 	result, err = a.agentCli.Chat(ctx, req)
 	return result, err
@@ -64,18 +65,18 @@ func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (r
 			}
 		}
 	}
-	ctx, run := a.observeCli.StartRun(ctx, agent.OperationMessages, &a.model)
+	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.OperationMessages)
 	defer func() {
-		a.finishRun(run, result, err)
+		a.finishTrace(runTrace, result, err)
 	}()
 	result, err = a.agentCli.Messages(ctx, req)
 	return result, err
 }
 
-// finishRun 只处理对外展示的结果副本，保留原始执行输入供观测记录。
-func (a *agentService) finishRun(run *openobserve.Run, result *agent.ChatRsp, err error) {
+// finishTrace 对返回结果脱敏，并记录和结束本次运行观测。
+func (a *agentService) finishTrace(runTrace *openobserve.Trace, result *agent.ChatRsp, err error) {
 	if result == nil {
-		run.End(nil, err)
+		runTrace.End(nil, err)
 		return
 	}
 	result.Answer = a.observeCli.Clean(result.Answer)
@@ -87,7 +88,7 @@ func (a *agentService) finishRun(run *openobserve.Run, result *agent.ChatRsp, er
 		record.Response = a.observeCli.Safe([]byte(record.Response))
 		record.Error = a.observeCli.Clean(record.Error)
 	}
-	run.End(result, err)
+	runTrace.End(result, err)
 }
 
 // validateDemoQuestion 允许案例使用自己的默认问题，显式问题必须符合领域约束。
