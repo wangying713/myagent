@@ -190,7 +190,7 @@ func chatMessages(prompt, question string) []Message {
 }
 
 // validateToolCalls 先检查这一轮所有工具的 ID，再开始执行，避免执行到一半才发现 ID 有问题。
-func validateToolCalls(toolCalls []ToolCall, seenToolCallIDs map[string]bool) error {
+func validateToolCalls(toolCalls []ToolCallReq, seenToolCallIDs map[string]bool) error {
 	for _, toolCall := range toolCalls {
 		if toolCall.ID == "" || seenToolCallIDs[toolCall.ID] {
 			return ErrInvalidResponse

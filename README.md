@@ -61,7 +61,9 @@ docs/
   learning/          # Go 学习教程、后续路线与历史记录
 ```
 
-学习从 [中文学习指南](docs/learning/README.md) 开始，13 章包含当前演示的操作和边界；章节大纲保留进一步学习方向。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`demos.go` → `infra/deepseek/client.go`。工具协议与循环见 `domain/agent/tools.go`、`chat.go`，模型与工具的执行记录见 `agent_run.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+学习从 [中文学习指南](docs/learning/README.md) 开始，13 章包含当前演示的操作和边界；章节大纲保留进一步学习方向。HTTP 顶层只有 `main.go`，加载配置后调用 `app.Run(ctx, cfg)`。阅读顺序：`apps/interfaces/http/main.go` → `apps/interfaces/http/app/run.go` → `app/router.go` → `app/impl_agent.go` → `domain/agent/chat.go`、`messages.go`、`demos.go` → `infra/deepseek/client.go`。模型交互类型及其编码、校验和用量方法见 `domain/agent/model.go`；工具协议与循环见 `tools.go`、`chat.go`，运行预算与模型、工具的执行记录见 `agent_run.go`。API、错误码和边界见 [HTTP 接口说明](apps/interfaces/http/README.md)；页面运行说明见 [管理台说明](apps/interfaces/console/README.md)。
+
+工具数据按调用流程区分：`ToolDefinition` 和 `ToolFunctionDefinition` 是发给模型的工具说明，包含用途及参数格式；模型返回 `ToolCallReq`，其中 `ToolFunctionCall` 保存本次实际参数；工具执行后返回 `ToolCallRsp`。参数格式使用 JSON Schema，实际参数保留 JSON 字符串，两者分别定义。
 
 旧学习资料已迁入 `docs/learning`，对应关系见 [迁移说明](docs/learning/migration.md)。`old` 为废弃的历史归档，学习与运行不再依赖它。
 

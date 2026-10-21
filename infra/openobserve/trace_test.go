@@ -245,7 +245,7 @@ func TestTraceCallPreviewPreservesJSONAndPartialText(t *testing.T) {
 			Tools: []agent.ToolDefinition{
 				{
 					Type: agent.ToolTypeFunction,
-					Function: agent.FunctionDefinition{
+					Function: agent.ToolFunctionDefinition{
 						Name:       "test-tool",
 						Parameters: json.RawMessage(`{"minimum":9007199254740993}`),
 					},

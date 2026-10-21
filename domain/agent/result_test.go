@@ -63,7 +63,7 @@ func (nilResultTools) Definitions() []ToolDefinition {
 }
 
 // Dispatch 模拟错误实现遗漏工具结果和错误。
-func (nilResultTools) Dispatch(context.Context, ToolCall) (*ToolResult, error) {
+func (nilResultTools) Dispatch(context.Context, ToolCallReq) (*ToolCallRsp, error) {
 	return nil, nil
 }
 
@@ -72,11 +72,11 @@ func TestNilToolResultIsProtocolError(t *testing.T) {
 		return &Response{
 			Message: Message{
 				Role: RoleAssistant,
-				ToolCalls: []ToolCall{
+				ToolCalls: []ToolCallReq{
 					{
 						ID:   "one",
 						Type: ToolTypeFunction,
-						Function: FunctionCall{
+						Function: ToolFunctionCall{
 							Name:      ToolNameMultiply,
 							Arguments: `{"a":2,"b":3}`,
 						},
@@ -107,8 +107,8 @@ func (unencodableResultTools) Definitions() []ToolDefinition {
 }
 
 // Dispatch 返回不可编码的结果，用于检查调用记录是否保留。
-func (unencodableResultTools) Dispatch(context.Context, ToolCall) (*ToolResult, error) {
-	return &ToolResult{
+func (unencodableResultTools) Dispatch(context.Context, ToolCallReq) (*ToolCallRsp, error) {
+	return &ToolCallRsp{
 		OK:     true,
 		Result: make(chan int),
 	}, nil
@@ -126,10 +126,10 @@ func TestToolEncodingFailureKeepsCallRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	message, err := run.callTool(t.Context(), unencodableResultTools{}, ToolCall{
+	message, err := run.callTool(t.Context(), unencodableResultTools{}, ToolCallReq{
 		ID:   "one",
 		Type: ToolTypeFunction,
-		Function: FunctionCall{
+		Function: ToolFunctionCall{
 			Name:      ToolNameMultiply,
 			Arguments: `{"a":2,"b":3}`,
 		},

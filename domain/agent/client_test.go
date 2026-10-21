@@ -93,11 +93,11 @@ func TestClientChatRecordsTool(t *testing.T) {
 			return &Response{
 				Message: Message{
 					Role: "assistant",
-					ToolCalls: []ToolCall{
+					ToolCalls: []ToolCallReq{
 						{
 							ID:   "one",
 							Type: "function",
-							Function: FunctionCall{
+							Function: ToolFunctionCall{
 								Name:      "multiply",
 								Arguments: `{"a":17,"b":23}`,
 							},

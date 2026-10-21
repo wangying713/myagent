@@ -8,10 +8,8 @@ import (
 	"strings"
 )
 
-var (
-	ErrInvalidResponse = errors.New("模型响应不完整或协议无效") // 模型消息、结束原因或工具调用协议不符合要求。
-	ErrBudgetExceeded  = errors.New("达到运行预算，任务未完成") // 继续执行将超出模型次数、工具次数或已知用量预算。
-)
+// ErrInvalidResponse 表示模型消息、结束原因或工具调用协议不符合要求。
+var ErrInvalidResponse = errors.New("模型响应不完整或协议无效")
 
 const (
 	RoleSystem    = "system"    // 系统提示消息。
@@ -25,18 +23,12 @@ const (
 	FinishReasonToolCalls = "tool_calls" // 模型请求执行工具。
 )
 
-const (
-	ToolTypeFunction = "function" // 当前支持的函数工具协议类型。
-	ToolChoiceAuto   = "auto"     // 允许模型在已注册工具中自行选择是否调用。
-	ToolChoiceNone   = "none"     // 禁止模型调用工具，只允许直接回答。
-)
-
 // Message 保留模型原始 assistant 消息，回传历史时不丢失扩展字段或 null。
 type Message struct {
-	Role       string     `json:"role"`                   // 消息角色，使用 Role 系列常量。
-	Content    string     `json:"content"`                // 消息正文文本。
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // 模型请求执行的工具调用列表。
-	ToolCallID string     `json:"tool_call_id,omitempty"` // 工具结果关联的调用 ID。
+	Role       string        `json:"role"`                   // 消息角色，使用 Role 系列常量。
+	Content    string        `json:"content"`                // 消息正文文本。
+	ToolCalls  []ToolCallReq `json:"tool_calls,omitempty"`   // 模型请求执行的工具调用列表。
+	ToolCallID string        `json:"tool_call_id,omitempty"` // 工具结果关联的调用 ID。
 	// Raw 保存完整的 assistant JSON；非空时优先用于编码。
 	Raw json.RawMessage `json:"-"`
 }
@@ -51,32 +43,6 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	}
 	type message Message
 	return json.Marshal(message(m))
-}
-
-// ToolCall 保存模型提出的工具调用，ID 用于关联后续工具结果。
-type ToolCall struct {
-	ID       string       `json:"id"`       // 本次工具调用的唯一标识，用于关联工具结果。
-	Type     string       `json:"type"`     // 工具调用类型，当前为 function。
-	Function FunctionCall `json:"function"` // 待执行的函数名称与参数。
-}
-
-// FunctionCall 保存工具名称和 JSON 字符串形式的参数，参数由注册工具校验。
-type FunctionCall struct {
-	Name      string `json:"name"`      // 模型请求调用的工具函数名称。
-	Arguments string `json:"arguments"` // JSON 字符串形式的参数，由注册工具校验。
-}
-
-// ToolDefinition 描述提供给模型选择的已注册工具及其函数协议。
-type ToolDefinition struct {
-	Type     string             `json:"type"`     // 工具定义类型，当前为 function。
-	Function FunctionDefinition `json:"function"` // 供模型选择的函数定义。
-}
-
-// FunctionDefinition 描述工具能力，Parameters 使用 JSON Schema 约束参数。
-type FunctionDefinition struct {
-	Name        string          `json:"name"`        // 已注册的工具函数名称。
-	Description string          `json:"description"` // 供模型选择工具时阅读的能力说明。
-	Parameters  json.RawMessage `json:"parameters"`  // 约束工具参数的 JSON Schema。
 }
 
 // Request 保存模型请求协议；实际模型名和生成参数由注入的客户端适配。
@@ -163,28 +129,4 @@ func (r *Response) Validate() error {
 		return ErrInvalidResponse
 	}
 	return nil
-}
-
-// ToolResult 保存工具成功值或拒绝原因，Result 须能够编码为 JSON。
-type ToolResult struct {
-	OK     bool   `json:"ok"`               // 工具是否执行成功。
-	Result any    `json:"result,omitempty"` // 成功结果，须能够编码为 JSON。
-	Error  string `json:"error,omitempty"`  // 工具拒绝或失败的公开说明。
-}
-
-// Limits 限制单次运行的模型次数、工具次数和累计已知 token 用量，各值须为正数。
-// token 预算在调用之间检查，单次模型调用可能超过剩余预算。
-type Limits struct {
-	ModelCalls int // 单次运行允许的最大模型调用次数。
-	ToolCalls  int // 单次运行允许的最大工具调用次数。
-	Tokens     int // 单次运行的累计已知 token 软预算。
-}
-
-// DefaultLimits 返回三个学习流程使用的默认运行预算。
-func DefaultLimits() Limits {
-	return Limits{
-		ModelCalls: 5,
-		ToolCalls:  8,
-		Tokens:     8000,
-	}
 }

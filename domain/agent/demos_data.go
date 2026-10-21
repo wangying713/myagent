@@ -58,7 +58,7 @@ type ProductTools struct{}
 func (ProductTools) Definitions() []ToolDefinition {
 	return append(MultiplyTools{}.Definitions(), ToolDefinition{
 		Type: ToolTypeFunction,
-		Function: FunctionDefinition{
+		Function: ToolFunctionDefinition{
 			Name:        ToolNameLookupProduct,
 			Description: "查询本地示例商品的价格、说明和资料来源。当前只收录笔记本，不是真实商店。",
 			Parameters:  mustToolParameters[demoLookupArgs](),
@@ -67,7 +67,7 @@ func (ProductTools) Definitions() []ToolDefinition {
 }
 
 // Dispatch 只查询固定资料或执行已注册的乘法；未知商品返回明确的失败结果。
-func (ProductTools) Dispatch(ctx context.Context, req ToolCall) (*ToolResult, error) {
+func (ProductTools) Dispatch(ctx context.Context, req ToolCallReq) (*ToolCallRsp, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -75,22 +75,22 @@ func (ProductTools) Dispatch(ctx context.Context, req ToolCall) (*ToolResult, er
 		return (MultiplyTools{}).Dispatch(ctx, req)
 	}
 	if req.Type != ToolTypeFunction || req.Function.Name != ToolNameLookupProduct {
-		return &ToolResult{
+		return &ToolCallRsp{
 			Error: "unknown_tool",
 		}, nil
 	}
 	var args demoLookupArgs
 	if decodeDemoObject(req.Function.Arguments, &args) != nil || strings.TrimSpace(args.Product) == "" {
-		return &ToolResult{
+		return &ToolCallRsp{
 			Error: "invalid_arguments",
 		}, nil
 	}
 	if args.Product != DemoProductName {
-		return &ToolResult{
+		return &ToolCallRsp{
 			Error: "示例资料中没有这个商品",
 		}, nil
 	}
-	return &ToolResult{
+	return &ToolCallRsp{
 		OK: true,
 		Result: demoProduct{
 			Product:     DemoProductName,

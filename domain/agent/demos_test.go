@@ -109,9 +109,9 @@ func TestDemoProductToolRejectsUnknownAndUnsafeArguments(t *testing.T) {
 		`{"product":"笔记本","command":"rm"}`,
 		`{"product":null}`,
 	} {
-		result, err := (ProductTools{}).Dispatch(context.Background(), ToolCall{
+		result, err := (ProductTools{}).Dispatch(context.Background(), ToolCallReq{
 			Type: ToolTypeFunction,
-			Function: FunctionCall{
+			Function: ToolFunctionCall{
 				Name:      ToolNameLookupProduct,
 				Arguments: arguments,
 			},
@@ -122,7 +122,7 @@ func TestDemoProductToolRejectsUnknownAndUnsafeArguments(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := (ProductTools{}).Dispatch(ctx, ToolCall{}); !errors.Is(err, context.Canceled) {
+	if _, err := (ProductTools{}).Dispatch(ctx, ToolCallReq{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("取消后仍然执行了商品工具")
 	}
 }

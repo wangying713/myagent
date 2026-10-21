@@ -3,10 +3,31 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 )
+
+// ErrBudgetExceeded 表示继续执行将超出模型次数、工具次数或已知用量预算。
+var ErrBudgetExceeded = errors.New("达到运行预算，任务未完成")
+
+// Limits 限制单次运行的模型次数、工具次数和累计已知 token 用量，各值须为正数。
+// token 预算在调用之间检查，单次模型调用可能超过剩余预算。
+type Limits struct {
+	ModelCalls int // 单次运行允许的最大模型调用次数。
+	ToolCalls  int // 单次运行允许的最大工具调用次数。
+	Tokens     int // 单次运行的累计已知 token 软预算。
+}
+
+// DefaultLimits 返回三个学习流程使用的默认运行预算。
+func DefaultLimits() Limits {
+	return Limits{
+		ModelCalls: 5,
+		ToolCalls:  8,
+		Tokens:     8000,
+	}
+}
 
 // RunInput 保存本次执行实际使用的输入。
 type RunInput struct {
@@ -94,14 +115,14 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (*Response, error
 }
 
 // callTool 执行工具，记录调用次数、结果和耗时，再把结果整理成模型能继续读取的消息。
-func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (message *Message, err error) {
+func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCallReq) (message *Message, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	started := time.Now()
-	var output *ToolResult
+	var output *ToolCallRsp
 	r.result.ToolCalls++
-	// ToolCall 只包含字符串和简单结构体，可以直接编码。
+	// ToolCallReq 只包含字符串和简单结构体，可以直接编码。
 	request, _ := json.Marshal(req)
 	output, err = tools.Dispatch(ctx, req)
 	if output == nil && err == nil {

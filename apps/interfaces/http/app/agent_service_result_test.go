@@ -10,9 +10,10 @@ import (
 )
 
 func TestAgentServiceValidationReturnsNoResult(t *testing.T) {
-	service := &agentService{
-		limits: agent.DefaultLimits(),
-	}
+	service := newResultTestService(t, resultModelFunc(func(context.Context, agent.Request) (*agent.Response, error) {
+		t.Fatal("请求参数无效时不应调用模型")
+		return nil, nil
+	}))
 	for _, req := range []agent.ChatReq{
 		{
 			Question: " ",

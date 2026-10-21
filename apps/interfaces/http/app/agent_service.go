@@ -48,15 +48,9 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 	return result, err
 }
 
-// validCahtReq 在建立运行观测前校验聊天问题和工具调用策略。
+// validCahtReq 在建立运行观测前校验聊天问题。
 func (a *agentService) validCahtReq(req agent.ChatReq) error {
-	if err := agent.ValidateQuestion(req.Question); err != nil {
-		return err
-	}
-	if req.ToolChoice != "" && req.ToolChoice != agent.ToolChoiceAuto && req.ToolChoice != agent.ToolChoiceNone {
-		return agent.ErrInput
-	}
-	return nil
+	return agent.ValidateQuestion(req.Question)
 }
 
 // Messages 为整段对话建立一个运行 span，实际历史始终由领域层维护。

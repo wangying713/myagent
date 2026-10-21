@@ -65,14 +65,14 @@ func demosModel(t *testing.T, calls *atomic.Int32) http.HandlerFunc {
 			}
 			if !multiplyDone {
 				reason = agent.FinishReasonToolCalls
-				function := agent.FunctionCall{
+				function := agent.ToolFunctionCall{
 					Name:      agent.ToolNameMultiply,
 					Arguments: `{"a":17,"b":23}`,
 				}
 				id := "multiply-1"
 				if len(req.Tools) > 1 && !lookupDone {
 					id = "lookup-1"
-					function = agent.FunctionCall{
+					function = agent.ToolFunctionCall{
 						Name:      agent.ToolNameLookupProduct,
 						Arguments: `{"product":"笔记本"}`,
 					}
@@ -82,7 +82,7 @@ func demosModel(t *testing.T, calls *atomic.Int32) http.HandlerFunc {
 					function.Arguments = `{"a":8,"b":0}`
 				}
 				message.Content = ""
-				message.ToolCalls = []agent.ToolCall{
+				message.ToolCalls = []agent.ToolCallReq{
 					{
 						ID:       id,
 						Type:     agent.ToolTypeFunction,
@@ -93,21 +93,26 @@ func demosModel(t *testing.T, calls *atomic.Int32) http.HandlerFunc {
 				message.Content = "结果为 " + answer + "。资料来源 demo-notebook-001。"
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"choices": []any{
-				map[string]any{
-					"message":       message,
-					"finish_reason": reason,
-				},
-			},
-			"usage": map[string]int{
-				"prompt_tokens":     1,
-				"completion_tokens": 1,
-				"total_tokens":      2,
-			},
-		})
+		writeDemosModelResponse(w, message, reason)
 	}
+}
+
+// writeDemosModelResponse 编码模型替身的消息、结束原因和固定用量。
+func writeDemosModelResponse(w http.ResponseWriter, message agent.Message, reason string) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"choices": []any{
+			map[string]any{
+				"message":       message,
+				"finish_reason": reason,
+			},
+		},
+		"usage": map[string]int{
+			"prompt_tokens":     1,
+			"completion_tokens": 1,
+			"total_tokens":      2,
+		},
+	})
 }
 
 func TestAgentDemosEveryChapter(t *testing.T) {

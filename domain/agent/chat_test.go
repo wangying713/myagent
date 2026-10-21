@@ -103,11 +103,11 @@ func TestChatRejectsToolCallsWhenDisabled(t *testing.T) {
 				return &Response{
 					Message: Message{
 						Role: RoleAssistant,
-						ToolCalls: []ToolCall{
+						ToolCalls: []ToolCallReq{
 							{
 								ID:   "unexpected-tool",
 								Type: ToolTypeFunction,
-								Function: FunctionCall{
+								Function: ToolFunctionCall{
 									Name:      ToolNameMultiply,
 									Arguments: `{"a":2,"b":3}`,
 								},
@@ -178,7 +178,7 @@ func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 			391,
 			6,
 		} {
-			var out ToolResult
+			var out ToolCallRsp
 			if err := json.Unmarshal([]byte(req.Messages[i+3].Content), &out); err != nil {
 				t.Fatal(err)
 			}
@@ -251,11 +251,11 @@ func TestChatKeepsBudgetOverridesLocal(t *testing.T) {
 			return &Response{
 				Message: Message{
 					Role: RoleAssistant,
-					ToolCalls: []ToolCall{
+					ToolCalls: []ToolCallReq{
 						{
 							ID:   "multiply-one",
 							Type: ToolTypeFunction,
-							Function: FunctionCall{
+							Function: ToolFunctionCall{
 								Name:      ToolNameMultiply,
 								Arguments: `{"a":2,"b":3}`,
 							},
@@ -358,9 +358,9 @@ func TestToolsRejectInvalidArguments(t *testing.T) {
 		},
 	} {
 		t.Run(tc.args, func(t *testing.T) {
-			out, err := (MultiplyTools{}).Dispatch(context.Background(), ToolCall{
+			out, err := (MultiplyTools{}).Dispatch(context.Background(), ToolCallReq{
 				Type: "function",
-				Function: FunctionCall{
+				Function: ToolFunctionCall{
 					Name:      "multiply",
 					Arguments: tc.args,
 				},
@@ -370,9 +370,9 @@ func TestToolsRejectInvalidArguments(t *testing.T) {
 			}
 		})
 	}
-	out, err := (MultiplyTools{}).Dispatch(context.Background(), ToolCall{
+	out, err := (MultiplyTools{}).Dispatch(context.Background(), ToolCallReq{
 		Type: "function",
-		Function: FunctionCall{
+		Function: ToolFunctionCall{
 			Name:      "shell",
 			Arguments: `{}`,
 		},
@@ -409,12 +409,12 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 			calls := 0
 			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				calls++
-				tools := []ToolCall{}
+				tools := []ToolCallReq{}
 				for _, id := range tc.ids {
-					tools = append(tools, ToolCall{
+					tools = append(tools, ToolCallReq{
 						ID:   id,
 						Type: "function",
-						Function: FunctionCall{
+						Function: ToolFunctionCall{
 							Name:      "multiply",
 							Arguments: `{"a":1,"b":2}`,
 						},
@@ -551,11 +551,11 @@ func TestChatCountsToolBudgetAcrossRounds(t *testing.T) {
 		return &Response{
 			Message: Message{
 				Role: RoleAssistant,
-				ToolCalls: []ToolCall{
+				ToolCalls: []ToolCallReq{
 					{
 						ID:   id,
 						Type: ToolTypeFunction,
-						Function: FunctionCall{
+						Function: ToolFunctionCall{
 							Name:      ToolNameMultiply,
 							Arguments: `{"a":2,"b":3}`,
 						},
@@ -617,12 +617,12 @@ func TestChatChecksWholeToolBatchBeforeExecution(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
-				var calls []ToolCall
+				var calls []ToolCallReq
 				for _, id := range tc.ids {
-					calls = append(calls, ToolCall{
+					calls = append(calls, ToolCallReq{
 						ID:   id,
 						Type: ToolTypeFunction,
-						Function: FunctionCall{
+						Function: ToolFunctionCall{
 							Name:      ToolNameMultiply,
 							Arguments: `{"a":2,"b":3}`,
 						},

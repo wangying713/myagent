@@ -232,11 +232,11 @@ func lessonModel(t *testing.T, lesson string) http.HandlerFunc {
 				reply(w, map[string]any{
 					"role":    "assistant",
 					"content": nil,
-					"tool_calls": []agent.ToolCall{
+					"tool_calls": []agent.ToolCallReq{
 						{
 							ID:   "multiply-1",
 							Type: "function",
-							Function: agent.FunctionCall{
+							Function: agent.ToolFunctionCall{
 								Name:      "multiply",
 								Arguments: `{"a":17,"b":23}`,
 							},
