@@ -32,12 +32,16 @@ func TestInvalidConfig(t *testing.T) {
 	for _, values := range []map[string]string{
 		{"TELEMETRY_ENABLED": "yes"},
 		{"AGENT_MAX_MODEL_CALLS": "0"},
+		{
+			"DEEPSEEK_API_KEY":     "配置中的模拟密钥",
+			"AGENT_MAX_TOOL_CALLS": "0",
+		},
 		{"HTTP_RUN_TIMEOUT": "-1s"},
 		{"DEEPSEEK_BASE_URL": "https://user:secret@example.com/v1"},
 		{"OTEL_EXPORTER_OTLP_TRACES_HEADERS": "Authorization=%0Asecret"},
 		{"OTEL_EXPORTER_OTLP_TRACES_HEADERS": "Authorization=x,authorization=y"},
 	} {
-		_, err := Load("", func(key string) (string, bool) {
+		cfg, err := Load("", func(key string) (string, bool) {
 			if value, ok := values[key]; ok {
 				return value, true
 			}
@@ -46,8 +50,15 @@ func TestInvalidConfig(t *testing.T) {
 			}
 			return "", false
 		})
-		if err == nil {
-			t.Fatalf("无效配置未拒绝：%v", values)
+		if err == nil || cfg != nil {
+			t.Fatalf("无效配置实际结果 %+v、错误 %v，预期 nil 和错误：%v", cfg, err, values)
 		}
+	}
+}
+
+func TestMissingFileReturnsNoSettings(t *testing.T) {
+	cfg, err := Load(filepath.Join(t.TempDir(), "missing.env"), nil)
+	if cfg != nil || err == nil {
+		t.Fatalf("实际配置 %+v、错误 %v，预期读文件失败返回 nil 和错误", cfg, err)
 	}
 }

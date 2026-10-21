@@ -93,7 +93,7 @@ func (a *ImplAgentDemos) Structured(ctx context.Context, req *entity.DemosStruct
 		return nil, err
 	}
 	return &entity.DemosStructuredRsp{
-		Execution: a.agentCli.agentResult(&result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Product:   result.Order.Product,
 		Quantity:  result.Order.Quantity,
 	}, err
@@ -153,7 +153,7 @@ func (a *ImplAgentDemos) Retrieval(ctx context.Context, req *entity.DemosRetriev
 		})
 	}
 	return &entity.DemosRetrievalRsp{
-		Execution: a.agentCli.agentResult(&result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Sources:   sources,
 	}, err
 }
@@ -172,7 +172,7 @@ func (a *ImplAgentDemos) Workflow(ctx context.Context, req *entity.DemosWorkflow
 		})
 	}
 	return &entity.DemosWorkflowRsp{
-		Execution: a.agentCli.agentResult(&result.Execution),
+		Execution: a.agentCli.agentResult(result.Execution),
 		Stages:    stages,
 	}, err
 }

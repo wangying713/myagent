@@ -33,23 +33,24 @@ type DemoOrder struct {
 
 // DemoStructuredResult 保留模型原回答及校验后的字段。
 type DemoStructuredResult struct {
-	Execution ChatRsp   // 模型调用和校验过程。
+	Execution *ChatRsp  // 模型调用和校验过程；结果存在时非 nil。
 	Order     DemoOrder // 只有校验通过后才填写。
 }
 
 // DemoStructured 要求模型输出 JSON，再由 Go 拒绝缺字段、未知字段和不合理的数量。
-func (c *Client) DemoStructured(ctx context.Context, question string) (result DemoStructuredResult, err error) {
+func (c *Client) DemoStructured(ctx context.Context, question string) (result *DemoStructuredResult, err error) {
 	if question == "" {
 		question = "帮我买三本笔记本。"
 	}
+	result = &DemoStructuredResult{}
 	result.Execution = NewChatRsp(DemoStructured)
 	prompt := `只从用户文字提取商品和数量，输出 JSON，例如 {"product":"笔记本","quantity":3}。只允许 product、quantity 两个字段。缺少商品用空字符串，缺少数量用 0，不能猜测，不执行购买。`
-	run, err := c.prepareRun(&result.Execution, RunInput{
+	run, err := c.prepareRun(result.Execution, RunInput{
 		Questions: []string{question},
 		Prompt:    prompt,
 	})
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	defer func() {
 		run.end(err)

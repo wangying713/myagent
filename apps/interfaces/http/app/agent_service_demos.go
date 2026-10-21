@@ -38,66 +38,78 @@ type demoEvaluationResult struct {
 }
 
 // DemoStructured 观测结构化提取，并对展示的商品名称脱敏。
-func (a *agentService) DemoStructured(ctx context.Context, question string) (rsp *agent.DemoStructuredResult, err error) {
+func (a *agentService) DemoStructured(ctx context.Context, question string) (result *agent.DemoStructuredResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	var result agent.DemoStructuredResult
 	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStructured, &a.model)
 	defer func() {
-		a.finishRun(run, &result.Execution, err)
+		var execution *agent.ChatRsp
+		if result != nil {
+			execution = result.Execution
+		}
+		a.finishRun(run, execution, err)
 	}()
 	result, err = a.agentCli.DemoStructured(ctx, question)
-	result.Order.Product = a.observeCli.Clean(result.Order.Product)
-	return &result, err
+	if result != nil {
+		result.Order.Product = a.observeCli.Clean(result.Order.Product)
+	}
+	return result, err
 }
 
 // DemoRetrieval 观测检索与回答，实际资料选择仍由领域层处理。
-func (a *agentService) DemoRetrieval(ctx context.Context, question string) (rsp *agent.DemoRetrievalResult, err error) {
+func (a *agentService) DemoRetrieval(ctx context.Context, question string) (result *agent.DemoRetrievalResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	var result agent.DemoRetrievalResult
 	ctx, run := a.observeCli.StartRun(ctx, agent.DemoRetrieval, &a.model)
 	defer func() {
-		a.finishRun(run, &result.Execution, err)
+		var execution *agent.ChatRsp
+		if result != nil {
+			execution = result.Execution
+		}
+		a.finishRun(run, execution, err)
 	}()
 	result, err = a.agentCli.DemoRetrieval(ctx, question)
-	return &result, err
+	return result, err
 }
 
 // DemoWorkflow 观测整个工作流，阶段之间始终传递原始模型输出。
-func (a *agentService) DemoWorkflow(ctx context.Context, question string) (rsp *agent.DemoWorkflowResult, err error) {
+func (a *agentService) DemoWorkflow(ctx context.Context, question string) (result *agent.DemoWorkflowResult, err error) {
 	if err := validateDemoQuestion(question); err != nil {
 		return nil, err
 	}
-	var result agent.DemoWorkflowResult
 	ctx, run := a.observeCli.StartRun(ctx, agent.DemoWorkflow, &a.model)
 	defer func() {
-		a.finishRun(run, &result.Execution, err)
+		var execution *agent.ChatRsp
+		if result != nil {
+			execution = result.Execution
+		}
+		a.finishRun(run, execution, err)
 	}()
 	result, err = a.agentCli.DemoWorkflow(ctx, question)
-	for i := range result.Stages {
-		result.Stages[i].Content = a.observeCli.Clean(result.Stages[i].Content)
+	if result != nil {
+		for i := range result.Stages {
+			result.Stages[i].Content = a.observeCli.Clean(result.Stages[i].Content)
+		}
 	}
-	return &result, err
+	return result, err
 }
 
 // DemoStream 在同步消费期间保持运行观测，不创建后台生成协程。
-func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput) (rsp *agent.ChatRsp, err error) {
+func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput) (result *agent.ChatRsp, err error) {
 	if err := validateDemoQuestion(req.Question); err != nil {
 		return nil, err
 	}
 	if req.Emit == nil {
 		return nil, agent.ErrInput
 	}
-	var result agent.ChatRsp
 	ctx, run := a.observeCli.StartRun(ctx, agent.DemoStream, &a.model)
 	defer func() {
-		a.finishRun(run, &result, err)
+		a.finishRun(run, result, err)
 	}()
 	result, err = a.agentCli.DemoStream(ctx, req)
-	return &result, err
+	return result, err
 }
 
 // DemoOverview 对同一问题分别执行普通聊天与工具循环，不编造步骤。

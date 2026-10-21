@@ -22,12 +22,12 @@ import (
 const streamResponseLimit = 4 << 20
 
 // Stream 请求真实的模型文本流，逐事件解析；断流、截断和缺少结束标志都不能算成功。
-func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result agent.Response, err error) {
+func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result *agent.Response, err error) {
 	if err := ctx.Err(); err != nil {
-		return result, err
+		return nil, err
 	}
 	if req.Emit == nil || len(req.Request.Messages) == 0 || len(req.Request.Tools) != 0 {
-		return result, errors.New("文本流需要消息和分段接收函数，且不支持工具调用")
+		return nil, errors.New("文本流需要消息和分段接收函数，且不支持工具调用")
 	}
 	request := req.Request
 	request.Model = c.config.Model
@@ -37,14 +37,16 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result agen
 	request.ToolChoice = ""
 	raw, err := json.Marshal(request)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
-	result.RequestJSON = raw
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.config.BaseURL, "/")+"/chat/completions", bytes.NewReader(raw))
 	if err != nil {
-		return result, err
+		return nil, err
+	}
+	result = &agent.Response{
+		RequestJSON: raw,
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
@@ -72,7 +74,7 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result agen
 	}
 	result.Message.Role = agent.RoleAssistant
 	err = readTextStream(ctx, response.Body, streamReceiver{
-		result: &result,
+		result: result,
 		emit:   req.Emit,
 	})
 	return result, err

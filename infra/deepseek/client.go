@@ -101,12 +101,12 @@ func (c *Client) ModelInfo() openobserve.ModelInfo {
 
 // Chat 执行一次模型请求，按 ctx 和配置超时中较早的截止时间取消，不自动重试。
 // 请求使用配置中的模型并关闭流式和思考模式；失败时仍返回已取得的请求或响应原文。
-func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Response, err error) {
+func (c *Client) Chat(ctx context.Context, req agent.Request) (result *agent.Response, err error) {
 	if err := ctx.Err(); err != nil {
-		return result, err
+		return nil, err
 	}
 	if req.Stream {
-		return result, errors.New("流式请求请使用 Stream 方法")
+		return nil, errors.New("流式请求请使用 Stream 方法")
 	}
 	req.Model = c.config.Model
 	req.Thinking.Type = defaultThinkingType
@@ -116,19 +116,21 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result agent.Resp
 		req.ToolChoice = ""
 	}
 	if len(req.Messages) == 0 {
-		return result, errors.New("消息不能为空")
+		return nil, errors.New("消息不能为空")
 	}
 	raw, err := json.Marshal(req)
 	if err != nil {
-		return result, fmt.Errorf("编码模型请求: %w", err)
+		return nil, fmt.Errorf("编码模型请求: %w", err)
 	}
-	result.RequestJSON = raw
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 	endpoint := strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
-		return result, errors.New("无法创建模型请求")
+		return nil, errors.New("无法创建模型请求")
+	}
+	result = &agent.Response{
+		RequestJSON: raw,
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)

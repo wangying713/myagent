@@ -114,7 +114,7 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 					Tokens:     100,
 				},
 			}
-			result := agent.ChatRsp{
+			result := &agent.ChatRsp{
 				Input:         input,
 				Completed:     tc.err == nil,
 				Answer:        "已有回答 configured-secret",
@@ -159,7 +159,7 @@ func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 }
 
 // assertRunPreviews 检查运行输入预览和脱敏后的输出预览。
-func assertRunPreviews(t *testing.T, attrs map[string]attribute.Value, wantQuestion string, result agent.ChatRsp) {
+func assertRunPreviews(t *testing.T, attrs map[string]attribute.Value, wantQuestion string, result *agent.ChatRsp) {
 	t.Helper()
 	var input map[string]any
 	if err := json.Unmarshal([]byte(wantQuestion), &input); err != nil {
@@ -203,7 +203,7 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 		}[capture], func(t *testing.T) {
 			observeCli, exporter := newTestClient(t, capture, 256)
 			_, run := observeCli.StartRun(t.Context(), "chat", nil)
-			run.End(agent.ChatRsp{
+			run.End(&agent.ChatRsp{
 				Input: agent.RunInput{
 					Questions: []string{strings.Repeat("输入", 200)},
 				},
@@ -249,7 +249,7 @@ func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
 			Arguments: `{"b":23,"a":17}`,
 		},
 	})
-	tool.End(agent.ToolResult{
+	tool.End(&agent.ToolResult{
 		OK:     true,
 		Result: 391,
 	}, nil)
@@ -300,7 +300,7 @@ func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 					Arguments: tc.arguments,
 				},
 			})
-			tool.End(agent.ToolResult{
+			tool.End(&agent.ToolResult{
 				OK:     true,
 				Result: 391,
 			}, nil)
@@ -325,5 +325,18 @@ func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRunWithoutResultStillEndsObservation(t *testing.T) {
+	observeCli, exporter := newTestClient(t, true, 4096)
+	_, run := observeCli.StartRun(t.Context(), agent.OperationChat, nil)
+	run.End(nil, agent.ErrInput)
+	attrs, status := runAttributes(t, observeCli, exporter)
+	if status != codes.Error {
+		t.Fatalf("实际状态 %v，预期没有结果的失败仍结束观测并标记错误", status)
+	}
+	if _, ok := attrs["app.response"]; ok {
+		t.Fatal("缺少结果时不应生成虚假的输出预览")
 	}
 }

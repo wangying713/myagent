@@ -9,7 +9,8 @@ import (
 // StreamClient 是文本流式演示需要的能力；每段内容在读取到时同步交给 Emit。
 type StreamClient interface {
 	// Stream 收到取消或 Emit 返回错误后立即停止，不启动脱离请求的协程。
-	Stream(ctx context.Context, req StreamInput) (Response, error)
+	// 前置失败返回 nil；读取中断时保留已接收的响应片段。
+	Stream(ctx context.Context, req StreamInput) (*Response, error)
 }
 
 // StreamInput 同时保存模型请求和本次请求独占的分段接收函数。
@@ -25,24 +26,24 @@ type DemoStreamInput struct {
 }
 
 // DemoStream 沿用当前请求上下文实时生成，失败时保留已经收到的文字与执行记录。
-func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result ChatRsp, err error) {
+func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result *ChatRsp, err error) {
 	if req.Question == "" {
 		req.Question = "用生活中的例子解释 Go 的 context，分三点说明。"
 	}
 	if req.Emit == nil {
-		return result, ErrInput
+		return nil, ErrInput
 	}
 	chatCli, ok := c.chatCli.(StreamClient)
 	if !ok {
-		return result, errors.New("模型客户端不支持流式回答")
+		return nil, errors.New("模型客户端不支持流式回答")
 	}
 	result = NewChatRsp(DemoStream)
-	run, err := c.prepareRun(&result, RunInput{
+	run, err := c.prepareRun(result, RunInput{
 		Questions: []string{req.Question},
 		Prompt:    DemoChatPrompt,
 	})
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	defer func() {
 		run.end(err)
@@ -64,7 +65,11 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 	if err == nil {
 		err = response.Validate()
 	}
-	if total, known := response.Usage.Total(); known {
+	var data Response
+	if response != nil {
+		data = *response
+	}
+	if total, known := data.Usage.Total(); known {
 		result.KnownTokens = total
 	} else {
 		result.UsageComplete = false
@@ -72,11 +77,11 @@ func (c *Client) DemoStream(ctx context.Context, req DemoStreamInput) (result Ch
 	record := CallRecord{
 		Kind:         CallKindModel,
 		Name:         "实时流式模型请求",
-		Request:      string(response.RequestJSON),
-		Response:     string(response.Raw),
+		Request:      string(data.RequestJSON),
+		Response:     string(data.Raw),
 		ElapsedMS:    time.Since(started).Milliseconds(),
-		FinishReason: response.FinishReason,
-		Usage:        &response.Usage,
+		FinishReason: data.FinishReason,
+		Usage:        &data.Usage,
 	}
 	if err != nil {
 		record.Error = "流式回答未完成，已保留收到的内容"

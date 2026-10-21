@@ -32,7 +32,7 @@ func newAgentService(agentCli *agent.Client, observeCli *openobserve.Client, mod
 
 // Chat 在业务调用边界建立运行观测，并装饰本次请求使用的工具集合。
 // 输入校验失败返回 nil；开始执行后保留完整或部分结果。
-func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (rsp *agent.ChatRsp, err error) {
+func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *agent.ChatRsp, err error) {
 	if req.Operation == "" {
 		req.Operation = agent.OperationChat
 	}
@@ -49,18 +49,17 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (rsp *agent.
 			ObserveCli: a.observeCli,
 		}
 	}
-	var result agent.ChatRsp
 	ctx, run := a.observeCli.StartRun(ctx, req.Operation, &a.model)
 	defer func() {
-		a.finishRun(run, &result, err)
+		a.finishRun(run, result, err)
 	}()
 	result, err = a.agentCli.Chat(ctx, req)
-	return &result, err
+	return result, err
 }
 
 // Messages 为整段对话建立一个运行 span，实际历史始终由领域层维护。
 // 输入校验失败返回 nil；执行失败时保留已完成的轮次。
-func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (rsp *agent.ChatRsp, err error) {
+func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (result *agent.ChatRsp, err error) {
 	if req.Questions != nil {
 		if len(req.Questions) != 2 {
 			return nil, agent.ErrInput
@@ -71,17 +70,20 @@ func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (r
 			}
 		}
 	}
-	var result agent.ChatRsp
 	ctx, run := a.observeCli.StartRun(ctx, agent.OperationMessages, &a.model)
 	defer func() {
-		a.finishRun(run, &result, err)
+		a.finishRun(run, result, err)
 	}()
 	result, err = a.agentCli.Messages(ctx, req)
-	return &result, err
+	return result, err
 }
 
 // finishRun 只处理对外展示的结果副本，保留原始执行输入供观测记录。
 func (a *agentService) finishRun(run *openobserve.Run, result *agent.ChatRsp, err error) {
+	if result == nil {
+		run.End(nil, err)
+		return
+	}
 	result.Answer = a.observeCli.Clean(result.Answer)
 	result.Calls = slices.Clone(result.Calls)
 	for i := range result.Calls {
@@ -91,7 +93,7 @@ func (a *agentService) finishRun(run *openobserve.Run, result *agent.ChatRsp, er
 		record.Response = a.observeCli.Safe([]byte(record.Response))
 		record.Error = a.observeCli.Clean(record.Error)
 	}
-	run.End(*result, err)
+	run.End(result, err)
 }
 
 // validateDemoQuestion 允许案例使用自己的默认问题，显式问题必须符合领域约束。

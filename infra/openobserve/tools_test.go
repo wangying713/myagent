@@ -13,7 +13,7 @@ import (
 
 // testTools 提供可检查上下文、参数和返回结果的工具执行替身。
 type testTools struct {
-	dispatch func(context.Context, agent.ToolCall) (agent.ToolResult, error) // 当前用例的执行行为。
+	dispatch func(context.Context, agent.ToolCall) (*agent.ToolResult, error) // 当前用例的执行行为。
 }
 
 // Definitions 返回用例使用的真实乘法定义。
@@ -22,7 +22,7 @@ func (testTools) Definitions() []agent.ToolDefinition {
 }
 
 // Dispatch 把工具输入原样交给用例检查。
-func (t testTools) Dispatch(ctx context.Context, req agent.ToolCall) (agent.ToolResult, error) {
+func (t testTools) Dispatch(ctx context.Context, req agent.ToolCall) (*agent.ToolResult, error) {
 	return t.dispatch(ctx, req)
 }
 
@@ -52,16 +52,16 @@ func TestToolsPreservesResultContextAndCancellation(t *testing.T) {
 			tools := Tools{
 				ObserveCli: observeCli,
 				Tools: testTools{
-					dispatch: func(ctx context.Context, actual agent.ToolCall) (agent.ToolResult, error) {
+					dispatch: func(ctx context.Context, actual agent.ToolCall) (*agent.ToolResult, error) {
 						toolID = trace.SpanFromContext(ctx).SpanContext().SpanID()
 						if actual != req || !toolID.IsValid() || toolID == parent.SpanContext().SpanID() {
 							t.Fatalf("实际工具输入 %+v，预期原样传递且使用工具子上下文", actual)
 						}
 						if cancelDuringCall {
 							cancel()
-							return agent.ToolResult{}, ctx.Err()
+							return nil, ctx.Err()
 						}
-						return agent.ToolResult{
+						return &agent.ToolResult{
 							OK:     true,
 							Result: "configured-secret",
 						}, nil
@@ -85,5 +85,32 @@ func TestToolsPreservesResultContextAndCancellation(t *testing.T) {
 				t.Fatalf("实际观测输出 %s，预期仅对展示副本脱敏", attrs["app.response"].AsString())
 			}
 		})
+	}
+}
+
+func TestToolsRejectsMissingResultAndEndsObservation(t *testing.T) {
+	observeCli, exporter := newTestClient(t, true, 4096)
+	tools := Tools{
+		ObserveCli: observeCli,
+		Tools: testTools{
+			dispatch: func(context.Context, agent.ToolCall) (*agent.ToolResult, error) {
+				return nil, nil
+			},
+		},
+	}
+	result, err := tools.Dispatch(t.Context(), agent.ToolCall{
+		ID:   "one",
+		Type: agent.ToolTypeFunction,
+		Function: agent.FunctionCall{
+			Name:      agent.ToolNameMultiply,
+			Arguments: `{"a":2,"b":3}`,
+		},
+	})
+	if result != nil || !errors.Is(err, agent.ErrInvalidResponse) {
+		t.Fatalf("实际结果 %+v、错误 %v，预期缺失结果转换为协议错误", result, err)
+	}
+	toolAttributes(t, observeCli, exporter)
+	if exporter.GetSpans()[0].Status.Code != codes.Error {
+		t.Fatal("缺失工具结果没有结束为错误观测")
 	}
 }

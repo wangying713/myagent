@@ -40,13 +40,13 @@ func TestPrepareRunRejectsInvalidQuestions(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				t.Fatal("问题无效时不应调用模型")
-				return Response{}, nil
+				return nil, nil
 			})
 			agentCli := newTestClient(t, chatCli, DefaultLimits())
 			result := NewChatRsp(OperationChat)
-			run, err := agentCli.prepareRun(&result, RunInput{
+			run, err := agentCli.prepareRun(result, RunInput{
 				Questions: tc.questions,
 			})
 			if !errors.Is(err, ErrInput) || run != nil {

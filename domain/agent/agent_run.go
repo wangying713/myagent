@@ -48,12 +48,12 @@ func (c *Client) prepareRun(result *ChatRsp, req RunInput) (*agentRun, error) {
 }
 
 // callModel 先检查预算，再请求模型，并记下用量、结果和耗时；失败时也保留记录。
-func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error) {
+func (r *agentRun) callModel(ctx context.Context, req Request) (*Response, error) {
 	if err := ctx.Err(); err != nil {
-		return Response{}, err
+		return nil, err
 	}
 	if r.result.ModelCalls >= r.limits.ModelCalls || r.result.KnownTokens >= r.limits.Tokens {
-		return Response{}, ErrBudgetExceeded
+		return nil, ErrBudgetExceeded
 	}
 	started := time.Now()
 	r.result.ModelCalls++
@@ -61,12 +61,16 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error)
 	if err == nil {
 		err = response.Validate()
 	}
-	if total, known := response.Usage.Total(); known && total <= math.MaxInt-r.result.KnownTokens {
+	var data Response
+	if response != nil {
+		data = *response
+	}
+	if total, known := data.Usage.Total(); known && total <= math.MaxInt-r.result.KnownTokens {
 		r.result.KnownTokens += total
 	} else {
 		r.result.UsageComplete = false
 	}
-	request := response.RequestJSON
+	request := data.RequestJSON
 	if len(request) == 0 {
 		// Request 仅包含可编码的协议字段；失败时也不能丢失业务错误。
 		if encoded, encodeErr := json.Marshal(req); encodeErr == nil {
@@ -77,10 +81,10 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error)
 		Kind:         CallKindModel,
 		Name:         fmt.Sprintf("第 %d 次模型请求", r.result.ModelCalls),
 		Request:      string(request),
-		Response:     string(response.Raw),
+		Response:     string(data.Raw),
 		ElapsedMS:    time.Since(started).Milliseconds(),
-		FinishReason: response.FinishReason,
-		Usage:        &response.Usage,
+		FinishReason: data.FinishReason,
+		Usage:        &data.Usage,
 	}
 	if err != nil {
 		record.Error = "模型调用未完成"
@@ -90,20 +94,23 @@ func (r *agentRun) callModel(ctx context.Context, req Request) (Response, error)
 }
 
 // callTool 执行工具，记录调用次数、结果和耗时，再把结果整理成模型能继续读取的消息。
-func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (message Message, err error) {
+func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (message *Message, err error) {
 	if err := ctx.Err(); err != nil {
-		return Message{}, err
+		return nil, err
 	}
 	started := time.Now()
-	var output ToolResult
+	var output *ToolResult
 	r.result.ToolCalls++
 	// ToolCall 只包含字符串和简单结构体，可以直接编码。
 	request, _ := json.Marshal(req)
 	output, err = tools.Dispatch(ctx, req)
+	if output == nil && err == nil {
+		err = fmt.Errorf("工具未返回执行结果: %w", ErrInvalidResponse)
+	}
 	// 完整结果用于后续模型消息和执行记录，展示副本由应用层处理。
 	response, encodeErr := json.Marshal(output)
-	if encodeErr != nil {
-		return Message{}, fmt.Errorf("记录工具结果: %w", encodeErr)
+	if encodeErr != nil && err == nil {
+		err = fmt.Errorf("记录工具结果: %w", encodeErr)
 	}
 	record := CallRecord{
 		Kind:      CallKindTool,
@@ -119,9 +126,9 @@ func (r *agentRun) callTool(ctx context.Context, tools Tools, req ToolCall) (mes
 	}
 	r.result.Calls = append(r.result.Calls, record)
 	if err != nil {
-		return Message{}, err
+		return nil, err
 	}
-	return Message{
+	return &Message{
 		Role:       RoleTool,
 		ToolCallID: req.ID,
 		Content:    string(response),

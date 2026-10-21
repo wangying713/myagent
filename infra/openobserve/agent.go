@@ -180,7 +180,12 @@ type Run struct {
 }
 
 // End 记录实际输入、完整或部分结果和最终错误，并结束本次运行。
-func (r *Run) End(result agent.ChatRsp, err error) {
+// result 为 nil 时只记录结束状态，不构造虚假的业务结果。
+func (r *Run) End(result *agent.ChatRsp, err error) {
+	if result == nil {
+		End(r.span, r.started, err)
+		return
+	}
 	r.recordInput(result.Input)
 	output := runOutput{
 		Operation:     result.Operation,
@@ -236,11 +241,11 @@ type toolObservation struct {
 	started    time.Time  // 本次调用的开始时间，用于统计耗时。
 }
 
-func (t *toolObservation) End(output agent.ToolResult, err error) {
+func (t *toolObservation) End(output *agent.ToolResult, err error) {
 	if response, encodeErr := json.Marshal(output); encodeErr == nil {
 		t.observeCli.Payload(t.span, "app.response", response)
 	}
-	if !output.OK {
+	if output != nil && !output.OK {
 		t.span.SetStatus(codes.Error, "工具调用被拒绝")
 		t.span.SetAttributes(attribute.String("app.tool.error", t.observeCli.Clean(output.Error)))
 	}

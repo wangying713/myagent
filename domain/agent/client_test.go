@@ -17,11 +17,11 @@ func newTestClient(t *testing.T, chatCli ChatClient, limits Limits) *Client {
 }
 
 func TestClientChatRecordsOriginalResult(t *testing.T) {
-	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(ctx context.Context, req Request) (*Response, error) {
 		if len(req.Messages) != 2 || req.Messages[0].Content != "按调用方的要求回答" || req.Messages[1].Content != "  调用方的问题  " {
 			t.Fatalf("实际请求 %+v，预期保留调用方的问题和提示词", req.Messages)
 		}
-		return Response{
+		return &Response{
 			Message: Message{
 				Role:    "assistant",
 				Content: "回答包含本机密钥",
@@ -52,7 +52,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 			true:  "预算停止",
 		}[limited], func(t *testing.T) {
 			calls := 0
-			chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+			chatCli := modelFunc(func(ctx context.Context, req Request) (*Response, error) {
 				calls++
 				answer := "记住了豆包。"
 				if calls == 2 {
@@ -61,7 +61,7 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 					}
 					answer = "豆包"
 				}
-				return Response{
+				return &Response{
 					Message: Message{
 						Role:    "assistant",
 						Content: answer,
@@ -87,10 +87,10 @@ func TestClientMessagesPreservesHistoryAndPartialAnswer(t *testing.T) {
 
 func TestClientChatRecordsTool(t *testing.T) {
 	calls := 0
-	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(ctx context.Context, req Request) (*Response, error) {
 		calls++
 		if calls == 1 {
-			return Response{
+			return &Response{
 				Message: Message{
 					Role: "assistant",
 					ToolCalls: []ToolCall{
@@ -110,7 +110,7 @@ func TestClientChatRecordsTool(t *testing.T) {
 		if len(req.Messages) != 4 || req.Messages[3].ToolCallID != "one" || !strings.Contains(req.Messages[3].Content, "391") {
 			t.Fatalf("未回填工具结果：%+v", req.Messages)
 		}
-		return Response{
+		return &Response{
 			Message: Message{
 				Role:    "assistant",
 				Content: "391",
@@ -133,9 +133,9 @@ func TestClientChatRecordsTool(t *testing.T) {
 }
 
 func TestClientInputAndCancellation(t *testing.T) {
-	agentCli := newTestClient(t, modelFunc(func(context.Context, Request) (Response, error) {
+	agentCli := newTestClient(t, modelFunc(func(context.Context, Request) (*Response, error) {
 		t.Fatal("无效输入或取消后不应调用模型")
-		return Response{}, nil
+		return nil, nil
 	}), DefaultLimits())
 	for _, question := range []string{
 		"  ",

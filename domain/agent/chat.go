@@ -8,8 +8,8 @@ import (
 // ChatClient 由模型的使用方定义，只要求当前业务需要的非流式能力。
 type ChatClient interface {
 	// Chat 执行一次模型请求，须响应 ctx 取消。
-	// 失败时可同时返回用于记录的响应数据。
-	Chat(ctx context.Context, req Request) (Response, error)
+	// 前置失败返回 nil；发起调用后，失败时仍返回已取得的请求或响应数据。
+	Chat(ctx context.Context, req Request) (*Response, error)
 }
 
 // ChatReq 保存对话输入，模型客户端和默认预算由 Client 提供。
@@ -44,8 +44,8 @@ type ChatRsp struct {
 }
 
 // NewChatRsp 创建本次运行的初始结果。
-func NewChatRsp(operation string) ChatRsp {
-	return ChatRsp{
+func NewChatRsp(operation string) *ChatRsp {
+	return &ChatRsp{
 		Operation: operation,
 		// 尚未调用模型时没有缺失用量；后续无法确认或累计用量时改为 false。
 		UsageComplete: true,
@@ -73,27 +73,28 @@ type CallRecord struct {
 
 // Chat 统一处理普通问答和工具对话，并记录执行过程与用量。
 // 不提供工具或指定 none 时只接受直接回答；允许工具时按预算继续对话。
-func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp ChatRsp, err error) {
+// 输入准备失败返回 nil；执行开始后失败仍保留结果和调用记录。
+func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error) {
 	if req.Operation == "" {
 		req.Operation = OperationChat
 	}
 	rsp = NewChatRsp(req.Operation)
 	definitions, err := c.prepareChat(&req)
 	if err != nil {
-		return rsp, err
+		return nil, err
 	}
 	limits := req.Limits
 	// 只给当前调用设置预算，客户端本身保持不变，可以继续供其他请求使用。
 	local := *c
 	local.limits = limits
-	run, err := local.prepareRun(&rsp, RunInput{
+	run, err := local.prepareRun(rsp, RunInput{
 		Questions:  []string{req.Question},
 		Prompt:     req.Prompt,
 		Tools:      definitions,
 		ToolChoice: req.ToolChoice,
 	})
 	if err != nil {
-		return rsp, err
+		return nil, err
 	}
 	defer func() {
 		run.end(err)
@@ -142,7 +143,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp ChatRsp, err error)
 			if err != nil {
 				return rsp, err
 			}
-			messages = append(messages, message)
+			messages = append(messages, *message)
 		}
 	}
 	return rsp, ErrBudgetExceeded

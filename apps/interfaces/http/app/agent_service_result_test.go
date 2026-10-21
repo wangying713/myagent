@@ -72,10 +72,10 @@ func TestAgentServiceValidationReturnsNoResult(t *testing.T) {
 }
 
 // resultModelFunc 提供返回完整或部分结果的离线模型替身。
-type resultModelFunc func(context.Context, agent.Request) (agent.Response, error)
+type resultModelFunc func(context.Context, agent.Request) (*agent.Response, error)
 
 // Chat 按用例指定的顺序返回模型响应或执行错误。
-func (f resultModelFunc) Chat(ctx context.Context, req agent.Request) (agent.Response, error) {
+func (f resultModelFunc) Chat(ctx context.Context, req agent.Request) (*agent.Response, error) {
 	return f(ctx, req)
 }
 
@@ -108,12 +108,12 @@ func newResultTestService(t *testing.T, chatCli agent.ChatClient) *agentService 
 
 func TestAgentServiceKeepsPartialResultWithError(t *testing.T) {
 	calls := 0
-	service := newResultTestService(t, resultModelFunc(func(context.Context, agent.Request) (agent.Response, error) {
+	service := newResultTestService(t, resultModelFunc(func(context.Context, agent.Request) (*agent.Response, error) {
 		calls++
 		if calls == 2 {
-			return agent.Response{}, context.DeadlineExceeded
+			return nil, context.DeadlineExceeded
 		}
-		return agent.Response{
+		return &agent.Response{
 			Message: agent.Message{
 				Role:    agent.RoleAssistant,
 				Content: "第一轮已完成",
@@ -134,8 +134,8 @@ func TestAgentServiceKeepsPartialResultWithError(t *testing.T) {
 }
 
 func TestCompositeDemoKeepsStartedExecutionOnError(t *testing.T) {
-	service := newResultTestService(t, resultModelFunc(func(context.Context, agent.Request) (agent.Response, error) {
-		return agent.Response{}, context.DeadlineExceeded
+	service := newResultTestService(t, resultModelFunc(func(context.Context, agent.Request) (*agent.Response, error) {
+		return nil, context.DeadlineExceeded
 	}))
 	result, err := service.DemoOverview(t.Context(), "有效问题")
 	if result == nil || result.Direct == nil || result.WithTools != nil || !errors.Is(err, context.DeadlineExceeded) {

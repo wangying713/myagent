@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-type modelFunc func(context.Context, Request) (Response, error)
+type modelFunc func(context.Context, Request) (*Response, error)
 
-func (f modelFunc) Chat(ctx context.Context, req Request) (Response, error) {
+func (f modelFunc) Chat(ctx context.Context, req Request) (*Response, error) {
 	return f(ctx, req)
 }
 
@@ -51,7 +51,7 @@ func TestChatChoosesToolPolicy(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+			chatCli := modelFunc(func(_ context.Context, req Request) (*Response, error) {
 				calls++
 				if len(req.Messages) != 1 || req.Messages[0].Role != RoleUser || req.Messages[0].Content != "打个招呼" {
 					t.Fatalf("未提供提示词时应只发送用户问题，实际 %+v", req.Messages)
@@ -59,7 +59,7 @@ func TestChatChoosesToolPolicy(t *testing.T) {
 				if req.ToolChoice != tc.wantChoice || (len(req.Tools) > 0) != (tc.tools != nil) {
 					t.Fatalf("实际策略 %q、工具 %d 个，预期策略 %q、提供工具 %v", req.ToolChoice, len(req.Tools), tc.wantChoice, tc.tools != nil)
 				}
-				return Response{
+				return &Response{
 					Message: Message{
 						Role:    RoleAssistant,
 						Content: "直接回答",
@@ -98,9 +98,9 @@ func TestChatRejectsToolCallsWhenDisabled(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				calls++
-				return Response{
+				return &Response{
 					Message: Message{
 						Role: RoleAssistant,
 						ToolCalls: []ToolCall{
@@ -131,9 +131,9 @@ func TestChatRejectsToolCallsWhenDisabled(t *testing.T) {
 }
 
 func TestChatRejectsUnknownToolChoiceBeforeModelCall(t *testing.T) {
-	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+	chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 		t.Fatal("工具策略无效时不应调用模型")
-		return Response{}, nil
+		return nil, nil
 	})
 	agentCli := newTestClient(t, chatCli, DefaultLimits())
 	_, err := agentCli.Chat(t.Context(), ChatReq{
@@ -147,7 +147,7 @@ func TestChatRejectsUnknownToolChoiceBeforeModelCall(t *testing.T) {
 
 func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 	calls := 0
-	chatCli := modelFunc(func(ctx context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(ctx context.Context, req Request) (*Response, error) {
 		calls++
 		if calls == 1 {
 			if len(req.Messages) != 2 || req.Messages[0].Role != RoleSystem || req.Messages[0].Content != "计算助手" || req.Messages[1].Role != RoleUser || req.Messages[1].Content != "问题" {
@@ -159,7 +159,7 @@ func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 				t.Fatal(err)
 			}
 			message.Raw = raw
-			return Response{
+			return &Response{
 				Message:      message,
 				FinishReason: "tool_calls",
 			}, nil
@@ -186,7 +186,7 @@ func TestChatPreservesAssistantAndMultipleToolResults(t *testing.T) {
 				t.Fatalf("实际工具结果 %v，预期 %v", out, want)
 			}
 		}
-		return Response{
+		return &Response{
 			Message: Message{
 				Role:    "assistant",
 				Content: "391 和 6 本机密钥",
@@ -228,9 +228,9 @@ func TestChatRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				t.Fatal("问题无效时不应调用模型")
-				return Response{}, nil
+				return nil, nil
 			})
 			agentCli := newTestClient(t, chatCli, DefaultLimits())
 			result, err := agentCli.Chat(t.Context(), ChatReq{
@@ -238,7 +238,7 @@ func TestChatRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
 				Tools:     MultiplyTools{},
 				Question:  tc.question,
 			})
-			if !errors.Is(err, ErrInput) || result.Answer != "" {
+			if !errors.Is(err, ErrInput) || result != nil {
 				t.Fatalf("实际结果 %+v、错误 %v，预期 ErrInput 且不启动运行记录", result, err)
 			}
 		})
@@ -246,9 +246,9 @@ func TestChatRejectsInvalidQuestionsWithoutCallingModelOrTools(t *testing.T) {
 }
 
 func TestChatKeepsBudgetOverridesLocal(t *testing.T) {
-	chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(_ context.Context, req Request) (*Response, error) {
 		if len(req.Messages) == 2 {
-			return Response{
+			return &Response{
 				Message: Message{
 					Role: RoleAssistant,
 					ToolCalls: []ToolCall{
@@ -265,7 +265,7 @@ func TestChatKeepsBudgetOverridesLocal(t *testing.T) {
 				FinishReason: FinishReasonToolCalls,
 			}, nil
 		}
-		return Response{
+		return &Response{
 			Message: Message{
 				Role:    RoleAssistant,
 				Content: "6",
@@ -389,7 +389,7 @@ func TestMultiplyStopsOnCancellation(t *testing.T) {
 		A: 17,
 		B: 23,
 	})
-	if !errors.Is(err, context.Canceled) || out.OK || out.Result != nil {
+	if !errors.Is(err, context.Canceled) || out != nil {
 		t.Fatalf("取消后的乘法结果为 %+v/%v，预期返回取消错误且无计算结果", out, err)
 	}
 }
@@ -407,7 +407,7 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 	for _, tc := range chatFailureCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				calls++
 				tools := []ToolCall{}
 				for _, id := range tc.ids {
@@ -420,7 +420,7 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 						},
 					})
 				}
-				return Response{
+				return &Response{
 					Message: Message{
 						Role:      "assistant",
 						ToolCalls: tools,
@@ -455,9 +455,9 @@ func TestChatBudgetsAndProtocolErrors(t *testing.T) {
 func TestChatCanceledBeforeModelCall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+	chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 		t.Fatal("取消后不应调用模型")
-		return Response{}, nil
+		return nil, nil
 	})
 	agentCli := newTestClient(t, chatCli, DefaultLimits())
 	result, err := agentCli.Chat(ctx, ChatReq{
@@ -542,13 +542,13 @@ func TestChatCountsToolBudgetAcrossRounds(t *testing.T) {
 		"second-tool",
 	}
 	calls := 0
-	chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+	chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 		if calls >= len(ids) {
 			t.Fatal("工具预算用完后不应继续请求模型")
 		}
 		id := ids[calls]
 		calls++
-		return Response{
+		return &Response{
 			Message: Message{
 				Role: RoleAssistant,
 				ToolCalls: []ToolCall{
@@ -616,7 +616,7 @@ func TestChatChecksWholeToolBatchBeforeExecution(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			chatCli := modelFunc(func(context.Context, Request) (Response, error) {
+			chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
 				var calls []ToolCall
 				for _, id := range tc.ids {
 					calls = append(calls, ToolCall{
@@ -628,7 +628,7 @@ func TestChatChecksWholeToolBatchBeforeExecution(t *testing.T) {
 						},
 					})
 				}
-				return Response{
+				return &Response{
 					Message: Message{
 						Role:      RoleAssistant,
 						ToolCalls: calls,

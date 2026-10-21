@@ -135,10 +135,10 @@ type Response struct {
 	Raw          []byte  // 收到的响应原文，仅供记录与观测使用。
 }
 
-// Validate 校验 assistant 身份、结束原因、消息内容及非负用量。
+// Validate 校验 assistant 身份、结束原因、消息内容及非负用量；nil 响应无效。
 // 工具调用 ID 和参数由执行循环及注册工具继续校验。
-func (r Response) Validate() error {
-	if r.Message.Role != RoleAssistant {
+func (r *Response) Validate() error {
+	if r == nil || r.Message.Role != RoleAssistant {
 		return ErrInvalidResponse
 	}
 	for _, value := range []*int{

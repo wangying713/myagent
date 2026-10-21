@@ -52,11 +52,11 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+			chatCli := modelFunc(func(_ context.Context, req Request) (*Response, error) {
 				if req.ResponseFormat == nil || req.ResponseFormat.Type != "json_object" {
 					t.Fatal("没有要求模型使用 JSON 输出")
 				}
-				return Response{
+				return &Response{
 					Message: Message{
 						Role:    RoleAssistant,
 						Content: tc.content,
@@ -80,9 +80,9 @@ func TestDemoStructuredValidatesModelOutput(t *testing.T) {
 
 func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	requests := []Request{}
-	chatCli := modelFunc(func(_ context.Context, req Request) (Response, error) {
+	chatCli := modelFunc(func(_ context.Context, req Request) (*Response, error) {
 		requests = append(requests, req)
-		return Response{
+		return &Response{
 			Message: Message{
 				Role:    RoleAssistant,
 				Content: "第一个实际结果",

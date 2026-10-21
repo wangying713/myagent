@@ -11,8 +11,8 @@ import (
 // Tools 提供已注册的工具定义和分发能力，协议拒绝通过 ToolResult 返回。
 type Tools interface {
 	Definitions() []ToolDefinition
-	// Dispatch 返回工具结果；上下文取消等执行错误通过 error 返回。
-	Dispatch(ctx context.Context, req ToolCall) (ToolResult, error)
+	// Dispatch 返回工具结果；前置取消返回 nil 和错误，业务拒绝使用非 nil 的 OK=false 结果。
+	Dispatch(ctx context.Context, req ToolCall) (*ToolResult, error)
 }
 
 // ToolNameMultiply 是乘法工具在声明和调用校验中共用的协议名称。
@@ -46,23 +46,23 @@ func (MultiplyTools) Definitions() []ToolDefinition {
 
 // Dispatch 只执行已注册的乘法工具，未知工具或无效参数以 OK=false 的结果返回。
 // ctx 已取消时返回上下文错误，不执行计算。
-func (t MultiplyTools) Dispatch(ctx context.Context, req ToolCall) (ToolResult, error) {
+func (t MultiplyTools) Dispatch(ctx context.Context, req ToolCall) (*ToolResult, error) {
 	if err := ctx.Err(); err != nil {
-		return ToolResult{}, err
+		return nil, err
 	}
 	if req.Type != ToolTypeFunction || req.Function.Name != ToolNameMultiply {
-		return ToolResult{
+		return &ToolResult{
 			Error: "unknown_tool",
 		}, nil
 	}
 	if !json.Valid([]byte(req.Function.Arguments)) {
-		return ToolResult{
+		return &ToolResult{
 			Error: "invalid_json",
 		}, nil
 	}
 	args, ok := multiplyArguments([]byte(req.Function.Arguments))
 	if !ok {
-		return ToolResult{
+		return &ToolResult{
 			Error: "invalid_arguments",
 		}, nil
 	}
@@ -70,17 +70,17 @@ func (t MultiplyTools) Dispatch(ctx context.Context, req ToolCall) (ToolResult, 
 }
 
 // multiply 计算两个数的乘积。涉及乘法时使用。
-func (MultiplyTools) multiply(ctx context.Context, req multiplyArgs) (ToolResult, error) {
+func (MultiplyTools) multiply(ctx context.Context, req multiplyArgs) (*ToolResult, error) {
 	if err := ctx.Err(); err != nil {
-		return ToolResult{}, err
+		return nil, err
 	}
 	value := req.A * req.B
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return ToolResult{
+		return &ToolResult{
 			Error: "tool_execution_failed",
 		}, nil
 	}
-	return ToolResult{
+	return &ToolResult{
 		OK:     true,
 		Result: value,
 	}, nil

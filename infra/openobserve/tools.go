@@ -18,7 +18,7 @@ func (t Tools) Definitions() []agent.ToolDefinition {
 }
 
 // Dispatch 沿用请求上下文执行工具，成功、失败和取消均结束对应的观测。
-func (t Tools) Dispatch(ctx context.Context, req agent.ToolCall) (result agent.ToolResult, err error) {
+func (t Tools) Dispatch(ctx context.Context, req agent.ToolCall) (result *agent.ToolResult, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -26,5 +26,9 @@ func (t Tools) Dispatch(ctx context.Context, req agent.ToolCall) (result agent.T
 	defer func() {
 		observation.End(result, err)
 	}()
-	return t.Tools.Dispatch(ctx, req)
+	result, err = t.Tools.Dispatch(ctx, req)
+	if result == nil && err == nil {
+		err = agent.ErrInvalidResponse
+	}
+	return result, err
 }

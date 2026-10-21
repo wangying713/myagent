@@ -83,7 +83,7 @@ const (
 // ChatClient 提供业务需要的模型调用能力。
 type ChatClient interface {
 	// Chat 执行一次模型请求，并响应上下文取消。
-	Chat(ctx context.Context, req Request) (Response, error)
+	Chat(ctx context.Context, req Request) (*Response, error)
 }
 ```
 
@@ -243,7 +243,7 @@ impl := &ImplAgent{
 - 个别字面量可以保留：空串、直观的 0/1 和索引、局部结构的固定数量、只出现一次且语义明确的文案或局部值，以及 JSON 标签、JSON Schema、显式路由等协议声明。是否提取以含义、复用和维护成本判断，不要求消除所有字面量。
 - 测试中的独立协议样本、边界输入和预期值可保留字面量，以验证线上取值不变；不要把所有预期都改成生产常量，导致常量改错时测试也同步放行。生成文件继续交给生成器处理。
 
-例如 `NewChatRsp(OperationMessages, c.observer.Enabled())` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
+例如 `NewChatRsp(OperationMessages)` 表达消息历史操作；其他包引用该标识时使用 `agent.OperationMessages`。这项约定是项目工程选择，不能据此把每个字符串、每个数字都视为错误。
 
 ## HTTP API 方法签名
 
@@ -262,7 +262,8 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 - 解码、超时、取消及响应处理由 `http/app/handler.go` 集中完成。路由初始化通过 `requestTimeout(timeout)` 中间件显式设置当前路由的超时，计时仍从解码完成后开始；配置不放入全局变量。`infra/httpx` 只保留独立的严格解析、传输错误和 JSON 写出，不依赖业务或 `entity`。
 - 接口方法显式组装并返回自己的 HTTP 响应，允许重复字段赋值，不封装统一业务返回函数。输入拒绝返回 nil 数据，其他失败保留已经完成的结果，错误原样返回。
 - 响应和错误可以同时非空，已有的步骤和用量必须保留，不能因错误而统一丢弃响应。
-- 应用服务的执行结果使用指针：前置输入校验失败、尚未执行时返回 `nil, err`；执行开始后即使失败，也返回已有结果和错误。HTTP 实现根据结果是否为 nil 决定是否组装 data，不通过 `err != nil` 一律丢弃结果；领域层继续使用自己的值类型。
+- 业务执行、模型调用、工具执行和配置加载等需要表达“无结果”的对象使用指针：前置校验或准备失败返回 `nil, err`；已经开始执行并取得数据时，保留已有结果和错误。HTTP 实现根据结果是否为 nil 决定是否组装 data，不通过 `err != nil` 一律丢弃结果。模型响应保留实际请求、原始响应和流式片段，配置加载失败不返回半成品配置。
+- 工具的正常业务拒绝保留非 nil 的 `OK=false` 结果；模型和工具返回 `nil, nil` 属于协议错误。数值、布尔和带明确存在标志的 `(value, ok)` 解析函数沿用值返回，不为形式统一引入指针。
 - 领域层使用自己的输入输出，不依赖 HTTP 数据类型；JSON 解码直接保留省略切片为 nil、显式空数组为非 nil 空切片，可选数值用指针区分省略与零，不藏在上下文中。
 
 请求消息统一使用 `Req` 后缀，响应消息使用 `Rsp` 后缀。三个 Agent 接口分别返回 `entity` 定义的 `ChatRsp`、`MessagesRsp`、`RunRsp`；业务方法不返回 HTTP 外层结构。
