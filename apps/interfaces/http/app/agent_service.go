@@ -30,7 +30,7 @@ func newAgentService(agentCli *agent.Client, observeCli *openobserve.Client, mod
 	}, nil
 }
 
-// Chat 在业务调用边界建立运行观测，并装饰本次请求使用的工具集合。
+// Chat 建立运行观测，直接使用调用方传入的工具集合。
 // 输入校验失败返回 nil；开始执行后保留完整或部分结果。
 func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *agent.ChatRsp, err error) {
 	if req.Operation == "" {
@@ -43,12 +43,6 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 		return nil, agent.ErrInput
 	}
 
-	if req.Tools != nil {
-		req.Tools = openobserve.Tools{
-			Tools:      req.Tools,
-			ObserveCli: a.observeCli,
-		}
-	}
 	ctx, run := a.observeCli.StartRun(ctx, req.Operation, &a.model)
 	defer func() {
 		a.finishRun(run, result, err)

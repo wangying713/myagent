@@ -56,22 +56,6 @@ func runAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemor
 	return attrs, spans[0].Status.Code
 }
 
-func toolAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter) map[string]attribute.Value {
-	t.Helper()
-	if err := observeCli.Flush(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	spans := exporter.GetSpans()
-	if len(spans) != 1 || spans[0].Name != "Tool call" {
-		t.Fatalf("实际导出 %v，预期一个 Tool call span", spans)
-	}
-	attrs := make(map[string]attribute.Value)
-	for _, attr := range spans[0].Attributes {
-		attrs[string(attr.Key)] = attr.Value
-	}
-	return attrs
-}
-
 func TestRunPreviewInputsAndPartialOutput(t *testing.T) {
 	for _, tc := range []struct {
 		name, operation, wantInput string   // 用例名称、业务操作标识与预期输入预览。
@@ -233,95 +217,6 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 				text := preview.AsString()
 				if !exists || !payloadExists || text != payload.AsString() || !truncated.AsBool() || !strings.HasSuffix(text, "…[TRUNCATED]") || utf8.RuneCountInString(text) != 256+utf8.RuneCountInString("…[TRUNCATED]") {
 					t.Errorf("实际预览 %q，预期统一截断至 256 字符并保留标记", text)
-				}
-			}
-		})
-	}
-}
-
-func TestToolPreviewFlattensCallAndExpandsArguments(t *testing.T) {
-	observeCli, exporter := newTestClient(t, true, 4096)
-	_, tool := observeCli.StartTool(t.Context(), agent.ToolCall{
-		ID:   "call_1",
-		Type: agent.ToolTypeFunction,
-		Function: agent.FunctionCall{
-			Name:      agent.ToolNameMultiply,
-			Arguments: `{"b":23,"a":17}`,
-		},
-	})
-	tool.End(&agent.ToolResult{
-		OK:     true,
-		Result: 391,
-	}, nil)
-	attrs := toolAttributes(t, observeCli, exporter)
-	const wantInput = `{"arguments":{"a":17,"b":23},"id":"call_1","name":"multiply","type":"function"}`
-	if attrs["app.request"].AsString() != wantInput {
-		t.Errorf("实际输入预览 %s，预期平铺调用并展开参数 %s", attrs["app.request"].AsString(), wantInput)
-	}
-	if attrs["gen_ai.input.messages"].AsString() != wantInput {
-		t.Error("输入预览未直接复用 app.request")
-	}
-	if attrs["app.response"].AsString() != `{"ok":true,"result":391}` {
-		t.Errorf("实际输出预览 %s，预期保留工具结果", attrs["app.response"].AsString())
-	}
-	if attrs["app.tool.name"].AsString() != agent.ToolNameMultiply || attrs["app.tool.call.id"].AsString() != "call_1" {
-		t.Error("工具预览改变了既有工具属性")
-	}
-}
-
-func TestToolPreviewRedactsArgumentsAndTruncates(t *testing.T) {
-	for _, tc := range []struct {
-		name      string // 用例名称。
-		arguments string // 需要展开、脱敏或截断的工具参数 JSON。
-		maxChars  int    // 展示正文的最大 Unicode 字符数。
-		want      string // 预期的脱敏或截断结果。
-		truncated bool   // 预期正文是否发生截断。
-	}{
-		{
-			name:      "参数展开后仍按字段脱敏",
-			arguments: `{"password":"hidden-value","a":17}`,
-			maxChars:  4096,
-			want:      `{"arguments":{"a":17,"password":"[REDACTED]"},"id":"call_1","name":"multiply","type":"function"}`,
-		},
-		{
-			name:      "超长参数按上限截断",
-			arguments: `{"text":"` + strings.Repeat("参数", 200) + `"}`,
-			maxChars:  256,
-			truncated: true,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			observeCli, exporter := newTestClient(t, true, tc.maxChars)
-			_, tool := observeCli.StartTool(t.Context(), agent.ToolCall{
-				ID:   "call_1",
-				Type: agent.ToolTypeFunction,
-				Function: agent.FunctionCall{
-					Name:      agent.ToolNameMultiply,
-					Arguments: tc.arguments,
-				},
-			})
-			tool.End(&agent.ToolResult{
-				OK:     true,
-				Result: 391,
-			}, nil)
-			attrs := toolAttributes(t, observeCli, exporter)
-			preview := attrs["gen_ai.input.messages"].AsString()
-			if attrs["app.request"].AsString() != preview {
-				t.Error("输入预览未直接复用 app.request")
-			}
-			if attrs["app.request.truncated"].AsBool() != tc.truncated {
-				t.Errorf("实际截断标记 %v，预期 %v", attrs["app.request.truncated"].AsBool(), tc.truncated)
-			}
-			if tc.truncated {
-				if !strings.HasSuffix(preview, "…[TRUNCATED]") || utf8.RuneCountInString(preview) != tc.maxChars+utf8.RuneCountInString("…[TRUNCATED]") {
-					t.Errorf("实际预览 %q，预期截断至 %d 字符并保留标记", preview, tc.maxChars)
-				}
-			} else if preview != tc.want {
-				t.Errorf("实际预览 %s，预期 %s", preview, tc.want)
-			}
-			for _, value := range attrs {
-				if strings.Contains(value.AsString(), "hidden-value") {
-					t.Error("工具属性泄漏参数中的敏感值")
 				}
 			}
 		})

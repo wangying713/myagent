@@ -171,9 +171,9 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 				check.models, check.spans = 2, 4
 			}
 			if lesson == "agent" {
-				check.models, check.tools, check.spans = 2, 1, 5
+				check.models, check.tools, check.spans = 2, 1, 4
 			}
-			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.spans-2 {
+			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.models+check.tools {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
 			}
 			if err := observeCli.Flush(context.Background()); err != nil {
@@ -298,7 +298,7 @@ func assertLessonSpans(t *testing.T, spans []sdktrace.ReadOnlySpan, check lesson
 			}
 		}
 		if s.Name() != "agent.run" && s.SpanKind() != trace.SpanKindServer && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
-			t.Error("模型或工具没有挂到同次运行的根 span")
+			t.Error("模型没有挂到同次运行的根 span")
 		}
 	}
 	if check.response.TraceID != root.SpanContext().TraceID().String() {
@@ -397,7 +397,7 @@ func assertLessonOutput(t *testing.T, attrs map[string]string, check lessonCheck
 	if err := json.Unmarshal([]byte(attrs["gen_ai.output.messages"]), &output); err != nil {
 		t.Fatal(err)
 	}
-	if output.Operation != check.lesson || output.Completed != check.response.Data.Completed || output.Answer != check.response.Data.Answer || output.ModelCalls != check.models || output.ToolCalls != check.tools || output.Tokens != check.models*10 || len(output.Calls) != check.spans-2 {
+	if output.Operation != check.lesson || output.Completed != check.response.Data.Completed || output.Answer != check.response.Data.Answer || output.ModelCalls != check.models || output.ToolCalls != check.tools || output.Tokens != check.models*10 || len(output.Calls) != check.models+check.tools {
 		t.Errorf("运行输出预览与实际结果不一致：%+v", output)
 	}
 }

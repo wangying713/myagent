@@ -12,7 +12,7 @@
 
 **怎么看结果：**steps 用来还原过程；最外层 traceID 用于查链路；telemetry_enabled 表示当前服务是否开启观测。
 
-不开启 OpenObserve 也能看到执行记录。开启后仍需到 OpenObserve 按 traceID 核对，不能只凭一个 ID 判断已成功入库。
+工具直接执行，不创建独立工具 span；工具参数、结果和耗时保留在 steps 中，开启正文采集后也能在运行 span 的输出预览中查看。不开启 OpenObserve 也能看到执行记录。开启后仍需到 OpenObserve 按 traceID 核对，不能只凭一个 ID 判断已成功入库。
 
 ## 学习目标
 

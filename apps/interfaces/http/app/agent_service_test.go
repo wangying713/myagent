@@ -85,9 +85,9 @@ func TestWorkflowRedactsStagesWithoutChangingNextInput(t *testing.T) {
 	}
 }
 
-func TestCompositeDemosKeepIndividualRunSpans(t *testing.T) {
+func TestToolDemosKeepRunAndModelSpans(t *testing.T) {
 	for _, tc := range []struct {
-		path string // 包含多次业务执行的案例地址。
+		path string // 工具案例的请求地址。
 		runs int    // 应建立的独立运行 span 数量。
 	}{
 		{
@@ -97,6 +97,22 @@ func TestCompositeDemosKeepIndividualRunSpans(t *testing.T) {
 		{
 			path: "/api/agent-demos/evaluation",
 			runs: 3,
+		},
+		{
+			path: "/api/agent-demos/multiple-tools",
+			runs: 1,
+		},
+		{
+			path: "/api/agent-demos/delivery",
+			runs: 1,
+		},
+		{
+			path: "/api/agent-demos/tools",
+			runs: 1,
+		},
+		{
+			path: "/api/agent-demos/observation",
+			runs: 1,
 		},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
@@ -131,12 +147,15 @@ func TestCompositeDemosKeepIndividualRunSpans(t *testing.T) {
 			if len(runs) != tc.runs || !requestID.IsValid() {
 				t.Fatalf("实际运行 %d 个，预期 %d 个且有 HTTP 父链路", len(runs), tc.runs)
 			}
+			if want := 1 + tc.runs + int(calls.Load()); len(exporter.spans) != want {
+				t.Fatalf("实际 span %d 个，预期仅包含 HTTP、运行和模型的 %d 个 span", len(exporter.spans), want)
+			}
 			for _, span := range exporter.spans {
 				if span.Name() == "agent.run" && span.Parent().SpanID() != requestID {
 					t.Error("独立运行未挂在 HTTP 请求下")
 				}
 				if span.SpanKind() != trace.SpanKindServer && span.Name() != "agent.run" && !runs[span.Parent().SpanID()] {
-					t.Errorf("模型或工具 %s 未挂在实际运行下", span.Name())
+					t.Errorf("模型 %s 未挂在实际运行下", span.Name())
 				}
 			}
 		})

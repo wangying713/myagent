@@ -272,11 +272,11 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 
 HTTP 统一外层手写于 `entity/response.go`：`Rsp[T]` 包含 `code`、`data`、`traceID`、`msg`。成功为 `code: "ok"`、`msg: "成功"`；失败沿用稳定的字符串错误码及中文说明，同时保留原有 HTTP 状态。解码失败、输入拒绝及其他尚无业务结果的响应使用 `data: null`，部分结果与错误同时返回时保留数据。HTTP handler 负责包装，`httpx.Write` 只编码并写出；编码失败不能先写出成功响应。
 
-HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显式注入私有 TracerProvider、noop MeterProvider 和空传播器，保持服务内链路且不依赖全局观测配置。领域运行作为其子 span，模型和工具仍是领域运行的子 span。通过 otelgin 的名称格式器只展示 URI 路由模板，例如 `/api/agent/chat`；未匹配路由统一为 `[unmatched]`。HTTP 方法保留在属性中，屏蔽默认属性中的原始路径、User-Agent 与客户端地址。启用正文采集时，在根 span 记录实际读写的请求体与最终 HTTP 响应，预览直接显示正文 JSON，不添加角色、消息或 body 包装；方法、路由模板和响应状态保留在 span 属性中，正文复用脱敏、限长及 OpenObserve 原生预览适配；不采集请求头或查询字符串，不预读请求。公共响应处理继续将 4xx 和 5xx 标记为失败。外层 `traceID` 来自实际请求链路，业务响应不再重复携带；关闭观测或服务退出闸门尚未进入路由时为空，不伪造 ID。
+HTTP 入口在解码前使用官方 `otelgin` 中间件建立请求 span，显式注入私有 TracerProvider、noop MeterProvider 和空传播器，保持服务内链路且不依赖全局观测配置。领域运行作为其子 span，模型请求是领域运行的子 span；工具直接执行，调用记录保留在运行结果中，不创建独立工具 span。通过 otelgin 的名称格式器只展示 URI 路由模板，例如 `/api/agent/chat`；未匹配路由统一为 `[unmatched]`。HTTP 方法保留在属性中，屏蔽默认属性中的原始路径、User-Agent 与客户端地址。启用正文采集时，在根 span 记录实际读写的请求体与最终 HTTP 响应，预览直接显示正文 JSON，不添加角色、消息或 body 包装；方法、路由模板和响应状态保留在 span 属性中，正文复用脱敏、限长及 OpenObserve 原生预览适配；不采集请求头或查询字符串，不预读请求。公共响应处理继续将 4xx 和 5xx 标记为失败。外层 `traceID` 来自实际请求链路，业务响应不再重复携带；关闭观测或服务退出闸门尚未进入路由时为空，不伪造 ID。
 
 实现与使用说明见 [HTTP API](../../apps/interfaces/http/README.md) 和 [通用 HTTP 能力](../../infra/httpx/README.md)。
 
-应用层 `app/agent_service.go` 在每次业务执行前通过具体的 `infra/openobserve.Client` 建立 `agent.run`，向领域客户端传入派生上下文，并在结束时记录结果。领域层只执行并返回原始回答、调用记录及 `RunInput` 中的实际输入，不定义观测接口，也不处理展示脱敏；`RunInput` 随结果保留已补齐默认值、通过校验的问题和实际工具、预算，观测层不重复推断。`infra/openobserve.Tools` 包装真实工具执行，模型观测仍由 DeepSeek 客户端负责。应用层只对返回展示副本脱敏，模型历史、工具结果和工作流后续输入始终使用原文。组合案例由应用层编排，每次独立业务执行各有自己的运行 span；流式案例在同步消费期间管理同一运行 span。`infra/openobserve` 组装输入与输出预览，保留采集开关、限长、部分结果及错误状态，不记录底层错误正文。
+应用层 `app/agent_service.go` 在每次业务执行前通过具体的 `infra/openobserve.Client` 建立 `agent.run`，向领域客户端传入派生上下文，并在结束时记录结果。领域层只执行并返回原始回答、调用记录及 `RunInput` 中的实际输入，不定义观测接口，也不处理展示脱敏；`RunInput` 随结果保留已补齐默认值、通过校验的问题和实际工具、预算，观测层不重复推断。调用方直接传入领域工具，`Chat` 不包装工具；工具参数、结果、耗时和错误保留在 `Calls` 中，并随运行结果生成观测预览。模型观测仍由 DeepSeek 客户端负责。应用层只对返回展示副本脱敏，模型历史、工具结果和工作流后续输入始终使用原文。组合案例由应用层编排，每次独立业务执行各有自己的运行 span；流式案例在同步消费期间管理同一运行 span。`infra/openobserve` 组装输入与输出预览，保留采集开关、限长、部分结果及错误状态，不记录底层错误正文。
 
 ## 第三方能力选择
 

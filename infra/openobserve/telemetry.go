@@ -39,7 +39,7 @@ type Config struct {
 // 应用退出且请求结束后调用 Close，完成有界刷新并释放观测资源。
 type Client struct {
 	config   Config                   // 构造时保存的私有观测配置。
-	tracer   trace.Tracer             // 为业务、模型与工具创建 span 的追踪器。
+	tracer   trace.Tracer             // 为业务运行和模型请求创建 span 的追踪器。
 	provider *sdktrace.TracerProvider // 私有追踪提供方，关闭观测时为 nil。
 	secrets  []string                 // 已整理的脱敏词，优先匹配较长内容。
 	// httpCli 保存内部创建的 OTLP HTTP 客户端，未创建时为 nil。

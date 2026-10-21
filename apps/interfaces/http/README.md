@@ -89,7 +89,7 @@ HTTP 失败码：
 - `gin.Context` 仅在 HTTP 适配层使用，业务调用传 `c.Request.Context()` 派生的总超时 context；不能将池化的 Gin 上下文保存到业务对象或异步任务。
 - 保留现有严格 JSON 解码，不用默认绑定替代重复键、未知字段、大小写和多段 JSON 等校验。32 KiB 限制也覆盖 JSON 后的尾随空白。
 - 关闭尾斜杠自动重定向，不自动重发 POST；未找到接口和错误方法统一使用 JSON 错误响应。不信任转发 IP 请求头，后续接入实际反向代理时再显式配置可信地址。
-- Gin 作为标准库 `http.Server.Handler` 使用，沿用读写超时、信号取消和优雅退出；模型与工具的观测继续由原有组件负责，不增加重复 span。
+- Gin 作为标准库 `http.Server.Handler` 使用，沿用读写超时、信号取消和优雅退出；运行观测由应用层管理，模型观测由 DeepSeek 客户端负责；工具执行记录保留在运行结果中。
 
 版本依据见 [Gin v1.12.0 发布说明](https://github.com/gin-gonic/gin/releases/tag/v1.12.0)，服务生命周期参考 [官方自定义 HTTP 服务说明](https://gin-gonic.com/en/docs/server-config/custom-http-config/)。上述目录、校验和日志策略是本项目约定。
 
@@ -99,11 +99,11 @@ HTTP 失败码：
 
 每次运行独立保存历史和统计；取消信号传到模型 HTTP 请求，后续工具和模型调用停止。每次点击开始新运行，不共享或持久化会话。
 
-HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型和工具继续作为领域运行的子 span。正常聊天、历史和典型工具循环分别为 3、4、5 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、模型和工具的观测正文采集；页面仍展示用于学习的脱敏执行记录。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
+HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型请求是领域运行的子 span；工具不创建独立 span。正常聊天、历史和典型工具循环分别为 3、4、4 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、运行和模型的观测正文采集；页面仍展示用于学习的脱敏执行记录。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
 
-`agent.run` 在 OpenObserve 的“预览”中展示业务输入与输出：聊天和工具循环显示实际 `question`，历史消息显示两轮 `questions`（包括默认值）；输出为 `completed` 和最终 `answer`，失败时保留已有回答。预览沿用正文采集开关、脱敏和限长设置；模型与工具的详细协议继续查看子 span。新增预览只作用于服务更新后的新请求。
+`agent.run` 在 OpenObserve 的“预览”中展示业务输入与输出：聊天和工具循环显示实际 `question`，历史消息显示两轮 `questions`（包括默认值）；输出为 `completed` 和最终 `answer`，失败时保留已有回答。预览沿用正文采集开关、脱敏和限长设置；模型详细协议查看模型子 span，工具参数、结果和耗时查看运行输出中的 steps。新增预览只作用于服务更新后的新请求。
 
 ## 服务退出与清理顺序
 
@@ -128,7 +128,7 @@ POST /api/agent/chat
 
 各接口在 `app/impl_agent.go` 中显式组装自己的 HTTP 响应，随后由 `app/handler.go` 中的 `writeAPIResult` 完成业务错误映射，并包装 `entity.Rsp[T]`，交给 `httpx.Write` 编码并写出。
 
-历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 管理每次执行的运行观测与结果脱敏，`infra/openobserve/agent.go` 提供具体实现，`infra/openobserve/tools.go` 包装工具执行。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
+历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 管理每次执行的运行观测与结果脱敏，`infra/openobserve/agent.go` 提供具体实现；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
 
 通用 HTTP 包用法见 [httpx 说明](../../../infra/httpx/README.md)。
 

@@ -8,7 +8,6 @@ import (
 	"saklay/ai/domain/agent"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -153,14 +152,6 @@ type runCallRecord struct {
 	Error        string       `json:"error,omitempty"`         // 执行失败或工具拒绝的公开说明。
 }
 
-// toolInput 是工具调用的观测展示形态，平铺名称和调用 ID 并展开参数，不承担领域协议契约。
-type toolInput struct {
-	ID        string `json:"id"`        // 用于关联工具结果的调用标识。
-	Type      string `json:"type"`      // 工具调用的协议类型。
-	Name      string `json:"name"`      // 待执行的工具函数名称。
-	Arguments any    `json:"arguments"` // 展开的 JSON 参数，无效 JSON 保留为文本。
-}
-
 // previewJSON 保留有效 JSON 的层级与数值；截断、空值和无效 JSON 保留原文。
 func previewJSON(text string) any {
 	if json.Valid([]byte(text)) {
@@ -214,40 +205,4 @@ func (r *Run) End(result *agent.ChatRsp, err error) {
 	r.observeCli.Payload(r.span, "app.response", response)
 	r.span.SetAttributes(attribute.Int("app.llm_calls", result.ModelCalls), attribute.Int("app.tool_calls", result.ToolCalls), attribute.Int("app.total_tokens", result.KnownTokens), attribute.Bool("app.usage.complete", result.UsageComplete))
 	End(r.span, r.started, err)
-}
-
-// StartTool 沿用父链路记录工具请求，调用方须在执行结束后调用返回句柄的 End。
-func (c *Client) StartTool(ctx context.Context, req agent.ToolCall) (context.Context, *toolObservation) {
-	ctx, span := c.Start(ctx, "Tool call", attribute.String("gen_ai.operation.name", "execute_tool"), attribute.String("app.tool.name", c.Clean(req.Function.Name)), attribute.String("app.tool.call.id", c.Clean(req.ID)))
-	// 展示副本平铺工具调用并展开参数；previewJSON 只在参数为合法 JSON 时返回 RawMessage，因此不会编码失败。
-	request, _ := json.Marshal(toolInput{
-		ID:        req.ID,
-		Type:      req.Type,
-		Name:      req.Function.Name,
-		Arguments: previewJSON(req.Function.Arguments),
-	})
-	c.Payload(span, "app.request", request)
-	return ctx, &toolObservation{
-		observeCli: c,
-		span:       span,
-		started:    time.Now(),
-	}
-}
-
-// toolObservation 持有单次工具调用的观测资源。
-type toolObservation struct {
-	observeCli *Client    // 负责记录正文与脱敏的观测组件。
-	span       trace.Span // 本次调用的链路 span。
-	started    time.Time  // 本次调用的开始时间，用于统计耗时。
-}
-
-func (t *toolObservation) End(output *agent.ToolResult, err error) {
-	if response, encodeErr := json.Marshal(output); encodeErr == nil {
-		t.observeCli.Payload(t.span, "app.response", response)
-	}
-	if output != nil && !output.OK {
-		t.span.SetStatus(codes.Error, "工具调用被拒绝")
-		t.span.SetAttributes(attribute.String("app.tool.error", t.observeCli.Clean(output.Error)))
-	}
-	End(t.span, t.started, err)
 }
