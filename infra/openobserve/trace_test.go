@@ -112,8 +112,8 @@ func TestTracePreviewInputsAndPartialOutput(t *testing.T) {
 					t.Error("运行属性泄漏敏感正文或底层错误")
 				}
 			}
-			if !slices.Equal(tc.questions, original) || result.Answer != "已有回答 configured-secret" {
-				t.Error("观测适配修改了实际业务输入或结果")
+			if !slices.Equal(tc.questions, original) || result.Answer != "已有回答 [REDACTED]" {
+				t.Error("结束观测应保留实际输入，并对返回回答脱敏")
 			}
 		})
 	}
@@ -278,8 +278,8 @@ func TestTraceCallPreviewPreservesJSONAndPartialText(t *testing.T) {
 			t.Errorf("实际输出 %s，预期包含 %s", output, want)
 		}
 	}
-	if result.Calls[0].Response != "响应片段 configured-secret" {
-		t.Error("观测预览修改了原始调用记录")
+	if result.Calls[0].Response != "响应片段 [REDACTED]" {
+		t.Error("结束观测未对返回调用记录脱敏")
 	}
 }
 
@@ -290,5 +290,77 @@ func TestTracePreviewWithoutCallsUsesEmptyArray(t *testing.T) {
 	attrs, _ := traceAttributes(t, observeCli, exporter, "agent.run")
 	if !strings.Contains(attrs["app.response"].AsString(), `"steps":[]`) {
 		t.Errorf("实际输出 %s，预期无调用时 steps 为空数组", attrs["app.response"].AsString())
+	}
+}
+
+func TestTraceEndRedactsResultRegardlessOfCapture(t *testing.T) {
+	for _, tc := range []struct {
+		name    string // 观测及正文采集开关的组合名称。
+		enabled bool   // 是否启用链路上报。
+		capture bool   // 是否采集 span 正文。
+	}{
+		{
+			name:    "开启观测和正文",
+			enabled: true,
+			capture: true,
+		},
+		{
+			name:    "关闭正文采集",
+			enabled: true,
+		},
+		{
+			name: "关闭观测",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			observeCli, err := New(t.Context(), Config{
+				Enabled:        tc.enabled,
+				ServiceName:    "test",
+				TracerName:     "test",
+				CaptureContent: tc.capture,
+				MaxChars:       256,
+				Secrets:        []string{"configured-secret"},
+			}, tracetest.NewInMemoryExporter(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerClientCleanup(t, observeCli)
+			answer := strings.Repeat("回答", 200) + " configured-secret"
+			original := []agent.CallRecord{
+				{
+					Kind:     agent.CallKindModel,
+					Name:     "configured-secret",
+					Request:  `{"password":"secret","count":9007199254740993}`,
+					Response: strings.Repeat("响应", 200),
+					Error:    "configured-secret",
+				},
+			}
+			result := &agent.ChatRsp{
+				Input: agent.RunInput{
+					Questions: []string{"configured-secret"},
+				},
+				Answer:     answer,
+				Calls:      original,
+				ModelCalls: 1,
+			}
+			_, runTrace := observeCli.StartTrace(t.Context(), "agent.run", agent.OperationChat)
+			runTrace.End(result, agent.ErrInvalidResponse)
+			if result.Answer != strings.Repeat("回答", 200)+" [REDACTED]" {
+				t.Error("返回回答应脱敏并保留超过正文上限的完整内容")
+			}
+			record := result.Calls[0]
+			if record.Name != "[REDACTED]" || record.Error != "[REDACTED]" || record.Request != `{"count":9007199254740993,"password":"[REDACTED]"}` {
+				t.Errorf("返回调用记录未正确脱敏或丢失数值精度：%+v", record)
+			}
+			if record.Response != strings.Repeat("响应", 128)+"…[TRUNCATED]" {
+				t.Errorf("实际正文 %q，预期截断至 256 字符并保留标记", record.Response)
+			}
+			if original[0].Name != "configured-secret" || original[0].Response != strings.Repeat("响应", 200) {
+				t.Error("结束观测覆盖了原始调用记录")
+			}
+			if result.Input.Questions[0] != "configured-secret" || result.ModelCalls != 1 {
+				t.Error("展示脱敏改变了实际输入或调用统计")
+			}
+		})
 	}
 }

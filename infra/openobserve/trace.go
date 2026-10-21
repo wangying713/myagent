@@ -3,6 +3,7 @@ package openobserve
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"time"
 
 	"saklay/ai/domain/agent"
@@ -96,11 +97,26 @@ func (c *Client) StartTrace(ctx context.Context, spanName string, operation stri
 	return ctx, runTrace
 }
 
-// End 记录实际输入、完整或部分结果和最终错误，并结束本次运行观测。
-// result 为 nil 时只记录结束状态，不构造虚假的业务结果。
+// End 对结果展示字段脱敏，记录实际输入、完整或部分结果和最终错误，并结束本次运行观测。
+// 关闭观测时仍更新结果展示字段；result 为 nil 时只结束观测，不生成输入输出预览。
 func (r *Trace) End(result *agent.ChatRsp, err error) {
 	defer End(r.span, r.started, err)
-	if result == nil || !r.span.IsRecording() {
+	if result == nil {
+		return
+	}
+	// 回答仅脱敏，不截断，保留完整回答或失败前已有的内容。
+	result.Answer = r.observeCli.Clean(result.Answer)
+	// 先复制切片，避免覆盖其他引用持有的原始调用记录。
+	result.Calls = slices.Clone(result.Calls)
+	for i := range result.Calls {
+		record := &result.Calls[i]
+		record.Name = r.observeCli.Clean(record.Name)
+		// 请求、响应正文按 JSON 或文本脱敏，并限制展示长度。
+		record.Request = r.observeCli.Safe([]byte(record.Request))
+		record.Response = r.observeCli.Safe([]byte(record.Response))
+		record.Error = r.observeCli.Clean(record.Error)
+	}
+	if !r.span.IsRecording() {
 		return
 	}
 	if r.observeCli.ContentLimit > 0 {

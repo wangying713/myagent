@@ -128,7 +128,7 @@ POST /api/agent/chat
 
 各接口在 `app/impl_agent.go` 中显式组装自己的 HTTP 响应，随后由 `app/handler.go` 中的 `writeAPIResult` 完成业务错误映射，并包装 `entity.Rsp[T]`，交给 `httpx.Write` 编码并写出。
 
-历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 管理每次执行的运行观测与结果脱敏，`infra/openobserve/client.go` 管理观测客户端与正文写入，`trace.go` 管理单次运行观测及输入输出预览转换，`redaction.go` 负责展示脱敏与限长，具体分工见 [OpenObserve 组件说明](../../../infra/openobserve/README.md)；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
+历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 直接调用 `StartTrace`、`Trace.End` 管理每次执行的运行观测，结束时由 `Trace.End` 统一处理结果展示字段的脱敏与限长，`infra/openobserve/client.go` 管理观测客户端与正文写入，`trace.go` 管理单次运行观测及输入输出预览转换，`redaction.go` 负责展示脱敏与限长，具体分工见 [OpenObserve 组件说明](../../../infra/openobserve/README.md)；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
 
 通用 HTTP 包用法见 [httpx 说明](../../../infra/httpx/README.md)。
 

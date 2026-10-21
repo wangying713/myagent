@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/openobserve"
@@ -46,7 +45,7 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, req.Operation)
 	defer func() {
-		a.finishTrace(runTrace, result, err)
+		runTrace.End(result, err)
 	}()
 	result, err = a.agentCli.Chat(ctx, req)
 	return result, err
@@ -67,28 +66,10 @@ func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (r
 	}
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.OperationMessages)
 	defer func() {
-		a.finishTrace(runTrace, result, err)
+		runTrace.End(result, err)
 	}()
 	result, err = a.agentCli.Messages(ctx, req)
 	return result, err
-}
-
-// finishTrace 对返回结果脱敏，并记录和结束本次运行观测。
-func (a *agentService) finishTrace(runTrace *openobserve.Trace, result *agent.ChatRsp, err error) {
-	if result == nil {
-		runTrace.End(nil, err)
-		return
-	}
-	result.Answer = a.observeCli.Clean(result.Answer)
-	result.Calls = slices.Clone(result.Calls)
-	for i := range result.Calls {
-		record := &result.Calls[i]
-		record.Name = a.observeCli.Clean(record.Name)
-		record.Request = a.observeCli.Safe([]byte(record.Request))
-		record.Response = a.observeCli.Safe([]byte(record.Response))
-		record.Error = a.observeCli.Clean(record.Error)
-	}
-	runTrace.End(result, err)
 }
 
 // validateDemoQuestion 允许案例使用自己的默认问题，显式问题必须符合领域约束。

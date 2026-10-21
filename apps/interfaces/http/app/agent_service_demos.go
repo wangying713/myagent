@@ -48,7 +48,7 @@ func (a *agentService) DemoStructured(ctx context.Context, question string) (res
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishTrace(runTrace, execution, err)
+		runTrace.End(execution, err)
 	}()
 	result, err = a.agentCli.DemoStructured(ctx, question)
 	if result != nil {
@@ -68,7 +68,7 @@ func (a *agentService) DemoRetrieval(ctx context.Context, question string) (resu
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishTrace(runTrace, execution, err)
+		runTrace.End(execution, err)
 	}()
 	result, err = a.agentCli.DemoRetrieval(ctx, question)
 	return result, err
@@ -85,7 +85,7 @@ func (a *agentService) DemoWorkflow(ctx context.Context, question string) (resul
 		if result != nil {
 			execution = result.Execution
 		}
-		a.finishTrace(runTrace, execution, err)
+		runTrace.End(execution, err)
 	}()
 	result, err = a.agentCli.DemoWorkflow(ctx, question)
 	if result != nil {
@@ -106,7 +106,7 @@ func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput
 	}
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoStream)
 	defer func() {
-		a.finishTrace(runTrace, result, err)
+		runTrace.End(result, err)
 	}()
 	result, err = a.agentCli.DemoStream(ctx, req)
 	return result, err
