@@ -87,6 +87,7 @@ func defaultSettings(get configValue) *Settings {
 		},
 		Observe: openobserve.Config{
 			ServiceName: get("OTEL_SERVICE_NAME", "agent"),
+			TracerName:  get("TELEMETRY_TRACER_NAME", "go-demos"),
 			Endpoint:    get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:5080/api/default/v1/traces"),
 		},
 		HTTP: HTTPSettings{
@@ -142,7 +143,7 @@ func loadObserveSettings(settings *Settings, get configValue) error {
 		return err
 	}
 	settings.Observe.MaxChars, err = configInteger(get, "TELEMETRY_CONTENT_MAX_CHARS", 32768)
-	if err != nil || settings.Observe.MaxChars < 256 {
+	if err != nil || settings.Observe.MaxChars < openobserve.MinContentMaxChars {
 		return errors.New("TELEMETRY_CONTENT_MAX_CHARS 至少为 256")
 	}
 	settings.Observe.Headers, err = parseObserveHeaders(get("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
@@ -197,8 +198,8 @@ func validateEndpoints(settings *Settings) error {
 			return errors.New("服务地址应为不含凭据和查询参数的 HTTP(S) URL")
 		}
 	}
-	if settings.Observe.ServiceName == "" || !strings.HasSuffix(settings.Observe.Endpoint, "/v1/traces") {
-		return errors.New("观测服务名不能为空，端点应以 /v1/traces 结束")
+	if settings.Observe.ServiceName == "" || settings.Observe.TracerName == "" || !strings.HasSuffix(settings.Observe.Endpoint, "/v1/traces") {
+		return errors.New("观测服务名和追踪器名称不能为空，端点应以 /v1/traces 结束")
 	}
 	return nil
 }

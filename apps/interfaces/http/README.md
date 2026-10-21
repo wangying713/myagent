@@ -99,7 +99,7 @@ HTTP 失败码：
 
 每次运行独立保存历史和统计；取消信号传到模型 HTTP 请求，后续工具和模型调用停止。每次点击开始新运行，不共享或持久化会话。
 
-HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型请求是领域运行的子 span；工具不创建独立 span。正常聊天、历史和典型工具循环分别为 3、4、4 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、运行和模型的观测正文采集；页面仍展示用于学习的脱敏执行记录。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
+HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型请求是领域运行的子 span；工具不创建独立 span。正常聊天、历史和典型工具循环分别为 3、4、4 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、运行和模型的观测正文采集；页面仍展示用于学习的脱敏执行记录。`TELEMETRY_TRACER_NAME` 设置业务与模型 span 的追踪器名称，默认 `go-demos`，与服务名分别配置。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
 
@@ -128,7 +128,7 @@ POST /api/agent/chat
 
 各接口在 `app/impl_agent.go` 中显式组装自己的 HTTP 响应，随后由 `app/handler.go` 中的 `writeAPIResult` 完成业务错误映射，并包装 `entity.Rsp[T]`，交给 `httpx.Write` 编码并写出。
 
-历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 管理每次执行的运行观测与结果脱敏，`infra/openobserve/agent.go` 提供具体实现；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
+历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 管理每次执行的运行观测与结果脱敏，`infra/openobserve/client.go` 管理观测客户端，`run.go` 管理单次运行，`preview.go` 负责观测输入与输出转换，具体分工见 [OpenObserve 组件说明](../../../infra/openobserve/README.md)；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
 
 通用 HTTP 包用法见 [httpx 说明](../../../infra/httpx/README.md)。
 

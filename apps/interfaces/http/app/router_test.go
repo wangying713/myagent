@@ -69,6 +69,7 @@ func setup(t *testing.T, model http.HandlerFunc, cfg routerTestConfig, exporter 
 	observeCli, err := openobserve.New(context.Background(), openobserve.Config{
 		Enabled:        true,
 		ServiceName:    "test",
+		TracerName:     "test",
 		MaxChars:       32768,
 		CaptureContent: true,
 		Secrets:        []string{"test-api-key"},

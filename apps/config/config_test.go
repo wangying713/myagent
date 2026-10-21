@@ -26,11 +26,15 @@ func TestExplicitFileAndEnvironment(t *testing.T) {
 	if cfg.HTTP.Address != "127.0.0.1:8080" || cfg.Limits.ModelCalls != 5 {
 		t.Error("默认地址或课程预算发生变化")
 	}
+	if cfg.Observe.TracerName != "go-demos" {
+		t.Errorf("实际默认追踪器名称 %q，预期 go-demos", cfg.Observe.TracerName)
+	}
 }
 
 func TestInvalidConfig(t *testing.T) {
 	for _, values := range []map[string]string{
 		{"TELEMETRY_ENABLED": "yes"},
+		{"TELEMETRY_TRACER_NAME": ""},
 		{"AGENT_MAX_MODEL_CALLS": "0"},
 		{
 			"DEEPSEEK_API_KEY":     "配置中的模拟密钥",
@@ -53,6 +57,25 @@ func TestInvalidConfig(t *testing.T) {
 		if err == nil || cfg != nil {
 			t.Fatalf("无效配置实际结果 %+v、错误 %v，预期 nil 和错误：%v", cfg, err, values)
 		}
+	}
+}
+
+func TestTracerNameFromEnvironment(t *testing.T) {
+	cfg, err := Load("", func(key string) (string, bool) {
+		switch key {
+		case "TELEMETRY_ENABLED":
+			return "false", true
+		case "TELEMETRY_TRACER_NAME":
+			return "custom-tracer", true
+		default:
+			return "", false
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Observe.TracerName != "custom-tracer" {
+		t.Errorf("实际追踪器名称 %q，预期 custom-tracer", cfg.Observe.TracerName)
 	}
 }
 

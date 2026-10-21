@@ -1,86 +1,10 @@
 package openobserve
 
 import (
-	"context"
 	"encoding/json"
-	"time"
 
 	"saklay/ai/domain/agent"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
-
-// ModelInfo 描述模型客户端的公开配置，不包含鉴权信息。
-type ModelInfo struct {
-	Provider     string        // 模型服务提供方。
-	Name         string        // 请求使用的模型名称。
-	Endpoint     string        // 不包含凭据的模型请求地址。
-	Timeout      time.Duration // 单次模型调用的超时时长。
-	MaxTokens    int           // 单次模型请求的最大输出 token 数。
-	ThinkingType string        // 模型思考模式。
-	Stream       bool          // 是否使用流式响应。
-}
-
-// StartRun 建立业务运行 span，应用层在执行结束后提交实际输入和结果。
-func (c *Client) StartRun(ctx context.Context, operation string, model *ModelInfo) (context.Context, *Run) {
-	ctx, span := c.Start(ctx, "agent.run", attribute.String("app.lesson", operation))
-	run := &Run{
-		observeCli: c,
-		span:       span,
-		started:    time.Now(),
-		operation:  operation,
-		model:      model,
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		run.deadline = deadline.UTC().Format(time.RFC3339Nano)
-	}
-	return ctx, run
-}
-
-// recordInput 记录业务实际使用的输入，不在观测层重新推断默认值。
-func (r *Run) recordInput(req agent.RunInput) {
-	input := runInput{
-		Prompt:     req.Prompt,
-		Tools:      make([]runTool, 0, len(req.Tools)),
-		ToolChoice: req.ToolChoice,
-		Limits: runLimits{
-			ModelCalls: req.Limits.ModelCalls,
-			ToolCalls:  req.Limits.ToolCalls,
-			Tokens:     req.Limits.Tokens,
-		},
-	}
-	if r.operation == agent.OperationMessages {
-		input.Questions = req.Questions
-	} else if len(req.Questions) > 0 {
-		input.Question = req.Questions[0]
-	}
-	input.Deadline = r.deadline
-	if info := r.model; info != nil {
-		input.Model = &runModel{
-			Provider:     info.Provider,
-			Name:         info.Name,
-			Endpoint:     info.Endpoint,
-			TimeoutMS:    info.Timeout.Milliseconds(),
-			MaxTokens:    info.MaxTokens,
-			ThinkingType: info.ThinkingType,
-			Stream:       info.Stream,
-		}
-	}
-	for _, tool := range req.Tools {
-		input.Tools = append(input.Tools, runTool{
-			Type: tool.Type,
-			Function: runFunction{
-				Name:        tool.Function.Name,
-				Description: tool.Function.Description,
-				Parameters:  previewJSON(string(tool.Function.Parameters)),
-			},
-		})
-	}
-	// 预览只包含白名单标量及已校验的 JSON；无效协议片段按文本记录，不影响业务。
-	request, _ := json.Marshal(input)
-	r.observeCli.Payload(r.span, "app.request", request)
-}
 
 // runInput 保存业务输入的观测预览，不承担领域或 HTTP 序列化契约。
 type runInput struct {
@@ -160,24 +84,46 @@ func previewJSON(text string) any {
 	return text
 }
 
-// Run 持有单次业务运行的观测资源，由应用层负责结束。
-type Run struct {
-	observeCli *Client    // 负责记录正文与脱敏的观测组件。
-	span       trace.Span // 本次调用的链路 span。
-	started    time.Time  // 本次调用的开始时间，用于统计耗时。
-	operation  string     // 本次业务操作标识。
-	model      *ModelInfo // 模型公开配置；nil 表示未提供。
-	deadline   string     // 本次运行的 UTC 截止时间，无截止时间时为空。
+// inputPreview 转换实际执行输入，不在观测层重新推断默认值。
+func (r *Run) inputPreview(req agent.RunInput) *runInput {
+	input := runInput{
+		Prompt:     req.Prompt,
+		Tools:      make([]runTool, 0, len(req.Tools)),
+		ToolChoice: req.ToolChoice,
+		Limits:     runLimits(req.Limits),
+		Deadline:   r.deadline,
+	}
+	if r.operation == agent.OperationMessages {
+		input.Questions = req.Questions
+	} else if len(req.Questions) > 0 {
+		input.Question = req.Questions[0]
+	}
+	if info := r.model; info != nil {
+		input.Model = &runModel{
+			Provider:     info.Provider,
+			Name:         info.Name,
+			Endpoint:     info.Endpoint,
+			TimeoutMS:    info.Timeout.Milliseconds(),
+			MaxTokens:    info.MaxTokens,
+			ThinkingType: info.ThinkingType,
+			Stream:       info.Stream,
+		}
+	}
+	for _, tool := range req.Tools {
+		input.Tools = append(input.Tools, runTool{
+			Type: tool.Type,
+			Function: runFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  previewJSON(string(tool.Function.Parameters)),
+			},
+		})
+	}
+	return &input
 }
 
-// End 记录实际输入、完整或部分结果和最终错误，并结束本次运行。
-// result 为 nil 时只记录结束状态，不构造虚假的业务结果。
-func (r *Run) End(result *agent.ChatRsp, err error) {
-	if result == nil {
-		End(r.span, r.started, err)
-		return
-	}
-	r.recordInput(result.Input)
+// outputPreview 转换完整或部分结果，调用正文保留 JSON 数值及无效片段。
+func outputPreview(result *agent.ChatRsp) *runOutput {
 	output := runOutput{
 		Operation:     result.Operation,
 		Completed:     result.Completed,
@@ -201,8 +147,5 @@ func (r *Run) End(result *agent.ChatRsp, err error) {
 			Error:        record.Error,
 		})
 	}
-	response, _ := json.Marshal(output)
-	r.observeCli.Payload(r.span, "app.response", response)
-	r.span.SetAttributes(attribute.Int("app.llm_calls", result.ModelCalls), attribute.Int("app.tool_calls", result.ToolCalls), attribute.Int("app.total_tokens", result.KnownTokens), attribute.Bool("app.usage.complete", result.UsageComplete))
-	End(r.span, r.started, err)
+	return &output
 }

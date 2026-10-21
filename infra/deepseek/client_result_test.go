@@ -26,6 +26,7 @@ func newResultClient(t *testing.T, transport resultTransport) *Client {
 	t.Helper()
 	observeCli, err := openobserve.New(t.Context(), openobserve.Config{
 		ServiceName: "test",
+		TracerName:  "test",
 		MaxChars:    4096,
 	}, nil, nil)
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"saklay/ai/infra/openobserve"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Config 保存模型鉴权、服务地址、模型名及单次调用超时，由启动入口显式传入。
@@ -134,7 +135,14 @@ func (c *Client) Chat(ctx context.Context, req agent.Request) (result *agent.Res
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.observeCli.StartClient(ctx, httpReq.URL.EscapedPath(), attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.String("gen_ai.provider.name", providerName))
+	ctx, span := c.observeCli.Tracer.Start(ctx, httpReq.URL.EscapedPath(),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.request.model", c.config.Model),
+			attribute.String("gen_ai.provider.name", providerName),
+		),
+	)
 	started := time.Now()
 	defer func() {
 		openobserve.End(span, started, err)

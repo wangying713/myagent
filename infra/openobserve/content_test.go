@@ -11,6 +11,7 @@ import (
 func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 	observeCli, err := New(context.Background(), Config{
 		ServiceName: "test",
+		TracerName:  "test",
 		MaxChars:    256,
 		Secrets:     []string{"real-key"},
 	}, nil, nil)
@@ -45,6 +46,7 @@ func TestSafePayloadRedactionAndTruncation(t *testing.T) {
 func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
 	observeCli, err := New(t.Context(), Config{
 		ServiceName: "test",
+		TracerName:  "test",
 		MaxChars:    4096,
 	}, nil, nil)
 	if err != nil {
@@ -78,5 +80,66 @@ func TestSafeNestedJSONPreservesNumbers(t *testing.T) {
 				t.Error("展示处理修改了原始正文")
 			}
 		})
+	}
+}
+
+func TestCleanMatchesLongSecretsBeforeShortSecrets(t *testing.T) {
+	observeCli, err := New(t.Context(), Config{
+		ServiceName: "test",
+		TracerName:  "test",
+		MaxChars:    256,
+		Secrets: []string{
+			"",
+			"abc",
+			"abc-def",
+			"abc",
+		},
+		Headers: map[string]string{
+			"Authorization": "Basic auth-token",
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := observeCli.Clean("abc-def abc Basic auth-token auth-token")
+	want := "[REDACTED] [REDACTED] [REDACTED] [REDACTED]"
+	if got != want {
+		t.Errorf("实际脱敏文本 %q，预期 %q", got, want)
+	}
+}
+
+func TestSafePreservesPartialJSONAndZeroValues(t *testing.T) {
+	observeCli, err := New(t.Context(), Config{
+		ServiceName: "test",
+		TracerName:  "test",
+		MaxChars:    256,
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		input string // 可能是完整 JSON、截断片段或带尾随内容的文本。
+		want  string // 脱敏后应保持的原始格式与零值。
+	}{
+		{
+			input: `{"password":"value",`,
+			want:  `{"password":"[REDACTED]",`,
+		},
+		{
+			input: `null`,
+			want:  `null`,
+		},
+		{
+			input: `{"flag":false,"number":0}`,
+			want:  `{"flag":false,"number":0}`,
+		},
+		{
+			input: `{"number":9007199254740993} trailing`,
+			want:  `{"number":9007199254740993} trailing`,
+		},
+	} {
+		if got := observeCli.Safe([]byte(tc.input)); got != tc.want {
+			t.Errorf("输入 %q 的实际展示 %q，预期 %q", tc.input, got, tc.want)
+		}
 	}
 }

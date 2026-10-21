@@ -16,6 +16,7 @@ import (
 	"saklay/ai/infra/openobserve"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // streamResponseLimit 限制单次模型流最多读取 4 MiB。
@@ -51,7 +52,14 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result *age
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-	ctx, span := c.observeCli.StartClient(ctx, "/chat/completions", attribute.String("gen_ai.operation.name", "chat"), attribute.String("gen_ai.request.model", c.config.Model), attribute.Bool("app.stream", true))
+	ctx, span := c.observeCli.Tracer.Start(ctx, "/chat/completions",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.request.model", c.config.Model),
+			attribute.Bool("app.stream", true),
+		),
+	)
 	started := time.Now()
 	defer func() {
 		c.observeCli.Payload(span, "app.response", result.Raw)

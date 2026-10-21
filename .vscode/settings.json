@@ -1,4 +1,11 @@
 {
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "[go]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
+  },
   "goImplementationLens.showReferences": false,
   "go.alternateTools": {
     "go": "${workspaceFolder}/.tools/go1.27.2/bin/go",

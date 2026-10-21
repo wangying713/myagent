@@ -234,6 +234,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			observeCli, err := openobserve.New(t.Context(), openobserve.Config{
 				Enabled:        true,
 				ServiceName:    "test",
+				TracerName:     "test",
 				MaxChars:       256,
 				CaptureContent: capture,
 				Secrets:        []string{"configured-secret"},
@@ -307,6 +308,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 func TestHTTPRspEncodingFallbackAndDisabledTrace(t *testing.T) {
 	observeCli, err := openobserve.New(context.Background(), openobserve.Config{
 		ServiceName: "test",
+		TracerName:  "test",
 		MaxChars:    256,
 	}, nil, io.Discard)
 	if err != nil {

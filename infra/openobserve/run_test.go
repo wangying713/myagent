@@ -17,29 +17,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func newTestClient(t *testing.T, capture bool, maxChars int) (*Client, *tracetest.InMemoryExporter) {
-	t.Helper()
-	exporter := tracetest.NewInMemoryExporter()
-	observeCli, err := New(t.Context(), Config{
-		Enabled:        true,
-		ServiceName:    "test",
-		CaptureContent: capture,
-		MaxChars:       maxChars,
-		Secrets:        []string{"configured-secret"},
-	}, exporter, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		if err := observeCli.Close(ctx); err != nil {
-			t.Error(err)
-		}
-	})
-	return observeCli, exporter
-}
-
 func runAttributes(t *testing.T, observeCli *Client, exporter *tracetest.InMemoryExporter) (map[string]attribute.Value, codes.Code) {
 	t.Helper()
 	if err := observeCli.Flush(t.Context()); err != nil {
@@ -191,10 +168,16 @@ func TestRunPreviewContentControlAndTruncation(t *testing.T) {
 				Input: agent.RunInput{
 					Questions: []string{strings.Repeat("输入", 200)},
 				},
-				Completed: true,
-				Answer:    strings.Repeat("输出", 200),
+				Completed:   true,
+				Answer:      strings.Repeat("输出", 200),
+				ModelCalls:  1,
+				ToolCalls:   2,
+				KnownTokens: 10,
 			}, nil)
 			attrs, _ := runAttributes(t, observeCli, exporter)
+			if attrs["app.llm_calls"].AsInt64() != 1 || attrs["app.tool_calls"].AsInt64() != 2 || attrs["app.total_tokens"].AsInt64() != 10 {
+				t.Error("正文采集开关改变了运行统计")
+			}
 			for _, pair := range [][2]string{
 				{
 					"gen_ai.input.messages",
@@ -233,5 +216,39 @@ func TestRunWithoutResultStillEndsObservation(t *testing.T) {
 	}
 	if _, ok := attrs["app.response"]; ok {
 		t.Fatal("缺少结果时不应生成虚假的输出预览")
+	}
+}
+
+func TestRunCapturesModelSnapshotAndDeadline(t *testing.T) {
+	observeCli, exporter := newTestClient(t, true, 4096)
+	deadline := time.Now().Add(time.Minute)
+	ctx, cancel := context.WithDeadline(t.Context(), deadline)
+	defer cancel()
+	model := ModelInfo{
+		Provider: "test-provider",
+		Name:     "original-model",
+		Timeout:  1500 * time.Millisecond,
+		Stream:   true,
+	}
+	_, run := observeCli.StartRun(ctx, agent.OperationChat, &model)
+	model.Name = "changed-model"
+	run.End(&agent.ChatRsp{}, nil)
+	attrs, _ := runAttributes(t, observeCli, exporter)
+	var input struct {
+		Deadline string `json:"deadline"` // 观测记录中的 UTC 截止时间。
+		Model    struct {
+			Name      string `json:"name"`       // 开始运行时的模型名称。
+			TimeoutMS int64  `json:"timeout_ms"` // 模型超时，单位为毫秒。
+			Stream    bool   `json:"stream"`     // 模型是否使用流式响应。
+		} `json:"model"` // 运行开始时的公开模型配置。
+	}
+	if err := json.Unmarshal([]byte(attrs["app.request"].AsString()), &input); err != nil {
+		t.Fatal(err)
+	}
+	if input.Deadline != deadline.UTC().Format(time.RFC3339Nano) {
+		t.Errorf("实际截止时间 %q，预期 %q", input.Deadline, deadline.UTC().Format(time.RFC3339Nano))
+	}
+	if input.Model.Name != "original-model" || input.Model.TimeoutMS != 1500 || !input.Model.Stream {
+		t.Errorf("实际模型配置 %+v，预期保留开始时的名称、1500 毫秒超时和流式选项", input.Model)
 	}
 }

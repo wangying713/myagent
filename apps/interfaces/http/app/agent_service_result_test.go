@@ -84,6 +84,7 @@ func newResultTestService(t *testing.T, chatCli agent.ChatClient) *agentService 
 	t.Helper()
 	observeCli, err := openobserve.New(t.Context(), openobserve.Config{
 		ServiceName: "test",
+		TracerName:  "test",
 		MaxChars:    4096,
 	}, nil, nil)
 	if err != nil {
