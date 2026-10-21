@@ -99,11 +99,26 @@ HTTP 失败码：
 
 每次运行独立保存历史和统计；取消信号传到模型 HTTP 请求，后续工具和模型调用停止。每次点击开始新运行，不共享或持久化会话。
 
-HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型请求是领域运行的子 span；工具不创建独立 span。正常聊天、历史和典型工具循环分别为 3、4、4 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、运行和模型的观测正文采集；页面仍展示用于学习的脱敏执行记录。`TELEMETRY_TRACER_NAME` 设置业务与模型 span 的追踪器名称，默认 `go-demos`，与服务名分别配置。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
+HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，显式使用私有 TracerProvider、noop MeterProvider 和空传播器，保持当前服务内链路与仅 Traces 的范围。入口名称只展示 URI 路由模板，例如 `/api/agent/chat`，未匹配路由统一为 `[unmatched]`；方法保留在属性中，屏蔽默认采集的原始路径、User-Agent 与客户端地址；公共响应处理将 4xx 和 5xx 继续标记为失败。领域运行是其子 span，模型请求是领域运行的子 span；工具执行也建立运行的子 span。正常聊天、历史和典型工具循环分别为 3、4、5 个 span；解析失败也有 HTTP 请求记录。OpenObserve 上报异步进行，失败提示但不覆盖模型结果；只有服务退出时关闭 provider，退出刷新有界。HTTP 根 span 的“预览”直接展示实际读取的请求 JSON 与写出的响应 JSON，不添加用户、助手或额外的 body 包装；方法、URI 路由模板和状态保留在 span 属性中；请求头和查询字符串不采集。`TELEMETRY_CAPTURE_CONTENT` 控制 HTTP、运行和模型的观测正文采集；页面仍展示用于学习的脱敏执行记录。`TELEMETRY_TRACER_NAME` 设置业务与模型 span 的追踪器名称，默认 `go-demos`，与服务名分别配置。展示正文默认最多 32768 字符，截断有标记，不改变实际模型消息。字符串中内嵌的 JSON 同样使用 `UseNumber` 解码，避免展示副本丢失数值精度。
 
 当前是本机开发演示：管理台登录仍属于模板 Mock，不是 Go 服务的真实鉴权。监听地址默认为本机；本次不增加生产部署、数据库、流式、会话存储或其他 Python 课程。
 
-`agent.run` 在 OpenObserve 的“预览”中展示业务输入与输出：聊天和工具循环显示实际 `question`，历史消息显示两轮 `questions`（包括默认值）；输出为 `completed` 和最终 `answer`，失败时保留已有回答。预览沿用正文采集开关、脱敏和限长设置；模型详细协议查看模型子 span，工具参数、结果和耗时查看运行输出中的 steps。新增预览只作用于服务更新后的新请求。
+`agent.run` 在 OpenObserve 的“预览”中展示业务输入与输出：聊天和工具循环显示实际 `question`，历史消息显示两轮 `questions`（包括默认值）；输出为 `completed` 和最终 `answer`，失败时保留已有回答。预览沿用正文采集开关、脱敏和限长设置；模型详细协议查看模型子 span，工具执行按真实时间顺序显示为 `multiply`、`lookup_product` 等独立节点，输入预览沿用旧版的 `id/type/name/arguments` 字段，`arguments` 展开为 JSON 对象或值，无效片段保留为文本；输出预览展示工具返回结果，保留脱敏和限长。工具调用 ID 用于与模型的 `tool_calls` 对照，运行输出中的 steps 继续保留调用记录。新增预览只作用于服务更新后的新请求。
+
+工具节点的上报字段保持稳定：
+
+| 字段 | 含义 |
+| --- | --- |
+| `gen_ai.operation.name` | 固定为 `execute_tool` |
+| `app.tool.name`、`app.tool.call.id` | 脱敏后的工具名与调用 ID |
+| `app.tool.error` | 工具业务拒绝时的脱敏说明，不记录 Go 错误原文 |
+| `app.tool.ok` | 工具返回结果中的成功标识 |
+| `app.elapsed_ms` | 工具步骤耗时，单位为毫秒 |
+| `app.request`、`gen_ai.input.messages` | 同一份脱敏、限长的输入预览 |
+| `app.response`、`gen_ai.output.messages` | 同一份脱敏、限长的结果预览 |
+| `app.request.truncated`、`app.response.truncated` | 对应正文是否被截断 |
+
+例如乘法节点的输入为 `{"id":"multiply-1","type":"function","name":"multiply","arguments":{"a":17,"b":23}}`，输出为 `{"ok":true,"result":391}`。已取消而未执行的调用不创建工具节点；观测编码失败不改写实际工具结果，由领域层继续处理原有执行契约。
 
 ## 服务退出与清理顺序
 
@@ -128,7 +143,7 @@ POST /api/agent/chat
 
 各接口在 `app/impl_agent.go` 中显式组装自己的 HTTP 响应，随后由 `app/handler.go` 中的 `writeAPIResult` 完成业务错误映射，并包装 `entity.Rsp[T]`，交给 `httpx.Write` 编码并写出。
 
-历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 直接调用 `StartTrace`、`Trace.End` 管理每次执行的运行观测，结束时由 `Trace.End` 统一处理结果展示字段的脱敏与限长，`infra/openobserve/client.go` 管理观测客户端与正文写入，`trace.go` 管理单次运行观测及输入输出预览转换，`redaction.go` 负责展示脱敏与限长，具体分工见 [OpenObserve 组件说明](../../../infra/openobserve/README.md)；工具由调用方直接传入并执行，不增加观测包装。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
+历史消息对应 `app/impl_agent.go` 的 `Messages`，工具调用对应 `Run`。普通聊天和工具调用入口统一调用领域层 `Client.Chat`，由调用方明确传入问题、提示词和工具；`/api/agent/run` 保留原接口与默认示例。`domain/agent/agent_run.go` 的 `callModel` 和 `callTool` 负责实际调用及执行记录，模型调用前检查预算，工具调用预算由 `Chat` 按整批检查。应用层 `app/agent_service.go` 直接调用 `StartTrace`、`Trace.End` 管理每次执行的运行观测，结束时由 `Trace.End` 统一处理结果展示字段的脱敏与限长，`infra/openobserve/client.go` 管理观测客户端与正文写入，`trace.go` 管理单次运行观测及输入输出预览转换，`redaction.go` 负责展示脱敏与限长，具体分工见 [OpenObserve 组件说明](../../../infra/openobserve/README.md)；工具由调用方传入，应用层通过 `app/tool_trace.go` 在执行期间建立工具子 span；该适配只增加观测，不改变原始参数、结果、错误或取消语义。领域层不定义观测接口，也不依赖观测 SDK；领域返回原始执行记录及实际输入，HTTP 响应和观测预览仍保持脱敏。
 
 通用 HTTP 包用法见 [httpx 说明](../../../infra/httpx/README.md)。
 

@@ -172,7 +172,7 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 				check.models, check.spans = 2, 4
 			}
 			if lesson == "agent" {
-				check.models, check.tools, check.spans = 2, 1, 4
+				check.models, check.tools, check.spans = 2, 1, 5
 			}
 			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.models+check.tools {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
@@ -299,7 +299,7 @@ func assertLessonSpans(t *testing.T, spans []sdktrace.ReadOnlySpan, check lesson
 			}
 		}
 		if s.Name() != "agent.run" && s.SpanKind() != trace.SpanKindServer && (s.Parent().SpanID() != root.SpanContext().SpanID() || s.SpanContext().TraceID() != root.SpanContext().TraceID()) {
-			t.Error("模型没有挂到同次运行的根 span")
+			t.Error("模型或工具执行没有挂到同次运行的根 span")
 		}
 	}
 	if check.response.TraceID != root.SpanContext().TraceID().String() {

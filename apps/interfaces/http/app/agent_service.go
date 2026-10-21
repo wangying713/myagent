@@ -30,7 +30,7 @@ func newAgentService(agentCli *agent.Client, observeCli *openobserve.Client, lim
 	}, nil
 }
 
-// Chat 建立运行观测，直接使用调用方传入的工具集合。
+// Chat 建立运行观测，在调用方提供的工具执行期间记录独立子 span。
 // 输入校验失败返回 nil；开始执行后保留完整或部分结果。
 func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *agent.ChatRsp, err error) {
 	if req.Operation == "" {
@@ -44,7 +44,14 @@ func (a *agentService) Chat(ctx context.Context, req agent.ChatReq) (result *age
 	defer func() {
 		runTrace.End(result, err)
 	}()
-	result, err = a.agentCli.Chat(ctx, req)
+	executionReq := req
+	if req.Tools != nil && a.observeCli.Provider != nil {
+		executionReq.Tools = &tracedTools{
+			Tools:      req.Tools,
+			observeCli: a.observeCli,
+		}
+	}
+	result, err = a.agentCli.Chat(ctx, executionReq)
 	return result, err
 }
 

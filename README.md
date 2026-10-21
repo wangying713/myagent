@@ -71,7 +71,7 @@ HTTP 请求、响应和公共外层统一定义在 [entity](apps/interfaces/http
 
 ## 观测与边界
 
-每次 HTTP 请求建立根 span，领域运行是其子 span，每次模型请求再创建领域运行的子 span；工具直接执行，参数、结果和耗时保留在运行结果的 steps 中，不创建独立工具 span。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
+每次 HTTP 请求建立根 span，领域运行是其子 span，每次模型请求再创建领域运行的子 span；实际工具执行也创建独立子 span，节点名使用工具名，展示调用参数、结果和耗时；运行结果的 steps 继续保留相同调用记录。观测异步上报；页面给出 trace ID，但不声称已入库。默认 OpenObserve 本机界面为 `http://localhost:5080/web/`，组织与 stream 由 `.env` 配置确定。
 
 默认总运行超时 120s、单次模型超时 60s；最多 5 次模型请求、8 次工具分发、8000 个累计已知 token 的软预算。真实演示会消耗模型 token；测试只使用假模型与内存观测器，不读取真实密钥。
 

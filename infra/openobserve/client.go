@@ -26,7 +26,7 @@ const MinContentMaxChars = 256
 type Config struct {
 	Enabled     bool              // 是否创建并上报链路观测数据。
 	ServiceName string            // 链路数据中的服务名称。
-	TracerName  string            // 创建业务与模型 span 的追踪器名称，由应用显式提供。
+	TracerName  string            // 创建业务、模型与工具 span 的追踪器名称，由应用显式提供。
 	Endpoint    string            // OTLP HTTP Traces 上报地址。
 	Headers     map[string]string // OTLP 上报请求头，可包含鉴权信息。
 	// CaptureContent 只控制 span 正文采集，执行记录仍可生成脱敏展示副本。
@@ -48,7 +48,7 @@ const (
 // Client 管理私有 TracerProvider 和正文脱敏，可供并发请求共享。
 // 应用退出且请求结束后调用 Close，完成有界刷新并释放观测资源。
 type Client struct {
-	Tracer       trace.Tracer             // 业务与模型共用的追踪器，由 New 初始化，构造后只读。
+	Tracer       trace.Tracer             // 业务、模型与工具共用的追踪器，由 New 初始化，构造后只读。
 	Provider     *sdktrace.TracerProvider // 本组件专用的追踪提供方；关闭观测时为 nil，构造后只读。
 	ContentLimit int                      // span 正文采集的 Unicode 字符上限；零表示不采集，构造后只读。
 	maxChars     int                      // 展示正文的最大 Unicode 字符数，不含截断标记。

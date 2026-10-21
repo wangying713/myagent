@@ -11,6 +11,7 @@ import (
 
 	"saklay/ai/domain/agent"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -85,34 +86,41 @@ func TestWorkflowRedactsStagesWithoutChangingNextInput(t *testing.T) {
 	}
 }
 
-func TestToolDemosKeepRunAndModelSpans(t *testing.T) {
+func TestToolDemosIncludeExecutionSpans(t *testing.T) {
 	for _, tc := range []struct {
-		path string // 工具案例的请求地址。
-		runs int    // 应建立的独立运行 span 数量。
+		path  string // 工具案例的请求地址。
+		runs  int    // 应建立的独立运行 span 数量。
+		tools int    // 实际执行并建立 span 的工具调用次数。
 	}{
 		{
-			path: "/api/agent-demos/overview",
-			runs: 2,
+			path:  "/api/agent-demos/overview",
+			runs:  2,
+			tools: 1,
 		},
 		{
-			path: "/api/agent-demos/evaluation",
-			runs: 3,
+			path:  "/api/agent-demos/evaluation",
+			runs:  3,
+			tools: 3,
 		},
 		{
-			path: "/api/agent-demos/multiple-tools",
-			runs: 1,
+			path:  "/api/agent-demos/multiple-tools",
+			runs:  1,
+			tools: 2,
 		},
 		{
-			path: "/api/agent-demos/delivery",
-			runs: 1,
+			path:  "/api/agent-demos/delivery",
+			runs:  1,
+			tools: 2,
 		},
 		{
-			path: "/api/agent-demos/tools",
-			runs: 1,
+			path:  "/api/agent-demos/tools",
+			runs:  1,
+			tools: 1,
 		},
 		{
-			path: "/api/agent-demos/observation",
-			runs: 1,
+			path:  "/api/agent-demos/observation",
+			runs:  1,
+			tools: 1,
 		},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
@@ -134,30 +142,53 @@ func TestToolDemosKeepRunAndModelSpans(t *testing.T) {
 			}
 			exporter.mu.Lock()
 			defer exporter.mu.Unlock()
-			runs := make(map[trace.SpanID]bool)
-			var requestID trace.SpanID
-			for _, span := range exporter.spans {
-				if span.Name() == "agent.run" {
-					runs[span.SpanContext().SpanID()] = true
-				}
-				if span.SpanKind() == trace.SpanKindServer {
-					requestID = span.SpanContext().SpanID()
-				}
-			}
-			if len(runs) != tc.runs || !requestID.IsValid() {
-				t.Fatalf("实际运行 %d 个，预期 %d 个且有 HTTP 父链路", len(runs), tc.runs)
-			}
-			if want := 1 + tc.runs + int(calls.Load()); len(exporter.spans) != want {
-				t.Fatalf("实际 span %d 个，预期仅包含 HTTP、运行和模型的 %d 个 span", len(exporter.spans), want)
-			}
-			for _, span := range exporter.spans {
-				if span.Name() == "agent.run" && span.Parent().SpanID() != requestID {
-					t.Error("独立运行未挂在 HTTP 请求下")
-				}
-				if span.SpanKind() != trace.SpanKindServer && span.Name() != "agent.run" && !runs[span.Parent().SpanID()] {
-					t.Errorf("模型 %s 未挂在实际运行下", span.Name())
-				}
-			}
+			assertToolDemoSpans(t, exporter.spans, toolDemoSpanCounts{
+				runs:   tc.runs,
+				models: int(calls.Load()),
+				tools:  tc.tools,
+			})
 		})
+	}
+}
+
+// toolDemoSpanCounts 是一次工具案例应产生的各类执行节点数。
+type toolDemoSpanCounts struct {
+	runs   int // 独立业务运行数。
+	models int // 实际模型请求数。
+	tools  int // 实际工具执行数。
+}
+
+// assertToolDemoSpans 检查 HTTP、运行、模型与工具节点的数量和父子关系。
+func assertToolDemoSpans(t *testing.T, spans []sdktrace.ReadOnlySpan, want toolDemoSpanCounts) {
+	t.Helper()
+	runs := make(map[trace.SpanID]bool)
+	var requestID trace.SpanID
+	toolCount := 0
+	for _, span := range spans {
+		if span.Name() == "agent.run" {
+			runs[span.SpanContext().SpanID()] = true
+		}
+		if span.SpanKind() == trace.SpanKindServer {
+			requestID = span.SpanContext().SpanID()
+		}
+		for _, attr := range span.Attributes() {
+			if attr.Key == "gen_ai.operation.name" && attr.Value.AsString() == "execute_tool" {
+				toolCount++
+			}
+		}
+	}
+	if len(runs) != want.runs || !requestID.IsValid() || toolCount != want.tools {
+		t.Fatalf("实际运行 %d、工具 %d，预期运行 %d、工具 %d 且有 HTTP 父链路", len(runs), toolCount, want.runs, want.tools)
+	}
+	if count := 1 + want.runs + want.models + want.tools; len(spans) != count {
+		t.Fatalf("实际 span %d 个，预期包含 HTTP、运行、模型和工具的 %d 个 span", len(spans), count)
+	}
+	for _, span := range spans {
+		if span.Name() == "agent.run" && span.Parent().SpanID() != requestID {
+			t.Error("独立运行未挂在 HTTP 请求下")
+		}
+		if span.SpanKind() != trace.SpanKindServer && span.Name() != "agent.run" && !runs[span.Parent().SpanID()] {
+			t.Errorf("执行步骤 %s 未挂在实际运行下", span.Name())
+		}
 	}
 }
