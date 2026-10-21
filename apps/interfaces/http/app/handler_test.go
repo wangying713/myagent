@@ -67,7 +67,7 @@ func TestHTTPRspEnvelopeAndTraceBeforeDecode(t *testing.T) {
 					t.Error("业务 data 中不应重复携带 HTTP trace ID")
 				}
 			}
-			if err := observeCli.Flush(t.Context()); err != nil {
+			if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()
@@ -265,7 +265,7 @@ func TestHTTPPreviewContentControlAndRedaction(t *testing.T) {
 			if out.Body.String() != response {
 				t.Fatal("正文预览改变了实际 HTTP 响应")
 			}
-			if err := observeCli.Flush(t.Context()); err != nil {
+			if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()
@@ -357,7 +357,7 @@ func TestHTTPTraceDoesNotCaptureRawRequestMetadata(t *testing.T) {
 	if out.Code != http.StatusOK {
 		t.Fatalf("元数据检查实际 HTTP %d，预期 200", out.Code)
 	}
-	if err := observeCli.Flush(t.Context()); err != nil {
+	if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()

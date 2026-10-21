@@ -177,7 +177,7 @@ func TestThreeLessonsAndParentSpans(t *testing.T) {
 			if w.Code != 200 || response.Code != "ok" || !response.Data.Completed || response.Data.ModelCalls != check.models || response.Data.ToolCalls != check.tools || response.Data.KnownTokens != check.models*10 || len(response.Data.Calls) != check.models+check.tools {
 				t.Fatalf("课程实际响应：%d %s", w.Code, w.Body.String())
 			}
-			if err := observeCli.Flush(context.Background()); err != nil {
+			if err := observeCli.Provider.ForceFlush(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()
@@ -881,7 +881,7 @@ func TestBudgetAndObservabilityFailureIsolation(t *testing.T) {
 	if w.Code != 409 || response.Code != "budget_exceeded" || response.Data.ModelCalls != 1 || response.Data.Answer == "" {
 		t.Fatalf("预算未保留已完成第一轮：%s", w.Body.String())
 	}
-	if err := observeCli.Flush(context.Background()); err != nil {
+	if err := observeCli.Provider.ForceFlush(context.Background()); err != nil {
 		t.Fatal("上报失败不应改变业务错误")
 	}
 	w, response = invoke(handler, "chat", `{}`)

@@ -6,17 +6,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
-	redactedText       = "[REDACTED]"   // 展示副本中的敏感值替代文本。
-	truncationSuffix   = "…[TRUNCATED]" // 超过正文字符上限时追加的截断标记。
-	maxJSONDepth       = 32             // JSON 脱敏允许递归的最大层数。
-	requestPayloadKey  = "app.request"  // 输入正文的观测属性名。
-	responsePayloadKey = "app.response" // 输出正文的观测属性名。
+	redactedText     = "[REDACTED]"   // 展示副本中的敏感值替代文本。
+	truncationSuffix = "…[TRUNCATED]" // 超过正文字符上限时追加的截断标记。
+	maxJSONDepth     = 32             // JSON 脱敏允许递归的最大层数。
 )
 
 // collectSecrets 整理配置中的脱敏词，丢弃空值、去重并优先匹配长词。
@@ -103,23 +98,6 @@ func (c *Client) Safe(raw []byte) string {
 		return string(runes[:c.maxChars]) + truncationSuffix
 	}
 	return text
-}
-
-// Payload 在启用正文采集时记录脱敏、限长的正文和截断标记，不修改 raw。
-func (c *Client) Payload(span trace.Span, key string, raw []byte) {
-	if c.ContentLimit() == 0 || !span.IsRecording() {
-		return
-	}
-	text := c.Safe(raw)
-	span.SetAttributes(attribute.String(key, text), attribute.Bool(key+".truncated", strings.HasSuffix(text, truncationSuffix)))
-	if key == requestPayloadKey || key == responsePayloadKey {
-		previewKey := "gen_ai.input.messages"
-		if key == responsePayloadKey {
-			previewKey = "gen_ai.output.messages"
-		}
-		// 直接交给 OpenObserve 的 JSON 预览，不添加对话角色或消息包装。
-		span.SetAttributes(attribute.String(previewKey, text))
-	}
 }
 
 // decodeJSON 只接受单个完整 JSON 值，保留数值原文并拒绝尾随内容。

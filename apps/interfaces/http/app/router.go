@@ -7,11 +7,12 @@ import (
 
 	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/infra/httpx"
+	"saklay/ai/infra/openobserve"
 
 	"github.com/gin-gonic/gin"
 )
 
-func newRouter(agentCli *agentService, timeout time.Duration, observeCli httpObserver) (*gin.Engine, error) {
+func newRouter(agentCli *agentService, timeout time.Duration, observeCli *openobserve.Client) (*gin.Engine, error) {
 	implAgent, err := newImplAgent(agentCli)
 	if err != nil {
 		return nil, err

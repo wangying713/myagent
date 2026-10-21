@@ -342,7 +342,7 @@ func TestServeHTTPFinishesSpansBeforeReturning(t *testing.T) {
 	waitSignal(t, call.done, "聊天请求结束")
 	flushCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if err := observeCli.Flush(flushCtx); err != nil {
+	if err := observeCli.Provider.ForceFlush(flushCtx); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()

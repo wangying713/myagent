@@ -13,6 +13,7 @@ import (
 	"saklay/ai/apps/interfaces/http/entity"
 	"saklay/ai/domain/agent"
 	"saklay/ai/infra/httpx"
+	"saklay/ai/infra/openobserve"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -21,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
 // requestTimeoutKey 隔离 Gin 请求作用域中的业务超时配置。
@@ -69,17 +71,14 @@ func writeAPIResult(c *gin.Context, rsp any, err error) {
 	writeHTTPRsp(c, status, rsp, failure)
 }
 
-// httpObserver 由入口显式注入，HTTP 处理不依赖具体的观测实现。
-type httpObserver interface {
-	TracerProvider() trace.TracerProvider
-	ContentLimit() int
-	Payload(trace.Span, string, []byte)
-}
-
 // traceHTTP 在解码前建立请求链路，显式使用私有观测配置并屏蔽敏感请求属性。
-func traceHTTP(observeCli httpObserver) gin.HandlerFunc {
+func traceHTTP(observeCli *openobserve.Client) gin.HandlerFunc {
+	var provider trace.TracerProvider = tracenoop.NewTracerProvider()
+	if observeCli.Provider != nil {
+		provider = observeCli.Provider
+	}
 	return otelgin.Middleware("http",
-		otelgin.WithTracerProvider(observeCli.TracerProvider()),
+		otelgin.WithTracerProvider(provider),
 		otelgin.WithSpanNameFormatter(func(c *gin.Context) string {
 			if route := c.FullPath(); route != "" {
 				return route
@@ -99,9 +98,9 @@ func traceHTTP(observeCli httpObserver) gin.HandlerFunc {
 }
 
 // previewHTTP 在请求 span 结束前记录实际 HTTP 正文，复用观测组件的脱敏与预览适配。
-func previewHTTP(observeCli httpObserver) gin.HandlerFunc {
+func previewHTTP(observeCli *openobserve.Client) gin.HandlerFunc {
 	// 一个 Unicode 字符最多占四字节；有界读写副本不额外消耗请求正文。
-	limit := min(observeCli.ContentLimit(), math.MaxInt/utf8.UTFMax) * utf8.UTFMax
+	limit := min(observeCli.ContentLimit, math.MaxInt/utf8.UTFMax) * utf8.UTFMax
 	capture := httpx.CaptureBodies(limit, func(c *gin.Context, request, response []byte) {
 		span := trace.SpanFromContext(c.Request.Context())
 		observeCli.Payload(span, "app.request", request)

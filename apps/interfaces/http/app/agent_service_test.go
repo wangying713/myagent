@@ -43,7 +43,7 @@ func TestMessagesRedactsOutputWithoutChangingHistory(t *testing.T) {
 	if strings.Contains(out.Body.String(), "test-api-key") {
 		t.Fatal("HTTP 回答或调用记录泄漏原始内容")
 	}
-	if err := observeCli.Flush(t.Context()); err != nil {
+	if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	exporter.mu.Lock()
@@ -129,7 +129,7 @@ func TestToolDemosKeepRunAndModelSpans(t *testing.T) {
 			if out.Code != http.StatusOK {
 				t.Fatalf("实际 HTTP %d、响应 %s，预期案例成功", out.Code, out.Body.String())
 			}
-			if err := observeCli.Flush(t.Context()); err != nil {
+			if err := observeCli.Provider.ForceFlush(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			exporter.mu.Lock()

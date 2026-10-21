@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>王影 · Golang 后端工程师 · 简历</title>
+<style>
+  :root {
+    --accent: #1f5fa9;
+    --accent-soft: #eaf1fa;
+    --ink: #1f2937;
+    --ink-2: #4b5563;
+    --ink-3: #6b7280;
+    --line: #e3e8ef;
+    --side-bg: #f6f8fb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 28px 16px;
+    background: #e9edf2;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 10px 34px rgba(15, 23, 42, .13);
+    display: grid;
+    grid-template-columns: 66mm 1fr;
+  }
+
+  /* 侧栏 */
+  .sidebar {
+    background: var(--side-bg);
+    border-right: 1px solid var(--line);
+    padding: 16mm 7mm 12mm;
+  }
+
+  .name {
+    margin: 0;
+    font-size: 25pt;
+    font-weight: 700;
+    letter-spacing: .14em;
+    line-height: 1.15;
+  }
+
+  .role {
+    margin: 3mm 0 0;
+    font-size: 10.5pt;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: .06em;
+  }
+
+  .side-block { margin-top: 8mm; }
+
+  .side-title {
+    margin: 0 0 3mm;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .18em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+  }
+
+  .contact { margin: 0; padding: 0; list-style: none; }
+  .contact li {
+    font-size: 9.5pt;
+    color: var(--ink-2);
+    padding: 1.1mm 0;
+    word-break: break-all;
+  }
+  .contact li span {
+    display: inline-block;
+    width: 12mm;
+    color: var(--ink-3);
+    font-size: 8.5pt;
+  }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 2.2mm; }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 2.4mm 2mm;
+  }
+  .stat b {
+    display: block;
+    font-size: 14pt;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.2;
+  }
+  .stat i {
+    display: block;
+    margin-top: .6mm;
+    font-style: normal;
+    font-size: 7.8pt;
+    color: var(--ink-3);
+    line-height: 1.35;
+  }
+
+  .skill-group { margin-bottom: 3.4mm; }
+  .skill-group h4 {
+    margin: 0 0 1.4mm;
+    font-size: 8.6pt;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 1.2mm; }
+  .chips span {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 2px;
+    padding: .5mm 1.6mm;
+    font-size: 8.2pt;
+    line-height: 1.5;
+  }
+  .chips span.muted {
+    background: #eef1f5;
+    color: var(--ink-2);
+  }
+
+  .edu-line { font-size: 9.3pt; color: var(--ink-2); line-height: 1.55; }
+  .edu-line b { color: var(--ink); font-weight: 600; }
+  .edu-line em { font-style: normal; color: var(--ink-3); display: block; font-size: 8.5pt; }
+
+  /* 主栏 */
+  .main { padding: 15mm 12mm 12mm 11mm; }
+
+  .summary {
+    margin: 0 0 6mm;
+    font-size: 9.9pt;
+    color: var(--ink-2);
+    text-align: justify;
+  }
+
+  .section { margin-bottom: 6.5mm; }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    margin: 0 0 3.4mm;
+    font-size: 10.5pt;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: var(--ink);
+  }
+  .section-title::before {
+    content: "";
+    width: 3.2px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+  .section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .timeline { border-left: 1.2px solid var(--line); padding-left: 5mm; }
+  .entry { position: relative; padding-bottom: 4.2mm; }
+  .entry:last-child { padding-bottom: 0; }
+  .entry::before {
+    content: "";
+    position: absolute;
+    left: -5.9mm;
+    top: 1.7mm;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2.4px #fff;
+  }
+
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; }
+  .entry-head h3 { margin: 0; font-size: 10.2pt; font-weight: 700; }
+  .entry-head .when {
+    flex: none;
+    font-size: 8.4pt;
+    color: var(--ink-3);
+    letter-spacing: .02em;
+  }
+  .entry-sub {
+    margin: .4mm 0 1.4mm;
+    font-size: 9pt;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  ul.duties { margin: 0; padding-left: 4mm; }
+  ul.duties li {
+    font-size: 9.5pt;
+    color: var(--ink-2);
+    margin-bottom: .9mm;
+    text-align: justify;
+  }
+  ul.duties li::marker { color: #b6c3d4; }
+  ul.duties li b { color: var(--ink); font-weight: 600; }
+
+  .project { padding-bottom: 3.6mm; }
+  .project:last-child { padding-bottom: 0; }
+  .project h3 {
+    margin: 0;
+    font-size: 9.8pt;
+    font-weight: 700;
+    display: inline;
+  }
+  .project .stack {
+    margin: 1mm 0 1.2mm;
+    font-size: 8.2pt;
+    color: var(--ink-3);
+    letter-spacing: .02em;
+  }
+  .project p {
+    margin: 0;
+    font-size: 9.4pt;
+    color: var(--ink-2);
+    text-align: justify;
+  }
+
+  @page { size: A4; margin: 0; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { box-shadow: none; margin: 0; width: auto; min-height: auto; }
+    .section, .entry, .project { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <aside class="sidebar">
+    <h1 class="name">王影</h1>
+    <p class="role">Golang 后端工程师</p>
+
+    <div class="side-block">
+      <h2 class="side-title">联系方式</h2>
+      <ul class="contact">
+        <li><span>电话</span>13370179003</li>
+        <li><span>邮箱</span>wangying713@163.com</li>
+        <li><span>城市</span>北京</li>
+      </ul>
+    </div>
+
+    <div class="side-block">
+      <h2 class="side-title">关键数据</h2>
+      <div class="stats">
+        <div class="stat"><b>200+</b><i>接口迁移至 Go</i></div>
+        <div class="stat"><b>46</b><i>内容处理插件</i></div>
+        <div class="stat"><b>80+</b><i>接口性能优化</i></div>
+        <div class="stat"><b>12</b><i>季度 S / A 评价</i></div>
+      </div>
+    </div>
+
+    <div class="side-block">
+      <h2 class="side-title">技能</h2>
+      <div class="skill-group">
+        <h4>语言与框架</h4>
+        <div class="chips">
+          <span>Go</span><span>Gin</span><span>tRPC</span><span>Lua</span>
+          <span>PHP</span><span>Yaf</span><span>Laravel</span>
+        </div>
+      </div>
+      <div class="skill-group">
+        <h4>存储与检索</h4>
+        <div class="chips">
+          <span>MySQL</span><span>TDSQL</span><span>Elasticsearch</span><span>Redis</span>
+        </div>
+      </div>
+      <div class="skill-group">
+        <h4>消息与工程</h4>
+        <div class="chips">
+          <span>Kafka</span><span>Docker</span><span>Nginx</span><span>Linux</span><span>Git</span>
+        </div>
+      </div>
+      <div class="skill-group">
+        <h4>近期学习</h4>
+        <div class="chips">
+          <span class="muted">AI Agent</span><span class="muted">RAG</span>
+          <span class="muted">OpenTelemetry</span><span class="muted">Kubernetes</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-block">
+      <h2 class="side-title">教育背景</h2>
+      <p class="edu-line">
+        <b>四川大学</b>　计算机科学与技术<br>
+        本科（非全日制，自考）
+        <em>2017 — 2021</em>
+      </p>
+    </div>
+
+    <div class="side-block">
+      <h2 class="side-title">资格证书</h2>
+      <p class="edu-line">PETS-3<br>计算机四级<br>NIT 全国计算机应用水平证书</p>
+    </div>
+  </aside>
+
+  <section class="main">
+
+    <p class="summary">
+      15 年以上后端研发经验，2020 年起主要从事 Go 后端开发，业务覆盖体育内容平台、赛事数据服务、B2B 电商及品牌营销活动。具备 PHP 存量系统向 Go 迁移、内容处理管线开发、多来源数据接入与接口性能优化经验，能够独立承担需求分析、接口设计与开发联调，并持续跟进 AI Agent 与服务可观测性方向。
+    </p>
+
+    <section class="section">
+      <h2 class="section-title">工作经历</h2>
+      <div class="timeline">
+
+        <div class="entry">
+          <div class="entry-head">
+            <h3>软通动力技术服务有限公司</h3>
+            <span class="when">2020.08 — 至今</span>
+          </div>
+          <p class="entry-sub">Golang 后端工程师 · 腾讯体育内容平台项目（2020.08 — 2026.09）</p>
+          <ul class="duties">
+            <li>完成 <b>200 余个</b> PHP 接口向 Go 的迁移与兼容适配，梳理承接原有业务逻辑，支撑存量内容与运营后台持续迭代。</li>
+            <li>开发维护 <b>46 个</b>图文 / 视频内容处理插件，参与流程编排与业务规则调整，实现处理能力复用。</li>
+            <li>负责内容管理后台与 Feed 运营配置：置顶区、金刚位、推荐页卡、内容强插及赛事专题，衔接运营配置与页面数据供给。</li>
+            <li>对接 ESPN、Twitter、YouTube、纳米足球、微博、头条等 <b>6 个</b>外部数据源，完成数据查询、匹配与字段转换。</li>
+            <li>开发赛事服务与赛程接口，采用 LocalCache + Redis 二级缓存，优化人工配置字典的重复查询开销。</li>
+            <li>参与东京奥运会、北京冬奥会数据服务支持；累计 <b>12 次</b>季度 S / A 评价，获评冬奥会官网项目优秀员工。</li>
+          </ul>
+        </div>
+
+        <div class="entry">
+          <div class="entry-head">
+            <h3>北京黄橙广告有限公司</h3>
+            <span class="when">2017.11 — 2020.08</span>
+          </div>
+          <p class="entry-sub">PHP 后端工程师</p>
+          <ul class="duties">
+            <li>参与品牌广告及营销活动后台研发，为伊利、良品铺子、哇哈哈、可口可乐等客户提供功能开发与技术支持。</li>
+            <li>根据活动规则完成业务流程设计、接口开发及后台功能调整，配合前端与测试完成联调交付。</li>
+          </ul>
+        </div>
+
+        <div class="entry">
+          <div class="entry-head">
+            <h3>中商惠民</h3>
+            <span class="when">2016.08 — 2017.11</span>
+          </div>
+          <p class="entry-sub">PHP 后端开发工程师 · B2B 批发订货商城</p>
+          <ul class="duties">
+            <li>实现购物车商品加入、数量调整、删除及勾选结算，处理数据保存、商品读取与金额计算。</li>
+            <li>参与订单创建、明细保存、状态更新与查询开发，衔接购物车结算流程；围绕商品有效性、采购数量与价格完成服务端校验，并调整 SQL 与索引。</li>
+          </ul>
+        </div>
+
+        <div class="entry">
+          <div class="entry-head">
+            <h3>坚果未来科技有限公司</h3>
+            <span class="when">2010.10 — 2016.08</span>
+          </div>
+          <p class="entry-sub">PHP 后端开发工程师 · Web 应用与活动管理后台</p>
+          <ul class="duties">
+            <li>基于 LNMP 实现信息录入、编辑、查询分页及数据导出，参与 MySQL 表结构设计与多表关联统计查询。</li>
+            <li>开发 PHP 接口完成表单提交、参数校验、文件上传与页面数据交互；后期参与微信公众号和 H5 活动后台研发。</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">代表项目</h2>
+      <div class="timeline">
+
+        <div class="project">
+          <h3>腾讯体育内容平台与运营后台</h3>
+          <div class="stack">Go · tRPC · PHP · TDSQL · Redis · Elasticsearch · Kafka</div>
+          <p>面向社区图文、视频内容供给与运营管理，提供内容处理、检索、标签管理、统计导出及 Feed 页面配置能力。所负责内容处理链路日常约 <b>2 万条 / 日</b>，总决赛单日峰值约 <b>10 万条 / 日</b>。</p>
+        </div>
+
+        <div class="project">
+          <h3>腾讯体育赛事服务与赛程性能优化</h3>
+          <div class="stack">Go · Lua · PHP · TDSQL · Elasticsearch · LocalCache · Redis</div>
+          <p>为足球、篮球、网球、电竞等赛事提供赛程及赛中数据服务。使用 Lua 实现动态赛事接入，Go 开发赛事后台与客户端数据接口，二级缓存支撑高并发读取；完成赛中数据同步与 NFL 图文直播翻译，并定位字典重复查询问题改善接口响应效率。</p>
+        </div>
+
+        <div class="project">
+          <h3>北京 2022 冬奥会官网数据接入</h3>
+          <div class="stack">2021.04 — 2022.04 · Go · PHP-FPM · Nginx · TDSQL · Redis · Elasticsearch</div>
+          <p>对接外部比赛与统计数据 API，建立源数据与官网数据的对应关系，完成数据匹配、字段转换与兼容适配，并支持官网赛程与赛中数据展示。获评冬奥会官网项目优秀员工。</p>
+        </div>
+
+      </div>
+    </section>
+
+  </section>
+</main>
+</body>
+</html>
