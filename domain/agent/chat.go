@@ -59,16 +59,17 @@ const (
 	CallKindTool  = "tool"  // 工具调用记录。
 )
 
-// CallRecord 是一次模型或工具调用的记录。
+// CallRecord 是领域结果与 HTTP 响应共用的模型或工具调用记录。
+// JSON 标签保持公开字段格式，正文的展示脱敏仍由应用层负责。
 type CallRecord struct {
-	Kind         string // 调用类型，区分模型调用与工具调用。
-	Name         string // 模型调用说明或工具名称。
-	Request      string // 实际请求正文，对外展示由应用层处理。
-	Response     string // 实际响应正文，对外展示由应用层处理。
-	ElapsedMS    int64  // 本次调用耗时，单位为毫秒。
-	FinishReason string // 模型结束原因，工具调用时为空。
-	Usage        *Usage // 模型返回的 token 用量，工具调用时为 nil。
-	Error        string // 执行失败或工具拒绝的公开说明。
+	Kind         string `json:"kind"`                    // 调用类型，区分模型调用与工具调用。
+	Name         string `json:"name"`                    // 模型调用说明或工具名称。
+	Request      string `json:"request"`                 // 实际请求正文，对外展示由应用层处理。
+	Response     string `json:"response"`                // 实际响应正文，对外展示由应用层处理。
+	ElapsedMS    int64  `json:"elapsed_ms"`              // 本次调用耗时，单位为毫秒。
+	FinishReason string `json:"finish_reason,omitempty"` // 模型结束原因，工具调用时为空。
+	Usage        *Usage `json:"usage,omitempty"`         // 模型返回的 token 用量，工具调用时为 nil。
+	Error        string `json:"error,omitempty"`         // 执行失败或工具拒绝的公开说明。
 }
 
 // Chat 统一处理普通问答和工具对话，并记录执行过程与用量。

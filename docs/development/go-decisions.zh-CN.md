@@ -249,7 +249,9 @@ impl := &ImplAgent{
 
 HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、信号与最终错误输出。服务实现和测试放在 `http/app`（包名 `app`），启动入口为 `Run(ctx, cfg)`，由 `app/run.go` 组装依赖并管理资源。Agent 的处理方法、请求准备和各接口的 HTTP 响应组装位于 `http/app/impl_agent.go`，HTTP JSON 适配与错误映射位于 `http/app/handler.go`；后续业务使用 `app/impl_xxx.go`。API 的手写请求、响应、公共外层及共用 JSON 数据统一放在 `http/entity`，按业务分文件。路由与中间件位于 `app/router.go`，服务生命周期位于 `app/server.go`，通用传输能力留在 `infra/httpx`。
 
-后续新增接口继续遵循这一分工：请求、响应和共用数据放在 `entity` 中，按业务分文件，各接口独立定义响应，按需复用步骤、用量等类型。`entity` 只负责字段和 JSON 标签，不依赖业务处理包、领域服务、Gin 或基础设施；请求准备和响应组装放在对应业务的 `app/impl_xxx.go`；HTTP 解码和错误映射位于 `app/handler.go`。领域层与 `infra/httpx` 不依赖应用的 `entity` 包。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
+后续新增接口继续遵循这一分工：请求、响应和共用数据放在 `entity` 中，按业务分文件，各接口独立定义响应；调用记录和用量的字段、语义与 JSON 规则一致，直接复用 `domain/agent.CallRecord`、`Usage`，不维护重复定义与逐字段转换。`entity` 只负责字段和 JSON 标签，允许引用上述领域数据类型，不调用领域服务，不依赖业务处理包、Gin 或基础设施；请求准备和响应组装放在对应业务的 `app/impl_xxx.go`；HTTP 解码和错误映射位于 `app/handler.go`。领域层与 `infra/httpx` 不依赖应用的 `entity` 包。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
+
+顶层 HTTP 响应与领域执行结果仍独立：HTTP 响应包含 `telemetry_enabled` 等接口字段，领域结果含实际执行输入 `Input`，不能直接对外序列化。Trace 调用预览的请求和响应会展开有效 JSON，字段类型与 HTTP 的字符串正文不同，因此保留专用预览类型与转换。复用调用记录前仍由应用层完成脱敏，JSON 标签不执行脱敏。
 
 业务 API 统一使用 `(ctx, req) → (rsp, err)`：`context.Context` 和 `entity` 中手写的请求结构体指针作为入参，响应结构体指针与 `error` 作为返回值。
 
@@ -268,7 +270,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 
 请求消息统一使用 `Req` 后缀，响应消息使用 `Rsp` 后缀。三个 Agent 接口分别返回 `entity` 定义的 `ChatRsp`、`MessagesRsp`、`RunRsp`；业务方法不返回 HTTP 外层结构。
 
-公共响应码常量定义在 `entity/code.go`，接口适配使用 `entity.CodeInvalidInput` 等具名常量。领域错误判断、HTTP 状态及具体提示保留在 `app/handler.go`，`entity` 不依赖领域或基础设施。
+公共响应码常量定义在 `entity/code.go`，接口适配使用 `entity.CodeInvalidInput` 等具名常量。领域错误判断、HTTP 状态及具体提示保留在 `app/handler.go`，`entity` 仅复用上述领域数据类型，不调用领域服务或依赖基础设施。
 
 HTTP 统一外层手写于 `entity/response.go`：`Rsp[T]` 包含 `code`、`data`、`traceID`、`msg`。成功为 `code: "ok"`、`msg: "成功"`；失败沿用稳定的字符串错误码及中文说明，同时保留原有 HTTP 状态。解码失败、输入拒绝及其他尚无业务结果的响应使用 `data: null`，部分结果与错误同时返回时保留数据。HTTP handler 负责包装，`httpx.Write` 只编码并写出；编码失败不能先写出成功响应。
 

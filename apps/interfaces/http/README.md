@@ -53,7 +53,7 @@ tail -f .runtime/http/server.log
 
 POST 使用 `Content-Type: application/json`。空对象或空字符串问题使用对应接口的默认学习示例；拒绝未知或跨课程字段、重复字段、null、非法类型、空白问题及多段 JSON。每个问题最多 4096 字符，正文最多 32 KiB。
 
-响应的 `data` 包含 `completed`、`answer`、`steps`、耗时、调用数、已知 token、用量完整性。Go 中使用 `Calls []AgentCallRecord` 表示调用记录，HTTP JSON 保留 `steps` 字段名。记录按真实调用顺序保存脱敏后的请求与响应；工具调用记录中保留调用 ID 与 JSON 参数。
+响应的 `data` 包含 `completed`、`answer`、`steps`、耗时、调用数、已知 token、用量完整性。Go 中直接使用领域类型 `Calls []agent.CallRecord` 表示调用记录，用量复用 `agent.Usage`，HTTP JSON 保留 `steps` 字段名。记录按真实调用顺序保存脱敏后的请求与响应；工具调用记录中保留调用 ID 与 JSON 参数。
 
 统一响应包含四个字段：`code`、`data`、`traceID`、`msg`。成功为 `code: "ok"`、`msg: "成功"`；失败使用下表的字符串错误码和中文说明，同时保留 HTTP 状态。`traceID` 来自 HTTP 请求链路，业务 `data` 不再携带 `trace_id`。解析或输入校验失败时 `data` 为 null，有部分执行结果时保留结果。健康检查也使用相同外层，`data` 为 `{"status":"ok"}`；HEAD 不返回正文。
 
@@ -154,7 +154,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 		ToolCalls:        result.ToolCalls,
 		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
-		Calls:            agentCalls(result.Calls),
+		Calls:            result.Calls,
 	}, err
 }
 ```

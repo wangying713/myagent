@@ -46,7 +46,7 @@ func (a *ImplAgent) Chat(ctx context.Context, req *entity.ChatReq) (*entity.Chat
 		ToolCalls:        result.ToolCalls,
 		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
-		Calls:            agentCalls(result.Calls),
+		Calls:            result.Calls,
 	}, err
 }
 
@@ -68,7 +68,7 @@ func (a *ImplAgent) Messages(ctx context.Context, req *entity.MessagesReq) (*ent
 		ToolCalls:        result.ToolCalls,
 		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
-		Calls:            agentCalls(result.Calls),
+		Calls:            result.Calls,
 	}, err
 }
 
@@ -97,7 +97,7 @@ func (a *ImplAgent) Run(ctx context.Context, req *entity.RunReq) (*entity.RunRsp
 		ToolCalls:        result.ToolCalls,
 		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
-		Calls:            agentCalls(result.Calls),
+		Calls:            result.Calls,
 	}, err
 }
 
@@ -116,35 +116,6 @@ func (a *agentService) agentResult(result *agent.ChatRsp) *entity.AgentResult {
 		ToolCalls:        result.ToolCalls,
 		KnownTokens:      result.KnownTokens,
 		UsageComplete:    result.UsageComplete,
-		Calls:            agentCalls(result.Calls),
+		Calls:            result.Calls,
 	}
-}
-
-// agentCalls 转换接口复用的调用记录与用量数据，保留 nil 与空切片的区别。
-func agentCalls(calls []agent.CallRecord) []entity.AgentCallRecord {
-	var data []entity.AgentCallRecord
-	if calls != nil {
-		data = make([]entity.AgentCallRecord, 0, len(calls))
-	}
-	for _, record := range calls {
-		var usage *entity.AgentUsage
-		if record.Usage != nil {
-			usage = &entity.AgentUsage{
-				PromptTokens:     record.Usage.PromptTokens,
-				CompletionTokens: record.Usage.CompletionTokens,
-				TotalTokens:      record.Usage.TotalTokens,
-			}
-		}
-		data = append(data, entity.AgentCallRecord{
-			Kind:         record.Kind,
-			Name:         record.Name,
-			Request:      record.Request,
-			Response:     record.Response,
-			ElapsedMS:    record.ElapsedMS,
-			FinishReason: record.FinishReason,
-			Usage:        usage,
-			Error:        record.Error,
-		})
-	}
-	return data
 }

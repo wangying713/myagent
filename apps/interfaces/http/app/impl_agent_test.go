@@ -177,17 +177,17 @@ func basicResponseCases() []responseCase {
 			chat: &entity.ChatRsp{
 				Lesson:        "chat",
 				UsageComplete: true,
-				Calls:         []entity.AgentCallRecord{},
+				Calls:         []agent.CallRecord{},
 			},
 			messages: &entity.MessagesRsp{
 				Lesson:        "chat",
 				UsageComplete: true,
-				Calls:         []entity.AgentCallRecord{},
+				Calls:         []agent.CallRecord{},
 			},
 			run: &entity.RunRsp{
 				Lesson:        "chat",
 				UsageComplete: true,
-				Calls:         []entity.AgentCallRecord{},
+				Calls:         []agent.CallRecord{},
 			},
 			want: `{"code":"ok","traceID":"","msg":"成功","data":{"lesson":"chat","completed":false,"answer":"","telemetry_enabled":false,"elapsed_ms":0,"model_calls":0,"tool_calls":0,"known_tokens":0,"usage_complete":true,"steps":[]}}`,
 		},
@@ -196,7 +196,7 @@ func basicResponseCases() []responseCase {
 
 func fullResponseCase() responseCase {
 	zero, total := 0, 12
-	calls := []entity.AgentCallRecord{
+	calls := []agent.CallRecord{
 		{
 			Kind:         "model",
 			Name:         "模型",
@@ -204,7 +204,7 @@ func fullResponseCase() responseCase {
 			Response:     "回答",
 			ElapsedMS:    11,
 			FinishReason: "stop",
-			Usage: &entity.AgentUsage{
+			Usage: &agent.Usage{
 				PromptTokens: &zero,
 				TotalTokens:  &total,
 			},
