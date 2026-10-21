@@ -33,5 +33,5 @@ func execute(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return app.Run(ctx, *cfg)
+	return app.RunHTTP(ctx, *cfg)
 }

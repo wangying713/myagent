@@ -76,15 +76,22 @@ type CallRecord struct {
 // 不提供工具或指定 none 时只接受直接回答；允许工具时按预算继续对话。
 // 输入准备失败返回 nil；执行开始后失败仍保留结果和调用记录。
 func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error) {
-	if req.Operation == "" {
-		req.Operation = OperationChat
+	operation := req.Operation
+	if operation == "" {
+		operation = OperationChat
 	}
-	rsp = NewChatRsp(req.Operation)
-	definitions, err := c.prepareChat(&req)
+	rsp = NewChatRsp(operation)
+	definitions, toolChoice, err := c.buildToolDefinition(req)
 	if err != nil {
 		return nil, err
 	}
 	limits := req.Limits
+	if limits == (Limits{}) {
+		limits = c.limits
+	}
+	if limits.ModelCalls <= 0 || limits.ToolCalls <= 0 || limits.Tokens <= 0 {
+		return nil, fmt.Errorf("运行预算必须为正数")
+	}
 	// 只给当前调用设置预算，客户端本身保持不变，可以继续供其他请求使用。
 	local := *c
 	local.limits = limits
@@ -92,7 +99,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error
 		Questions:  []string{req.Question},
 		Prompt:     req.Prompt,
 		Tools:      definitions,
-		ToolChoice: req.ToolChoice,
+		ToolChoice: toolChoice,
 	})
 	if err != nil {
 		return nil, err
@@ -114,7 +121,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error
 		modelRsp, err := run.callModel(ctx, Request{
 			Messages:   messages,
 			Tools:      definitions,
-			ToolChoice: req.ToolChoice,
+			ToolChoice: toolChoice,
 		})
 		if err != nil {
 			return rsp, fmt.Errorf("第 %d 轮模型调用: %w", round+1, err)
@@ -129,7 +136,7 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error
 			return rsp, nil
 		}
 		// 工具被禁用时，即使模型错误地提出调用，也不能执行或继续对话。
-		if req.ToolChoice == ToolChoiceNone {
+		if toolChoice == ToolChoiceNone {
 			return rsp, ErrInvalidResponse
 		}
 		toolCalls := modelRsp.Message.ToolCalls
@@ -150,28 +157,22 @@ func (c *Client) Chat(ctx context.Context, req ChatReq) (rsp *ChatRsp, err error
 	return rsp, ErrBudgetExceeded
 }
 
-// prepareChat 确定本次能用哪些工具、是否允许调用，以及使用多少预算。
-// req 是 Chat 收到的请求副本，补齐默认值不会影响调用方或其他请求。
-func (c *Client) prepareChat(req *ChatReq) ([]ToolDefinition, error) {
+// buildToolDefinition 返回本次可用的工具定义和生效策略，不修改请求。
+func (c *Client) buildToolDefinition(req ChatReq) ([]ToolDefinition, string, error) {
 	if req.ToolChoice != "" && req.ToolChoice != ToolChoiceAuto && req.ToolChoice != ToolChoiceNone {
-		return nil, ErrInput
+		return nil, "", ErrInput
 	}
 	var definitions []ToolDefinition
 	if req.Tools != nil {
 		definitions = req.Tools.Definitions()
 	}
+	toolChoice := req.ToolChoice
 	if len(definitions) == 0 {
-		req.ToolChoice = ToolChoiceNone
-	} else if req.ToolChoice == "" {
-		req.ToolChoice = ToolChoiceAuto
+		toolChoice = ToolChoiceNone
+	} else if toolChoice == "" {
+		toolChoice = ToolChoiceAuto
 	}
-	if req.Limits == (Limits{}) {
-		req.Limits = c.limits
-	}
-	if req.Limits.ModelCalls <= 0 || req.Limits.ToolCalls <= 0 || req.Limits.Tokens <= 0 {
-		return nil, fmt.Errorf("运行预算必须为正数")
-	}
-	return definitions, nil
+	return definitions, toolChoice, nil
 }
 
 // chatMessages 组装本次问答的消息，未提供提示词时只放用户问题。

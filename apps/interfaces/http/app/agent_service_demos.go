@@ -39,9 +39,6 @@ type demoEvaluationResult struct {
 
 // DemoStructured 观测结构化提取，并对展示的商品名称脱敏。
 func (a *agentService) DemoStructured(ctx context.Context, question string) (result *agent.DemoStructuredResult, err error) {
-	if err := validateDemoQuestion(question); err != nil {
-		return nil, err
-	}
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoStructured)
 	defer func() {
 		var execution *agent.ChatRsp
@@ -59,9 +56,6 @@ func (a *agentService) DemoStructured(ctx context.Context, question string) (res
 
 // DemoRetrieval 观测检索与回答，实际资料选择仍由领域层处理。
 func (a *agentService) DemoRetrieval(ctx context.Context, question string) (result *agent.DemoRetrievalResult, err error) {
-	if err := validateDemoQuestion(question); err != nil {
-		return nil, err
-	}
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoRetrieval)
 	defer func() {
 		var execution *agent.ChatRsp
@@ -76,9 +70,6 @@ func (a *agentService) DemoRetrieval(ctx context.Context, question string) (resu
 
 // DemoWorkflow 观测整个工作流，阶段之间始终传递原始模型输出。
 func (a *agentService) DemoWorkflow(ctx context.Context, question string) (result *agent.DemoWorkflowResult, err error) {
-	if err := validateDemoQuestion(question); err != nil {
-		return nil, err
-	}
 	ctx, runTrace := a.observeCli.StartTrace(ctx, runSpanName, agent.DemoWorkflow)
 	defer func() {
 		var execution *agent.ChatRsp
@@ -98,9 +89,6 @@ func (a *agentService) DemoWorkflow(ctx context.Context, question string) (resul
 
 // DemoStream 在同步消费期间保持运行观测，不创建后台生成协程。
 func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput) (result *agent.ChatRsp, err error) {
-	if err := validateDemoQuestion(req.Question); err != nil {
-		return nil, err
-	}
 	if req.Emit == nil {
 		return nil, agent.ErrInput
 	}

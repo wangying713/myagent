@@ -247,7 +247,7 @@ impl := &ImplAgent{
 
 ## HTTP API 方法签名
 
-HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、信号与最终错误输出。服务实现和测试放在 `http/app`（包名 `app`），启动入口为 `Run(ctx, cfg)`，由 `app/run.go` 组装依赖并管理资源。Agent 的处理方法、请求准备和各接口的 HTTP 响应组装位于 `http/app/impl_agent.go`，HTTP JSON 适配与错误映射位于 `http/app/handler.go`；后续业务使用 `app/impl_xxx.go`。API 的手写请求、响应、公共外层及共用 JSON 数据统一放在 `http/entity`，按业务分文件。路由与中间件位于 `app/router.go`，服务生命周期位于 `app/server.go`，通用传输能力留在 `infra/httpx`。
+HTTP 顶层只保留 `main.go` 一个 Go 文件，负责参数、配置、信号与最终错误输出。服务实现和测试放在 `http/app`（包名 `app`），启动入口为 `RunHTTP(ctx, cfg)`，由 `app/http.go` 组装依赖并管理资源。Agent 的处理方法、请求准备和各接口的 HTTP 响应组装位于 `http/app/impl_agent.go`，HTTP JSON 适配与错误映射位于 `http/app/handler.go`；后续业务使用 `app/impl_xxx.go`。API 的手写请求、响应、公共外层及共用 JSON 数据统一放在 `http/entity`，按业务分文件。路由与中间件位于 `app/router.go`，服务生命周期位于 `app/server.go`，通用传输能力留在 `infra/httpx`。
 
 后续新增接口继续遵循这一分工：请求、响应和共用数据放在 `entity` 中，按业务分文件，各接口独立定义响应；调用记录和用量的字段、语义与 JSON 规则一致，直接复用 `domain/agent.CallRecord`、`Usage`，不维护重复定义与逐字段转换。`entity` 只负责字段和 JSON 标签，允许引用上述领域数据类型，不调用领域服务，不依赖业务处理包、Gin 或基础设施；请求准备和响应组装放在对应业务的 `app/impl_xxx.go`；HTTP 解码和错误映射位于 `app/handler.go`。领域层与 `infra/httpx` 不依赖应用的 `entity` 包。具体见 [HTTP 共用数据规范](../../apps/interfaces/http/entity/README.md)。
 

@@ -17,7 +17,8 @@ import (
 
 const httpShutdownTimeout = 10 * time.Second
 
-func runHTTP(ctx context.Context, handler http.Handler, cfg config.HTTPSettings) error {
+// listenAndServeHTTP 监听配置地址，运行 HTTP 服务并等待有界退出。
+func listenAndServeHTTP(ctx context.Context, handler http.Handler, cfg config.HTTPSettings) error {
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return fmt.Errorf("监听 HTTP 地址 %q 失败: %w", cfg.Address, err)

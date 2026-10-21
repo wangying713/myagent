@@ -302,9 +302,9 @@ func TestServeHTTPWaitsAfterConnectionsAreClosed(t *testing.T) {
 	waitSignal(t, call.done, "客户端连接关闭")
 }
 
-func TestRunHTTPPreservesListenError(t *testing.T) {
+func TestListenAndServeHTTPPreservesListenError(t *testing.T) {
 	listener := listenForTest(t)
-	err := runHTTP(t.Context(), http.NotFoundHandler(), config.HTTPSettings{
+	err := listenAndServeHTTP(t.Context(), http.NotFoundHandler(), config.HTTPSettings{
 		Address:    listener.Addr().String(),
 		RunTimeout: time.Second,
 	})

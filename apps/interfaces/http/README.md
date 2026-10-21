@@ -1,6 +1,6 @@
 # 后台服务 API
 
-HTTP 顶层只保留 `main.go` 一个 Go 文件，负责启动参数、配置加载、退出信号和最终错误输出。服务实现与测试集中在 `app` 包，启动入口为 `app.Run(ctx, cfg)`：`app/run.go` 组装 DeepSeek、OpenObserve 和 Agent 业务并管理资源，`app/server.go` 管理 HTTP 生命周期，`app/router.go` 逐条注册完整路由，`app/impl_agent.go` 实现请求准备、领域调用及各接口的 HTTP 响应组装，`app/handler.go` 建立链路并处理 HTTP 解码、错误映射和公共包装。通用 JSON 校验、编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。验证命令见 [修改接口的约定](#修改接口的约定)。
+HTTP 顶层只保留 `main.go` 一个 Go 文件，负责启动参数、配置加载、退出信号和最终错误输出。服务实现与测试集中在 `app` 包，启动入口为 `app.RunHTTP(ctx, cfg)`：`app/http.go` 组装 DeepSeek、OpenObserve 和 Agent 业务并管理资源，`app/server.go` 管理 HTTP 生命周期，`app/router.go` 逐条注册完整路由，`app/impl_agent.go` 实现请求准备、领域调用及各接口的 HTTP 响应组装，`app/handler.go` 建立链路并处理 HTTP 解码、错误映射和公共包装。通用 JSON 校验、编码位于 `infra/httpx`，聊天、历史与工具流程位于 `domain/agent`。Gin 锁定 v1.12.0，依赖见根目录 `go.mod` 与 `go.sum`。验证命令见 [修改接口的约定](#修改接口的约定)。
 
 手写请求、响应、HTTP 公共外层与共用数据统一放在 [entity](entity/README.md)，后续新增接口按业务分文件，遵循相同规范。
 
@@ -8,7 +8,7 @@ HTTP 顶层只保留 `main.go` 一个 Go 文件，负责启动参数、配置加
 http/
   main.go
   app/
-    run.go
+    http.go
     server.go
     router.go
     handler.go
@@ -107,7 +107,7 @@ HTTP 请求 span 在解码前通过官方 `otelgin` v0.72.0 中间件建立，�
 
 ## 服务退出与清理顺序
 
-`main.go` 的 `main` 负责信号和最终错误输出，`execute` 解析参数并加载配置，再调用 `app.Run`。`app/run.go` 组装依赖、设置 Gin release 模式并管理资源释放；`app/server.go` 统一处理信号取消和监听异常。
+`main.go` 的 `main` 负责信号和最终错误输出，`execute` 解析参数并加载配置，再调用 `app.RunHTTP`。`app/http.go` 组装依赖、设置 Gin release 模式并管理资源释放；`app/server.go` 统一处理信号取消和监听异常。
 
 收到信号或监听失败后，先取消请求上下文并停止放行业务请求，再在共用的 10 秒期限内关闭服务、等待监听循环和正在执行的处理器结束。服务退出期间新进入的请求返回固定 JSON 503。监听失败、正常停止失败及强制关闭失败保留原始错误链，最终由入口统一输出。
 

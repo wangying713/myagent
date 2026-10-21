@@ -73,11 +73,3 @@ func (a *agentService) Messages(ctx context.Context, req agent.MessagesInput) (r
 	result, err = a.agentCli.Messages(ctx, req)
 	return result, err
 }
-
-// validateDemoQuestion 允许案例使用自己的默认问题，显式问题必须符合领域约束。
-func validateDemoQuestion(question string) error {
-	if question == "" {
-		return nil
-	}
-	return agent.ValidateQuestion(question)
-}
