@@ -116,9 +116,6 @@ func (a *ImplAgentDemos) Reliability(ctx context.Context, req *entity.DemosRelia
 	if req.ModelCalls != nil {
 		calls = *req.ModelCalls
 	}
-	if calls < 1 || calls > agent.DefaultLimits().ModelCalls {
-		return nil, agent.ErrInput
-	}
 	result, err := a.agentCli.DemoReliability(ctx, demoReliabilityInput{
 		Question:   req.Question,
 		ModelCalls: calls,

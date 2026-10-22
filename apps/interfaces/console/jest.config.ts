@@ -15,6 +15,10 @@ export default async (): Promise<any> => {
   return {
     ...config,
     testPathIgnorePatterns: ['/node_modules/', '/.worktrees/'],
+    transform: {
+      ...config.transform,
+      '\\.docs$': '<rootDir>/tests/learning-doc-transform.cjs',
+    },
     moduleNameMapper: {
       '\\.md$': '<rootDir>/tests/__mocks__/raw.js',
       ...(config.moduleNameMapper || {}),

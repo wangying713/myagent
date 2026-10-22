@@ -14,6 +14,9 @@ const (
 	maxJSONDepth     = 32             // JSON 脱敏允许递归的最大层数。
 )
 
+// jsonSecretName 是文本中敏感 JSON 键的匹配规则。
+const jsonSecretName = `authorization|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token`
+
 // collectSecrets 整理配置中的脱敏词，丢弃空值、去重并优先匹配长词。
 func collectSecrets(cfg Config) []string {
 	unique := make(map[string]struct{})
@@ -47,7 +50,7 @@ var sensitiveKey = regexp.MustCompile(`(?i)authorization|api[_-]?key|password|se
 var authValue = regexp.MustCompile(`(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+|\bsk-[A-Za-z0-9_-]{8,}`)
 
 // jsonSecret 遮盖文本片段中 JSON 形式的敏感字段值。
-var jsonSecret = regexp.MustCompile(`(?i)("(?:authorization|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)"\s*:\s*)("(?:\\.|[^"\\])*"|[^,}\]\s]+)`)
+var jsonSecret = regexp.MustCompile(`(?i)("(?:` + jsonSecretName + `)"\s*:\s*)("(?:\\.|[^"\\])*(?:"|\\?$)|[^,}\]\s]+)`)
 
 // Clean 遮盖已配置密钥及常见鉴权文本，返回展示副本，不限制正文长度。
 func (c *Client) Clean(text string) string {

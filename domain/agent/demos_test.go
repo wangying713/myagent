@@ -102,6 +102,20 @@ func TestDemoWorkflowKeepsCompletedStagesWhenBudgetEnds(t *testing.T) {
 	}
 }
 
+func TestDemoRetrievalKeepsSourcesWhenModelFails(t *testing.T) {
+	failure := errors.New("模型未开始执行")
+	chatCli := modelFunc(func(context.Context, Request) (*Response, error) {
+		return nil, failure
+	})
+	result, err := newTestClient(t, chatCli, DefaultLimits()).DemoRetrieval(t.Context(), "笔记本")
+	if !errors.Is(err, failure) || result == nil {
+		t.Fatalf("实际结果 %+v、错误 %v，预期保留检索结果及模型错误", result, err)
+	}
+	if len(result.Sources) != 1 || len(result.Execution.Calls) != 2 || result.Execution.Completed {
+		t.Fatalf("实际检索结果 %+v，预期保留资料、检索及失败的模型调用记录", result)
+	}
+}
+
 func TestDemoProductToolRejectsUnknownAndUnsafeArguments(t *testing.T) {
 	for _, arguments := range []string{
 		`{"product":"未知商品"}`,

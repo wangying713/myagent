@@ -62,7 +62,10 @@ func (c *Client) Stream(ctx context.Context, req agent.StreamInput) (result *age
 	)
 	started := time.Now()
 	defer func() {
-		c.observeCli.Payload(span, "app.response", result.Raw)
+		if c.observeCli.ContentLimit > 0 && span.IsRecording() {
+			preview := c.observeCli.SafeSSE(result.Raw, "choices.0.delta.content")
+			c.observeCli.Payload(span, "app.response", []byte(preview))
+		}
 		openobserve.End(span, started, err)
 	}()
 	c.observeCli.Payload(span, "app.request", raw)

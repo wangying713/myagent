@@ -96,7 +96,34 @@ func (a *agentService) DemoStream(ctx context.Context, req agent.DemoStreamInput
 	defer func() {
 		runTrace.End(result, err)
 	}()
-	result, err = a.agentCli.DemoStream(ctx, req)
+	redactor := a.observeCli.NewTextRedactor()
+	emit := req.Emit
+	var writeErr error
+	executionReq := req
+	executionReq.Emit = func(text string) error {
+		if text = redactor.Write(text); text != "" {
+			writeErr = emit(text)
+		}
+		return writeErr
+	}
+	result, err = a.agentCli.DemoStream(ctx, executionReq)
+	if result != nil {
+		for i := range result.Calls {
+			record := &result.Calls[i]
+			record.Response = a.observeCli.SafeSSE([]byte(record.Response), "choices.0.delta.content")
+		}
+	}
+	if writeErr == nil && ctx.Err() == nil {
+		if tail := redactor.Flush(); tail != "" {
+			writeErr = emit(tail)
+		}
+	}
+	if err == nil {
+		err = writeErr
+		if result != nil && err != nil {
+			result.Completed = false
+		}
+	}
 	return result, err
 }
 

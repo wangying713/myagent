@@ -143,3 +143,26 @@ func TestSafePreservesPartialJSONAndZeroValues(t *testing.T) {
 		}
 	}
 }
+
+func TestSafeDoesNotInferSSEFromOrdinaryText(t *testing.T) {
+	observeCli, err := New(t.Context(), Config{
+		ServiceName: "test",
+		TracerName:  "test",
+		MaxChars:    4096,
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := "data:\n这只是普通数据说明，并不是 SSE。"
+	if got := observeCli.Safe([]byte(text)); got != text {
+		t.Fatalf("实际普通正文 %q，预期保留 %q", got, text)
+	}
+	raw, _ := json.Marshal(map[string]string{"question": text})
+	var rsp map[string]string
+	if err := json.Unmarshal([]byte(observeCli.Safe(raw)), &rsp); err != nil {
+		t.Fatal(err)
+	}
+	if rsp["question"] != text {
+		t.Fatalf("实际 JSON 内的正文 %q，预期保留 %q", rsp["question"], text)
+	}
+}

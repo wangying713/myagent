@@ -200,7 +200,9 @@ func (c *Client) DemoRetrieval(ctx context.Context, question string) (result *De
 	if err == nil && response.FinishReason != FinishReasonStop {
 		err = ErrInvalidResponse
 	}
-	result.Execution.Answer = response.Message.Content
+	if response != nil {
+		result.Execution.Answer = response.Message.Content
+	}
 	return result, err
 }
 
